@@ -8,6 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: rocker/tidyverse:4.2
+    permissions:
+      contents: write
     
     steps:
       - run: git config --system --add safe.directory '*'
