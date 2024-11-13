@@ -33,4 +33,7 @@ generate_target <- function(reprocess = F){
   return(data)
 }
 
-target <- generate_target(reprocess = F)
+#target <- generate_target(reprocess = F)
+test <- data.frame(a  = c(1,2),
+                   b = c("hello","world"))
+write.csv(test,here::here("test.csv"),row.names = F)
