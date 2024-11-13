@@ -10,6 +10,8 @@ jobs:
       image: rocker/tidyverse:4.2
     
     steps:
+      - run: git config --system --add safe.directory '*'
+      
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
