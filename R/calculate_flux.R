@@ -12,7 +12,7 @@
 
 calculate_flux <- function(start_date = NULL,
                            end_date = NULL,
-                           modif_start_date = file.info(here::here("L0.csv"))$mtime,
+                           modif_start_date = file.info(here::here("processed_data","L0.csv"))$mtime,
                            reprocess = F,
                            plot = F){
   ### Load files ###
@@ -34,7 +34,7 @@ calculate_flux <- function(start_date = NULL,
   
   if(length(files) == 0){
     message("No files to process")
-    return(read_csv(here::here("L0.csv"), show_col_types = F))
+    return(read_csv(here::here("processed_data","L0.csv"), show_col_types = F))
   }
   
   message(paste0("Calculating fluxes for ", length(files), " files"))
@@ -191,7 +191,7 @@ calculate_flux <- function(start_date = NULL,
   
   if(!reprocess){
     #Load previously calculated slopes
-    old_slopes <- read_csv(here::here("L0.csv"), show_col_types = F) %>%
+    old_slopes <- read_csv(here::here("processed_data","L0.csv"), show_col_types = F) %>%
       filter(!TIMESTAMP %in% slopes$TIMESTAMP)
     slopes_comb <- bind_rows(old_slopes, slopes)
   } else {
@@ -204,7 +204,7 @@ calculate_flux <- function(start_date = NULL,
   }
   
   #Output
-  write.csv(slopes_comb %>% select(-max_s), here::here("L0.csv"), row.names = FALSE)
+  write.csv(slopes_comb %>% select(-max_s), here::here("processed_data","L0.csv"), row.names = FALSE)
   return(slopes_comb)
 }
 

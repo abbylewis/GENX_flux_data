@@ -1,5 +1,5 @@
 
-qaqc <- function(L0_file = "L0.csv"){
+qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
   ### LOAD DATA
   metadata <- read_csv(here::here("Raw_data","chamber_metadata.csv"),
                        show_col_types = F)

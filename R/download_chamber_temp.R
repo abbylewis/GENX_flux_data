@@ -83,4 +83,4 @@ write.csv(temp_output,
           "./processed_data/chamber_temp_1min.csv", row.names = FALSE)
 
 write.csv(temp_output_daily,
-          "./processed_data/chamber_temp_output.csv", row.names = FALSE)
+          "./processed_data/chamber_temp_daily.csv", row.names = FALSE)

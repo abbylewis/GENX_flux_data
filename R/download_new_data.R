@@ -12,7 +12,7 @@ library(tidyverse)
 #' @export
 #'
 #' @examples
-download_new_data <- function(flux_folder = here::here("Raw_data","dropbox_downloads")){
+download_new_data <- function(lgr_folder = here::here("Raw_data","dropbox_downloads")){
   #Identify all files
   #GENX flux vs GENX LGR in 2021
   message("Looking for new data files on dropbox")
@@ -25,8 +25,8 @@ download_new_data <- function(flux_folder = here::here("Raw_data","dropbox_downl
            !grepl("backup", name))
   
   #Remove files that are already loaded and haven't been modified
-  already_loaded <- list.files(flux_folder)
-  loaded_file_info <- file.info(list.files(flux_folder, full.names = T)) %>%
+  already_loaded <- list.files(lgr_folder)
+  loaded_file_info <- file.info(list.files(lgr_folder, full.names = T)) %>%
     mutate(name = basename(row.names(.))) %>%
     select(name, mtime)
   modified <- relevant_files %>%
@@ -38,19 +38,19 @@ download_new_data <- function(flux_folder = here::here("Raw_data","dropbox_downl
   
   #Load current data file
   new <- current$path_display %>%
-    map(load_file, flux_folder = flux_folder) #NOTE: this function is further down in this script
+    map(load_file, lgr_folder = lgr_folder) #NOTE: this function is further down in this script
   
   if(nrow(relevant_files) == 0){
     message("No new files to download")
   } else {
     message("Downloading ", nrow(relevant_files), " files")
     all_data <- relevant_files$path_display %>%
-      map(load_file, flux_folder = flux_folder)
+      map(load_file, lgr_folder = lgr_folder)
   }
 }
 
 #Load file - helper function
-load_file <- function(path_display, flux_folder){
+load_file <- function(path_display, lgr_folder){
   url <- "https://content.dropboxapi.com/2/files/download"
   name <- sub("/GCREW_LOGGERNET_DATA/", "", path_display)
   if(grepl("current", name)) name <- "current.dat"
@@ -64,6 +64,6 @@ load_file <- function(path_display, flux_folder){
       ),
       auto_unbox = TRUE
     )),
-    httr::write_disk(here::here(flux_folder, name), overwrite = T)
+    httr::write_disk(here::here(lgr_folder, name), overwrite = T)
   )
 }
