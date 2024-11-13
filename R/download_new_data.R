@@ -52,6 +52,8 @@ download_new_data <- function(lgr_folder = here::here("Raw_data","dropbox_downlo
 #Load file - helper function
 load_file <- function(path_display, lgr_folder){
   url <- "https://content.dropboxapi.com/2/files/download"
+  
+  #Get file name to save locally
   name <- sub("/GCREW_LOGGERNET_DATA/", "", path_display)
   if(grepl("current", name)) name <- "current.dat"
   

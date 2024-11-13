@@ -3,5 +3,7 @@
 .RData
 .Ruserdata
 .httr-oauth
-.secrets
 tokenfile.RDS
+processed_data/raw_small.csv
+processed_data/chamber_temp_1min.csv
+figures
