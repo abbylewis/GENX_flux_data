@@ -25,5 +25,6 @@ jobs:
       - name: Commit and push
         run: |
           git config --global user.name 'abbylewis'
+          git config --global user.name 'aslewis@vt.edu'
           git commit -am "Automated update"
           git push
