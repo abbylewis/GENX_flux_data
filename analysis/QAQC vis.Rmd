@@ -270,7 +270,7 @@ ggpubr::ggarrange(co2_vals, co2_nrmse, ncol = 2)
 dev.off()
 
 removed <- slopes_filt %>%
-  filter(!is.na(CO2_slope_umol_per_day)) %>%
+  filter(!is.na(CO2_slope_ppm_per_day)) %>%
   mutate(CO2_ppm_10 = abs(CO2_slope_ppm_per_day) < 10,
          CO2_ppm_100 = abs(CO2_slope_ppm_per_day) < 100,
          CO2_nrmse_0.05 = CO2_nrmse > 0.05,
@@ -288,7 +288,7 @@ removed <- slopes_filt %>%
   facet_wrap(~threshold, scale = "free_y")
 
 slopes_filt %>%
-  filter(!is.na(CO2_slope_umol_per_day)) %>%
+  filter(!is.na(CO2_slope_ppm_per_day)) %>%
   mutate(CO2_ppm_10 = abs(CO2_slope_ppm_per_day) < 10,
          CO2_ppm_100 = abs(CO2_slope_ppm_per_day) < 100,
          CO2_nrmse_0.05 = CO2_nrmse > 0.05,
@@ -310,7 +310,7 @@ removed
 dev.off()
 
 times_removed <- slopes_filt %>%
-  filter(!is.na(CO2_slope_umol_per_day)) %>%
+  filter(!is.na(CO2_slope_ppm_per_day)) %>%
   mutate(CO2_ppm_10 = abs(CO2_slope_ppm_per_day) < 10,
          CO2_ppm_100 = abs(CO2_slope_ppm_per_day) < 100,
          CO2_nrmse_0.05 = CO2_nrmse > 0.05,
@@ -331,7 +331,7 @@ times_removed
 dev.off()
 
 slopes_filt %>%
-  filter(!is.na(CO2_slope_umol_per_day)) %>%
+  filter(!is.na(CO2_slope_ppm_per_day)) %>%
   ggplot(aes(y = abs(CO2_slope_ppm_per_day)<10, x = TIMESTAMP)) +
   geom_point(alpha = 0.2)+
   theme_bw()+
@@ -342,69 +342,7 @@ Stuck closed
 
 Lots of analysis here, ultimately reaching the conclusion that met data and BME data don't correspond closely enough to use this differential as a metric of the chamber being closed. Similarly, LGR temp is unreliable.
 
-```{r}
-met <- read_csv(here::here("processed_data","met_15min.csv"))
-chamber_temp <- read_csv(here::here("processed_data","chamber_temp_1min.csv"))
-
-chamber_temp_15min <- chamber_temp %>%
-  mutate(time_15min = round_date(TIMESTAMP, unit="15 mins")) %>%
-  group_by(time_15min) %>%
-  summarise(AirTemp_chamber = mean(AirTemp_C, na.rm = T))
-
-temp_difs <- slopes_filt %>%
-  mutate(time_slope = TIMESTAMP,
-         time_15min = round_date(TIMESTAMP, unit="15 mins")) %>%
-  left_join(met %>% 
-              select(TIMESTAMP, AirTC_Avg) %>%
-              rename(time_15min = TIMESTAMP,
-                     AirTemp_met = AirTC_Avg), 
-            by = "time_15min") %>%
-  left_join(chamber_temp_15min) %>%
-  mutate(temp_dif = AirTemp_chamber - AirTemp_met)
-
-temp_difs %>%
-  ggplot(aes(x = AirTemp_met, y = AirTemp_chamber))+
-  geom_point(aes(color = temp_dif))+
-  geom_smooth(method = "lm") +
-  geom_abline(slope = 1) +
-  facet_wrap(~MIU_VALVE)
-
-temp_difs %>%
-  ggplot(aes(x = temp_dif))+
-  geom_density()+
-  facet_wrap(~MIU_VALVE)
-
-temp_difs %>%
-  ggplot(aes(x = time_15min, y = temp_dif))+
-  geom_point(alpha = 0.01)+
-  facet_wrap(~MIU_VALVE)+
-  theme_bw()+
-  ylab("Chamber temp - met temp")+
-  theme(axis.title.x = element_blank())
-
-comb <- slopes_filt %>%
-  mutate(time_orig = TIMESTAMP,
-         TIMESTAMP = round_date(TIMESTAMP, unit="15 mins")) %>%
-  left_join(met %>% 
-              select(TIMESTAMP, AirTC_Avg), 
-            by = "TIMESTAMP")
-
-comb %>%
-  mutate(dif = Temp_init - AirTC_Avg,
-         year = as.factor(year(time_orig)),
-         yday = yday(time_orig)) %>%
-  ggplot(aes(x = AirTC_Avg, y = Temp_init, color = yday))+
-  geom_point()+
-  geom_abline(slope = 1)+
-  scale_color_viridis_c()+
-  facet_wrap(~year)+
-  xlab("Air temp")+
-  ylab("Gas temp from LGR")
-
-slopes_filt %>%
-  ggplot(aes(x = TIMESTAMP, y = Temp_init))+
-  geom_line()
-```
+Note: I have removed met data analysis here to consolidate what has to be on github
 
 Stuck open
 
@@ -505,11 +443,6 @@ open %>%
   geom_point(aes(y = CH4_slope_ppm_per_day))+
   geom_density()
 
-open %>%
-  ggplot(aes(x = temp_change_quantile, y = temp_quantile))+
-  geom_bin2d(bins = 10)+
-  scale_fill_viridis_c()
-
 open_final <- temp_difs %>%
   filter(miu_valve_bme == miu_valve_flux) %>%
   mutate(open = ifelse(temp_change_quantile < 0.8, T, F),
@@ -550,12 +483,13 @@ NRMSE vs RMSE vs R2 vs p-value
 fit_cutoff <- quantile(slopes$CH4_nrmse, 0.99)
 #These poor fits have extreme values
 nrmse <- slopes %>%
+  mutate(CH4_nrmse = CH4_rmse / (CH4_max - CH4_min)) %>%
   ggplot(aes(y = CH4_nrmse, x = CH4_slope_umol_per_day)) +
   geom_point(alpha = 0.1) +
   scale_x_continuous(trans = scales::pseudo_log_trans(base = 10))
 
 #RMSE
-fit_cutoff <- quantile(slopes$CH4_rmse, 0.99)
+fit_cutoff <- quantile(slopes$CH4_rmse, 0.99, na.rm = T)
 #These poor fits have extreme values
 rmse <- slopes %>%
   ggplot(aes(y = CH4_rmse, x = CH4_slope_umol_per_day)) +
@@ -564,6 +498,7 @@ rmse <- slopes %>%
   scale_x_continuous(trans = scales::pseudo_log_trans(base = 10))
 
 both <- slopes %>%
+  mutate(CH4_nrmse = CH4_rmse / (CH4_max - CH4_min)) %>%
   mutate(extreme = abs(CH4_slope_umol_per_day)>10000) %>%
   ggplot(aes(y = CH4_rmse, x = CH4_nrmse, color = extreme, alpha = extreme)) +
   geom_point() +
