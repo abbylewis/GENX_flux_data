@@ -1,0 +1,594 @@
+---
+title: "QAQC vis"
+author: "Abby Lewis"
+date: "2024-10-16"
+output: html_document
+---
+
+Basically the same as the automated QAQC function, but with visualizations
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+
+#Remove really crazy values
+slopes_l0 <- read_csv(here::here("processed_data","L0.csv"), show_col_types = F) %>%
+  filter(CH4_init > 0, 
+         year(TIMESTAMP) > 2020) %>%
+  mutate(CH4_nrmse = CH4_rmse/(CH4_max - CH4_min),
+         CO2_nrmse = CO2_rmse/(CO2_max - CO2_min))
+data <- read_csv(here::here("processed_data", "raw_small.csv"), show_col_types = F)
+
+data_numeric <- data %>%
+    mutate(CH4d_ppm = as.numeric(CH4d_ppm),
+           CO2d_ppm = as.numeric(CO2d_ppm),
+           GasT_C = as.numeric(GasT_C),
+           MIU_VALVE = as.numeric(MIU_VALVE),
+           CH4d_ppm = ifelse(CH4d_ppm<0, NA, CH4d_ppm),
+           CO2d_ppm = ifelse(CO2d_ppm<0, NA, CO2d_ppm),
+           row = row_number()) %>%
+    filter(!MIU_VALVE == 16,
+           !is.na(MIU_VALVE))
+
+group_fun <- function(MIU_VALVE) {
+  group <- rep(1, length(MIU_VALVE))
+  for (i in 2:length(MIU_VALVE)) {
+    if(MIU_VALVE[i] == MIU_VALVE[i - 1]) {
+      group[i] <- group[i - 1]
+    } else {
+      group[i] <- group[i - 1] + 1
+    }
+  }
+  return(group)
+}
+
+# NOT removing data with the maintenance log yet, because the code below identifies those issues
+
+#Remove first peak
+time_cutoff <- 300 #Cutoff to use when we have plenty of data (seconds)
+summer_time_cutoff <- 200 #Cutoff to use when there are < 35 measurements (seconds)
+filtered_data <- data_numeric %>%
+  #Group flux intervals
+  arrange(TIMESTAMP) %>%
+  mutate(group = group_fun(MIU_VALVE)) %>%
+  group_by(group, MIU_VALVE) %>%
+  #Make sure we have some data to calculate flux
+  filter(sum(!is.na(CH4d_ppm)) > 0) %>%
+  #Record the amount of time from when chamber closed
+  mutate(start = min(TIMESTAMP),
+         change = as.numeric(difftime(TIMESTAMP, start, units = "days")),
+         change_s = as.numeric(difftime(TIMESTAMP, start, units = "secs")),
+         cutoff = ifelse(max(change_s) < 350, 
+                         summer_time_cutoff,
+                         time_cutoff),
+         n = sum(change_s > cutoff & !is.na(CH4d_ppm)),
+         max_s = change_s[which.max(CH4d_ppm)]) %>%
+  #Filter earlier measurements
+  filter(change_s > cutoff,
+         change_s < 1000, #After ~15 min there is probably a problem
+         n >= 5, #need at least 5 data points to calculate slope
+         n < 200 #probably some issue if this many measurements are taken
+  ) 
+
+#Run lm
+slopes <- filtered_data %>%
+  pivot_longer(c(CH4d_ppm, CO2d_ppm), names_to = "gas", values_to = "conc") %>%
+  group_by(gas, group, MIU_VALVE) %>%
+  filter(!is.na(conc)) %>%
+  summarize(model = list(lm(conc ~ change)),
+            slope_ppm_per_day = model[[1]]$coefficients[[2]],
+            Temp_init = first(GasT_C),
+            slope_umol_per_day = slope_ppm_per_day * 265.8 / (0.08206*(Temp_init + 273)),
+            R2 = summary(model[[1]])$r.squared,
+            p = summary(model[[1]])$coefficients[,4][2],
+            rmse = sqrt(mean(model[[1]]$residuals^2)),
+            max = max(conc),
+            min = min(conc),
+            init = first(conc),
+            max_s = unique(max_s),
+            TIMESTAMP = unique(start),
+            n = unique(n),
+            .groups = "drop") %>%
+  select(-model) %>%
+  mutate(gas = ifelse(gas == "CH4d_ppm", "CH4", "CO2")) %>%
+  pivot_wider(names_from = gas, 
+              values_from = c(slope_ppm_per_day, slope_umol_per_day, R2, p, rmse, init, max, min),
+              names_glue = "{gas}_{.value}")
+```
+
+## Plot all data
+
+based on this, I removed the "after" data from the analysis
+
+```{r}
+plot_yearly_data <- function(year, slopes, gas) {
+  p <- slopes %>%
+    filter(year(TIMESTAMP) == year) %>%
+    ggplot(aes(x = as.Date(TIMESTAMP), y = get(!!gas), color = hour(TIMESTAMP))) +
+    geom_point(alpha = 0.2) +
+    scale_color_gradientn(colors = c("blue", "red", "blue")) +
+    facet_wrap(~MIU_VALVE) +
+    ylab(gas)+
+    scale_y_continuous(trans = "pseudo_log")+
+    scale_x_date(date_labels = "%b")+
+    theme(axis.title.x = element_blank())+
+    ggtitle(year)
+  print(p)
+}
+
+2021:2024 %>% 
+  map(plot_yearly_data, slopes = slopes, gas = "CO2_slope_ppm_per_day")
+2021:2024 %>% 
+  map(plot_yearly_data, slopes = slopes, gas = "CH4_slope_ppm_per_day")
+
+slopes %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4_init)) +
+  geom_point()+
+  theme_bw()+
+  ylab("Initial CH4 reading")
+
+slopes %>%
+  filter(CO2_init < 1000) %>%
+  ggplot(aes(x = TIMESTAMP, y = CO2_init)) +
+  geom_point()+
+  theme_bw()+
+  ylab("Initial CO2 reading")
+
+before <- slopes %>%
+  filter(as.Date(TIMESTAMP) %in% seq(as.Date("2022-09-01"), as.Date("2022-10-12"), by = "1 day")) %>%
+  mutate(hour = hour(TIMESTAMP),
+         yday_before = yday(TIMESTAMP)) %>%
+  rename(CH4_init_before = CH4_init,
+         CO2_init_before = CO2_init) %>%
+  select(MIU_VALVE, CO2_init_before, CH4_init_before, hour, yday_before)
+after <- slopes %>%
+  filter(as.Date(TIMESTAMP) %in% seq(as.Date("2022-10-14"), as.Date("2022-12-31"), by = "1 day")) %>%
+  mutate(hour = hour(TIMESTAMP),
+         yday_after = yday(TIMESTAMP)) %>%
+  rename(CH4_init_after = CH4_init,
+         CO2_init_after = CO2_init) %>%
+  select(MIU_VALVE, CO2_init_after, CH4_init_after, hour, yday_after)
+before %>%
+  left_join(after) %>%
+  pivot_longer(cols = c("yday_before", "yday_after"), names_to = "type", values_to = "yday") %>%
+  pivot_longer(cols = c("CO2_init_before", "CO2_init_after"), names_to = "gas", values_to = "value") %>%
+  filter(type == "yday_before" & gas == "CO2_init_before" | type == "yday_after" & gas == "CO2_init_after") %>%
+  ggplot(aes(x = hour, y = value, color = gas))+
+  geom_line(aes(group = yday))+
+  facet_wrap(~MIU_VALVE)
+
+before <- slopes %>%
+  filter(as.Date(TIMESTAMP) %in% seq(as.Date("2023-09-01"), as.Date("2023-10-12"), by = "1 day")) %>%
+  mutate(hour = hour(TIMESTAMP),
+         yday_before = yday(TIMESTAMP)) %>%
+  rename(CH4_init_before = CH4_init,
+         CO2_init_before = CO2_init) %>%
+  select(MIU_VALVE, CO2_init_before, CH4_init_before, hour, yday_before)
+after <- slopes %>%
+  filter(as.Date(TIMESTAMP) %in% seq(as.Date("2023-10-14"), as.Date("2023-12-31"), by = "1 day")) %>%
+  mutate(hour = hour(TIMESTAMP),
+         yday_after = yday(TIMESTAMP)) %>%
+  rename(CH4_init_after = CH4_init,
+         CO2_init_after = CO2_init) %>%
+  select(MIU_VALVE, CO2_init_after, CH4_init_after, hour, yday_after)
+before %>%
+  left_join(after) %>%
+  pivot_longer(cols = c("yday_before", "yday_after"), names_to = "type", values_to = "yday") %>%
+  pivot_longer(cols = c("CO2_init_before", "CO2_init_after"), names_to = "gas", values_to = "value") %>%
+  filter(type == "yday_before" & gas == "CO2_init_before" | type == "yday_after" & gas == "CO2_init_after") %>%
+  ggplot(aes(x = hour, y = value, color = gas))+
+  geom_line(aes(group = yday))+
+  facet_wrap(~MIU_VALVE)
+```
+
+## 2024
+
+Something is weird about the start of 2024, but I think what we are seeing is that data are /really good/.
+
+In chambers 2:4, summer 2024 data is wrong
+
+```{r}
+plot_yearly_data(2024, slopes, gas = "CO2_slope_ppm_per_day")
+plot_yearly_data(2024, slopes, gas = "CH4_slope_ppm_per_day")
+
+plotly::ggplotly(
+  slopes %>%
+    filter(year(TIMESTAMP) == 2024) %>%
+    mutate(hour = hour(TIMESTAMP)) %>%
+    ggplot(aes(x = hour, y = CO2_slope_ppm_per_day, color = as.factor(month(TIMESTAMP)))) +
+    facet_wrap(~MIU_VALVE)+
+    #geom_point(alpha = 0.1)+
+    geom_smooth(se = F)+
+    scale_y_continuous(trans = "pseudo_log")
+  )
+
+slopes %>%
+  filter(year(TIMESTAMP) == 2024,
+         month(TIMESTAMP) > 3, 
+         month(TIMESTAMP) < 10) %>%
+  mutate(hour = hour(TIMESTAMP)) %>%
+  ggplot(aes(x = hour, y = CO2_slope_ppm_per_day, color = as.factor(month(TIMESTAMP)))) +
+  facet_wrap(~MIU_VALVE)+
+  #geom_point(alpha = 0.1)+
+  geom_smooth(se = F)+
+  guides(color = guide_legend(title = "Month"))+
+  scale_y_continuous(trans = "pseudo_log")
+
+#This period is no longer in the slopes file
+#slopes %>%
+#  filter(year(TIMESTAMP) == 2023,
+#         month(TIMESTAMP) == 1) %>%
+#  mutate(hour = hour(TIMESTAMP),
+#         day = yday(TIMESTAMP)) %>%
+#  ggplot(aes(x = hour, y = CO2_slope_ppm_per_day, color = as.factor(month(TIMESTAMP)))) +
+#  facet_wrap(~MIU_VALVE)+
+#  geom_line(alpha = 0.1, aes(group = day))+
+#  geom_smooth(se = F)+
+#  guides(color = guide_legend(title = "Month"))+
+#  scale_y_continuous(trans = "pseudo_log")
+```
+
+
+Stuck open
+
+```{r}
+slopes_filt <- slopes_l0
+pct <- slopes_filt %>%
+  filter(!is.na(CO2_slope_ppm_per_day)) %>%
+  summarise(pct10 = sum(abs(CO2_slope_ppm_per_day) < 10)/n()*100,
+            pct100 = sum(abs(CO2_slope_ppm_per_day) < 100)/n()*100,
+            pct_nrmse_0.05 = sum(CO2_nrmse > 0.05)/n()*100,
+            pct_nrmse_0.01 = sum(CO2_nrmse > 0.4)/n()*100)
+
+co2_vals <- slopes_filt %>%
+  filter(!is.na(CO2_slope_ppm_per_day)) %>%
+  ggplot(aes(x = abs(CO2_slope_ppm_per_day))) +
+  scale_x_log10()+
+  geom_density()+
+  geom_vline(aes(xintercept = 10, lty = "10 ppm/d"), color = "grey30")+
+  geom_vline(aes(xintercept = 100, lty = "100 ppm/d"), color = "grey30")+
+  scale_linetype_manual(values = c("12", "52"))+
+  theme_bw()+
+  theme(legend.position = "bottom",
+        legend.title = element_blank())+
+  ylab("Density")
+
+co2_nrmse <- slopes_filt %>%
+  filter(!is.na(CO2_nrmse)) %>%
+  ggplot(aes(x = CO2_nrmse)) +
+  geom_density()+
+  geom_vline(aes(xintercept = 0.05, lty = "0.05"), color = "grey30")+
+  geom_vline(aes(xintercept = 0.4, lty = "0.4"), color = "grey30")+
+  scale_linetype_manual(values = c("12", "52"))+
+  theme_bw()+
+  theme(legend.position = "bottom",
+        legend.title = element_blank())+
+  ylab("Density")
+
+jpeg("../figures/co2_filt_thresh.jpg", width = 6, height = 3, units = "in", res = 300)
+ggpubr::ggarrange(co2_vals, co2_nrmse, ncol = 2)
+dev.off()
+
+removed <- slopes_filt %>%
+  filter(!is.na(CO2_slope_umol_per_day)) %>%
+  mutate(CO2_ppm_10 = abs(CO2_slope_ppm_per_day) < 10,
+         CO2_ppm_100 = abs(CO2_slope_ppm_per_day) < 100,
+         CO2_nrmse_0.05 = CO2_nrmse > 0.05,
+         CO2_nrmse_0.4 = CO2_nrmse > 0.4,
+         CO2_p_0.05 = CO2_p > 0.05,
+         CO2_r2_0.7 = CO2_R2 < 0.7,
+         all = T) %>%
+  pivot_longer(cols = CO2_ppm_10:all, names_to = "threshold") %>%
+  group_by(threshold) %>%
+  filter(value == T) %>%
+  ggplot(aes(x = CH4_slope_ppm_per_day)) +
+  scale_x_continuous(trans = "pseudo_log")+
+  geom_histogram()+
+  theme_bw()+
+  facet_wrap(~threshold, scale = "free_y")
+
+slopes_filt %>%
+  filter(!is.na(CO2_slope_umol_per_day)) %>%
+  mutate(CO2_ppm_10 = abs(CO2_slope_ppm_per_day) < 10,
+         CO2_ppm_100 = abs(CO2_slope_ppm_per_day) < 100,
+         CO2_nrmse_0.05 = CO2_nrmse > 0.05,
+         CO2_nrmse_0.4 = CO2_nrmse > 0.4,
+         CO2_p_0.05 = CO2_p > 0.05,
+         CO2_r2_0.7 = CO2_R2 < 0.7,
+         all = T) %>%
+  pivot_longer(cols = CO2_ppm_10:all, names_to = "threshold") %>%
+  group_by(threshold) %>%
+  filter(value == T) %>%
+  ggplot(aes(x = CO2_slope_ppm_per_day)) +
+  scale_x_continuous(trans = "pseudo_log")+
+  geom_histogram()+
+  theme_bw()+
+  facet_wrap(~threshold, scale = "free_y")
+
+jpeg("../figures/removed_by_co2.jpg", width = 6, height = 4, units = "in", res = 300)
+removed
+dev.off()
+
+times_removed <- slopes_filt %>%
+  filter(!is.na(CO2_slope_umol_per_day)) %>%
+  mutate(CO2_ppm_10 = abs(CO2_slope_ppm_per_day) < 10,
+         CO2_ppm_100 = abs(CO2_slope_ppm_per_day) < 100,
+         CO2_nrmse_0.05 = CO2_nrmse > 0.05,
+         CO2_nrmse_0.4 = CO2_nrmse > 0.4,
+         CO2_p_0.05 = CO2_p > 0.05,
+         CO2_r2_0.7 = CO2_R2 < 0.7,
+         all = T) %>%
+  pivot_longer(cols = CO2_ppm_10:all, names_to = "threshold") %>%
+  group_by(threshold) %>%
+  filter(value == T) %>%
+  ggplot(aes(x = hour(TIMESTAMP))) +
+  geom_density()+
+  theme_bw()+
+  facet_wrap(~threshold, scale = "free_y")
+
+jpeg("../figures/removed_by_co2_times.jpg", width = 6, height = 4, units = "in", res = 300)
+times_removed
+dev.off()
+
+slopes_filt %>%
+  filter(!is.na(CO2_slope_umol_per_day)) %>%
+  ggplot(aes(y = abs(CO2_slope_ppm_per_day)<10, x = TIMESTAMP)) +
+  geom_point(alpha = 0.2)+
+  theme_bw()+
+  facet_wrap(~MIU_VALVE)
+```
+
+Stuck closed
+
+Lots of analysis here, ultimately reaching the conclusion that met data and BME data don't correspond closely enough to use this differential as a metric of the chamber being closed. Similarly, LGR temp is unreliable.
+
+```{r}
+met <- read_csv(here::here("processed_data","met_15min.csv"))
+chamber_temp <- read_csv(here::here("processed_data","chamber_temp_1min.csv"))
+
+chamber_temp_15min <- chamber_temp %>%
+  mutate(time_15min = round_date(TIMESTAMP, unit="15 mins")) %>%
+  group_by(time_15min) %>%
+  summarise(AirTemp_chamber = mean(AirTemp_C, na.rm = T))
+
+temp_difs <- slopes_filt %>%
+  mutate(time_slope = TIMESTAMP,
+         time_15min = round_date(TIMESTAMP, unit="15 mins")) %>%
+  left_join(met %>% 
+              select(TIMESTAMP, AirTC_Avg) %>%
+              rename(time_15min = TIMESTAMP,
+                     AirTemp_met = AirTC_Avg), 
+            by = "time_15min") %>%
+  left_join(chamber_temp_15min) %>%
+  mutate(temp_dif = AirTemp_chamber - AirTemp_met)
+
+temp_difs %>%
+  ggplot(aes(x = AirTemp_met, y = AirTemp_chamber))+
+  geom_point(aes(color = temp_dif))+
+  geom_smooth(method = "lm") +
+  geom_abline(slope = 1) +
+  facet_wrap(~MIU_VALVE)
+
+temp_difs %>%
+  ggplot(aes(x = temp_dif))+
+  geom_density()+
+  facet_wrap(~MIU_VALVE)
+
+temp_difs %>%
+  ggplot(aes(x = time_15min, y = temp_dif))+
+  geom_point(alpha = 0.01)+
+  facet_wrap(~MIU_VALVE)+
+  theme_bw()+
+  ylab("Chamber temp - met temp")+
+  theme(axis.title.x = element_blank())
+
+comb <- slopes_filt %>%
+  mutate(time_orig = TIMESTAMP,
+         TIMESTAMP = round_date(TIMESTAMP, unit="15 mins")) %>%
+  left_join(met %>% 
+              select(TIMESTAMP, AirTC_Avg), 
+            by = "TIMESTAMP")
+
+comb %>%
+  mutate(dif = Temp_init - AirTC_Avg,
+         year = as.factor(year(time_orig)),
+         yday = yday(time_orig)) %>%
+  ggplot(aes(x = AirTC_Avg, y = Temp_init, color = yday))+
+  geom_point()+
+  geom_abline(slope = 1)+
+  scale_color_viridis_c()+
+  facet_wrap(~year)+
+  xlab("Air temp")+
+  ylab("Gas temp from LGR")
+
+slopes_filt %>%
+  ggplot(aes(x = TIMESTAMP, y = Temp_init))+
+  geom_line()
+```
+
+Stuck open
+
+```{r}
+chamber_temp <- read_csv(here::here("processed_data","chamber_temp_1min.csv"))
+metadata <- read_csv(here::here("Raw_data","chamber_metadata.csv"))
+#Start by visualizing a small subset of data
+temp_difs <- chamber_temp[5020000:5021000,] %>%
+  left_join(metadata) %>%
+  select(TIMESTAMP, AirTemp_C, miu_valve) %>%
+  rename(time_1min = TIMESTAMP,
+         miu_valve_bme = miu_valve) %>%
+  inner_join(slopes_filt %>%
+               mutate(time_slope = TIMESTAMP,
+                      time_1min = round_date(TIMESTAMP, unit="1 mins")) %>%
+               rename(miu_valve_flux = MIU_VALVE)) %>%
+  group_by(miu_valve_bme) %>%
+  arrange(miu_valve_bme, time_1min) %>%
+  mutate(temp_change = lead(AirTemp_C) - AirTemp_C) %>%
+  group_by(time_1min) %>%
+  mutate(z_temp_change = (temp_change - mean(temp_change, na.rm = T))/sd(temp_change, na.rm = T))
+temp_difs %>%
+  ggplot(aes(x = time_1min, y = z_temp_change, color = miu_valve_bme == miu_valve_flux))+
+  facet_wrap(~miu_valve_bme)+
+  geom_point()+
+  theme(legend.position = "bottom")
+temp_difs %>%
+  ggplot(aes(x = time_1min, y = AirTemp_C, color = miu_valve_bme == miu_valve_flux))+
+  facet_wrap(~miu_valve_bme)+
+  geom_point()+
+  theme(legend.position = "bottom")
+
+#With all daytime data, calculate quantile
+temp_difs <- chamber_temp %>%
+  #Can only use daytime data for this
+  filter(hour(TIMESTAMP) >= 8 & hour(TIMESTAMP) <= 12) %>%
+  left_join(metadata) %>%
+  select(TIMESTAMP, AirTemp_C, miu_valve) %>%
+  rename(time_1min = TIMESTAMP,
+         miu_valve_bme = miu_valve) %>%
+  inner_join(slopes_filt %>%
+               mutate(time_slope = TIMESTAMP,
+                      time_1min = round_date(TIMESTAMP, unit="1 mins")) %>%
+               rename(miu_valve_flux = MIU_VALVE)) %>%
+  arrange(miu_valve_bme, time_1min) %>%
+  mutate(temp_change = lead(AirTemp_C) - AirTemp_C) %>%
+  group_by(time_1min) %>%
+  mutate(temp_change_quantile = ecdf(temp_change)(temp_change)) 
+
+#Set points to remove
+open <- temp_difs %>%
+  filter(miu_valve_bme == miu_valve_flux) %>%
+  group_by(miu_valve_bme) %>%
+  mutate(temp_change_thresh = ifelse(temp_change_quantile < 0.8, T, F),
+         r2 = ifelse(CO2_R2 < 0.7, T, F),
+         nrmse = ifelse(CO2_nrmse > 0.15, T, F))
+
+#summary stats
+open %>%
+  pivot_longer(c(r2, temp_change_thresh, nrmse)) %>%
+  group_by(name, value) %>%
+  summarize(n = n(),
+            median_ch4_slope = median(CH4_slope_ppm_per_day, na.rm = T),
+            median_co2_slope = median(CO2_slope_ppm_per_day, na.rm = T),
+            median_ch4_init = median(CH4_init, na.rm = T),
+            median_ch4_r2 = median(CH4_R2, na.rm = T),
+            median_co2_r2 = median(CO2_R2, na.rm = T),
+            median_ch4_nrmse = median(CH4_nrmse, na.rm = T),
+            median_co2_nrmse = median(CO2_nrmse, na.rm = T))
+
+#Figure
+open %>%
+  pivot_longer(c(r2, temp_change_thresh, nrmse)) %>%
+  mutate(yday = yday(time_1min),
+         year = year(time_1min)) %>%
+  group_by(name, yday, year) %>%
+  summarize(n = sum(value)/n()) %>%
+  ggplot(aes(x = yday, y = n, color = name))+
+  geom_point()+
+  ylab("Proportion removed") +
+  ggh4x::facet_grid2(rows = vars(year), cols = vars(name))
+
+open %>%
+  pivot_longer(c(r2, temp_change_thresh, nrmse)) %>%
+  mutate(year = year(time_1min),
+         hour = hour(time_1min)) %>%
+  filter(!is.na(value)) %>%
+  group_by(name, hour, year) %>%
+  summarize(n = sum(value)/n()) %>%
+  ggplot(aes(x = hour, y = n, color = name))+
+  geom_point()+
+  ylab("Proportion removed") +
+  ggh4x::facet_grid2(rows = vars(year), cols = vars(name))
+
+open %>%
+  ggplot(aes(x = temp_change_quantile))+
+  scale_y_continuous(trans= "pseudo_log")+
+  geom_point(aes(y = CH4_slope_ppm_per_day))+
+  geom_density()
+
+open %>%
+  ggplot(aes(x = temp_change_quantile, y = temp_quantile))+
+  geom_bin2d(bins = 10)+
+  scale_fill_viridis_c()
+
+open_final <- temp_difs %>%
+  filter(miu_valve_bme == miu_valve_flux) %>%
+  mutate(open = ifelse(temp_change_quantile < 0.8, T, F),
+         date = as.Date(time_1min)) %>%
+  filter(!is.na(open)) %>%
+  group_by(date, miu_valve_flux) %>%
+  summarize(open = sum(open)>=2) %>%
+  rename(MIU_VALVE = miu_valve_flux) %>%
+  left_join(slopes_filt %>%
+              mutate(date = as.Date(TIMESTAMP))) 
+
+open_final %>%
+  group_by(open) %>%
+  summarize(n = n(),
+            median_ch4_slope = median(abs(CH4_slope_ppm_per_day), na.rm = T),
+            median_co2_slope = median(abs(CO2_slope_ppm_per_day), na.rm = T),
+            median_ch4_init = median(CH4_init, na.rm = T),
+            median_ch4_r2 = median(CH4_R2, na.rm = T),
+            median_co2_r2 = median(CO2_R2, na.rm = T),
+            median_ch4_nrmse = median(CH4_nrmse, na.rm = T),
+            median_co2_nrmse = median(CO2_nrmse, na.rm = T))
+
+open_final %>%
+  mutate(yday = yday(date),
+         year = year(date)) %>%
+  group_by(yday, year) %>%
+  mutate(prop = sum(open)/n()) %>%
+  ggplot(aes(x = yday, y = prop, color = as.factor(year)))+
+  geom_smooth()+
+  geom_hline(yintercept = 1/12)
+```
+
+
+NRMSE vs RMSE vs R2 vs p-value
+
+```{r}
+#NRMSE
+fit_cutoff <- quantile(slopes$CH4_nrmse, 0.99)
+#These poor fits have extreme values
+nrmse <- slopes %>%
+  ggplot(aes(y = CH4_nrmse, x = CH4_slope_umol_per_day)) +
+  geom_point(alpha = 0.1) +
+  scale_x_continuous(trans = scales::pseudo_log_trans(base = 10))
+
+#RMSE
+fit_cutoff <- quantile(slopes$CH4_rmse, 0.99)
+#These poor fits have extreme values
+rmse <- slopes %>%
+  ggplot(aes(y = CH4_rmse, x = CH4_slope_umol_per_day)) +
+  geom_point(alpha = 0.1) +
+  scale_y_log10()+
+  scale_x_continuous(trans = scales::pseudo_log_trans(base = 10))
+
+both <- slopes %>%
+  mutate(extreme = abs(CH4_slope_umol_per_day)>10000) %>%
+  ggplot(aes(y = CH4_rmse, x = CH4_nrmse, color = extreme, alpha = extreme)) +
+  geom_point() +
+  guides(alpha = guide_legend(title = "Flux > 10000\numol per day"),
+         color = guide_legend(title = "Flux > 10000\numol per day")) +
+  scale_y_log10()
+jpeg(here::here("figures","nrmse_vs_rmse.jpeg"), res = 300, width = 6, height = 6, units = "in")
+ggpubr::ggarrange(ggpubr::ggarrange(nrmse, rmse), both, nrow = 2)
+dev.off()
+
+#R2 is not a good way to filter because this preferentially removes values near 0
+r2 <- slopes %>%
+  ggplot(aes(y = CH4_R2, x = CH4_slope_umol_per_day)) +
+  geom_point(alpha = 0.01)+
+  scale_x_continuous(trans = scales::pseudo_log_trans(base = 10))+
+  theme_bw()
+
+#High p-values are all close to 0 (good)
+p <- slopes %>%
+  ggplot(aes(x = CH4_slope_umol_per_day, y = CH4_p)) +
+  geom_point(alpha = 0.01) +
+  scale_x_continuous(trans = scales::pseudo_log_trans(base = 10)) +
+  theme_bw()
+
+jpeg(here::here("figures", "r2_vs_p.jpg"), width = 6, height = 3, units = "in", res = 300)
+ggpubr::ggarrange(r2, p)
+dev.off()
+```
