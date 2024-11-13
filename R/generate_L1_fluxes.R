@@ -15,7 +15,7 @@ source(here::here("R","calculate_flux.R"))
 #' @examples
 generate_target <- function(reprocess = F){
   #First - check for new data and download locally
-  download <- download_new_data(flux_folder = here::here("Raw_data","dropbox_downloads"))
+  download <- download_new_data(lgr_folder = here::here("Raw_data","dropbox_downloads"))
   
   #Second- calculate fluxes for new data, generating the L0 file
   if(reprocess){
@@ -33,4 +33,4 @@ generate_target <- function(reprocess = F){
   return(data)
 }
 
-#target <- generate_target(reprocess = T)
+target <- generate_target(reprocess = F)
