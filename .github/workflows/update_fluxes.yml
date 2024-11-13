@@ -17,7 +17,7 @@ jobs:
           
       - name: Calculate and QAQC fluxes
         run: |
-          R -e 'utils::install.packages("RCurl")'
+          R -e 'utils::install.packages("here")'
           Rscript ./R/generate_L1_fluxes.R
         
       - name: Commit and push
