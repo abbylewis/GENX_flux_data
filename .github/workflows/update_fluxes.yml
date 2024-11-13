@@ -1,25 +1,24 @@
 on:
   workflow_dispatch:
   schedule:
-  - cron: "0 20 * * *"
-
-permissions:
-  contents: write
+  - cron: "0 5 * * *"
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: eco4cast/rocker-neon4cast
+      image: rocker/tidyverse:4.2
+    
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-# Point to the right path, run the right Rscript command
+          
       - name: Calculate and QAQC fluxes
         run: Rscript ./R/generate_L1_fluxes.R
-      - name: Commit report
+        
+      - name: Commit and push
         run: |
           git config --global user.name 'abbylewis'
           git commit -am "Automated update"
