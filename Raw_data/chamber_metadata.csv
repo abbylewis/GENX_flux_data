@@ -1,0 +1,13 @@
+chamber,chamber_treatment,zone_treatment,zone_name,transect,zone,plot_id,distance,miu_valve,chamber_name
+1,c_1_amb,amb,a0_amb,a,zone_0,a0,1,1,c_1
+2,c_2_amb,amb,c1_amb,c,zone_1,c1,2,2,c_2
+3,c_3_e0.75,e0.75,b2_e0.75,b,zone_2,b2,3,3,c_3
+4,c_4_e1.5,e1.5,a3_e1.5,a,zone_3,a3,4,4,c_4
+5,c_5_e2.25,e2.25,c4_e2.25,c,zone_4,c4,5,5,c_5
+6,c_6_e2.25,e2.25,b4_e2.25,b,zone_4,b4,5,6,c_6
+7,c_7_e3.0,e3.0,a5_e3.0,a,zone_5,a5,6,7,c_7
+8,c_8_e3.75,e3.75,c6_e3.75,c,zone_6,c6,7,8,c_8
+9,c_9_e3.75,e3.75,b6_e3.75,b,zone_6,b6,7,9,c_9
+10,c_10_e4.5,e4.5,a7_e4.5,a,zone_7,a7,8,10,c_10
+11,c_11_e5.25,e5.25,c8_e5.25,c,zone_8,c8,9,11,c_11
+12,c_12_e6.0,e6.0,b9_e6.0,b,zone_9,b9,10,12,c_12
