@@ -1,6 +1,7 @@
 source(here::here("R","qaqc.R"))
 source(here::here("R","download_new_data.R"))
 source(here::here("R","calculate_flux.R"))
+source(here::here("R", "download_chamber_temp.R"))
 
 #' generate_L1_fluxes
 #'
@@ -15,7 +16,8 @@ source(here::here("R","calculate_flux.R"))
 #' @examples
 generate_target <- function(reprocess = F){
   #First - check for new data and download locally
-  download <- download_new_data(lgr_folder = here::here("Raw_data","dropbox_downloads"))
+  lgr <- download_new_data(lgr_folder = here::here("Raw_data","dropbox_downloads"))
+  temp <- download_chamber_temp(chamber_temp_folder = here::here("Raw_data", "dropbox_chamber_temp"))
   
   #Second- calculate fluxes for new data, generating the L0 file
   if(reprocess){

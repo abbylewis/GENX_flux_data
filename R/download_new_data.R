@@ -1,6 +1,7 @@
 #Source
 source(here::here("R","drop_dir.R"))
 source(here::here("R","get_dropbox_token.R"))
+source(here::here("R","load_file.R"))
 library(tidyverse)
 
 #' download_new_data
@@ -38,34 +39,13 @@ download_new_data <- function(lgr_folder = here::here("Raw_data","dropbox_downlo
   
   #Load current data file
   new <- current$path_display %>%
-    map(load_file, lgr_folder = lgr_folder) #NOTE: this function is further down in this script
+    map(load_file, output_dir = lgr_folder)
   
   if(nrow(relevant_files) == 0){
     message("No new files to download")
   } else {
     message("Downloading ", nrow(relevant_files), " files")
     all_data <- relevant_files$path_display %>%
-      map(load_file, lgr_folder = lgr_folder)
+      map(load_file, output_dir = lgr_folder)
   }
-}
-
-#Load file - helper function
-load_file <- function(path_display, lgr_folder){
-  url <- "https://content.dropboxapi.com/2/files/download"
-  
-  #Get file name to save locally
-  name <- sub("/GCREW_LOGGERNET_DATA/", "", path_display)
-  if(grepl("current", name)) name <- "current.dat"
-  
-  httr::POST(
-    url = url,
-    httr::config(token = get_dropbox_token()),
-    httr::add_headers("Dropbox-API-Arg" = jsonlite::toJSON(
-      list(
-        path = path_display
-      ),
-      auto_unbox = TRUE
-    )),
-    httr::write_disk(here::here(lgr_folder, name), overwrite = T)
-  )
 }
