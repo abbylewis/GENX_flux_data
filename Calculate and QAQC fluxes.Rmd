@@ -15,7 +15,7 @@ new_user <- TRUE
 # Whether you want to reprocess all flux calculations or just new data
 reprocess <- FALSE 
 #Folder containing downloaded LGR data
-flux_folder <- here::here("Raw_data","dropbox_downloads") 
+lgr_folder <- here::here("Raw_data","dropbox_downloads") 
 ```
 
 Run all calculations
@@ -29,8 +29,9 @@ source(here::here("R","calculate_flux.R"))
 library(tidyverse)
 
 #Check for new data and download locally
-drop_auth(new_user = T)
-download <- download_new_data(lgr_folder = here::here("Raw_data","dropbox_downloads"))
+drop_auth(new_user = new_user)
+lgr <- download_new_data(lgr_folder)
+temp <- download_chamber_temp(chamber_temp_folder)
 
 #Calculate fluxes, generating the L0 file
 if(reprocess){
