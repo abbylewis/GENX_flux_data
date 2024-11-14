@@ -65,11 +65,11 @@ download_chamber_temp <- function(chamber_temp_folder = here::here("Raw_data", "
               .groups = "drop")
   
   write.csv(temp_output, 
-            here::here(chamber_temp_folder, "chamber_temp_1min.csv"), 
+            here::here("processed_data", "chamber_temp_1min.csv"), 
             row.names = FALSE)
   
   write.csv(temp_output_daily,
-            here::here(chamber_temp_folder, "chamber_temp_daily.csv"), 
+            here::here("processed_data", "chamber_temp_daily.csv"), 
             row.names = FALSE)
   
   return(T)

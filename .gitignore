@@ -8,3 +8,4 @@ processed_data/raw_small.csv
 processed_data/chamber_temp_1min.csv
 figures
 tokenfile.RDS.base64
+.Rapp.history
