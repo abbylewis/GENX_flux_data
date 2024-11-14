@@ -157,6 +157,7 @@ before %>%
   geom_line(aes(group = yday))+
   facet_wrap(~MIU_VALVE)
 
+#Just to confirm, in 2023 things look consistent between before and after
 before <- slopes %>%
   filter(as.Date(TIMESTAMP) %in% seq(as.Date("2023-09-01"), as.Date("2023-10-12"), by = "1 day")) %>%
   mutate(hour = hour(TIMESTAMP),
