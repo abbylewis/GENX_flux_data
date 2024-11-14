@@ -9,3 +9,4 @@ processed_data/chamber_temp_1min.csv
 figures
 tokenfile.RDS.base64
 .Rapp.history
+processed_data/processed_GENX_LGR_data.csv

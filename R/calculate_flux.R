@@ -72,8 +72,7 @@ calculate_flux <- function(start_date = NULL,
            CH4d_ppm = ifelse(CH4d_ppm<=0, NA, CH4d_ppm),
            CO2d_ppm = ifelse(CO2d_ppm<=0, NA, CO2d_ppm)) %>%
     filter(!MIU_VALVE %in% c(0, 16),
-           !is.na(MIU_VALVE),
-           year(TIMESTAMP) > 2000) %>%
+           !is.na(MIU_VALVE)) %>%
     mutate(Flag = "No issues")
   
   #Remove data as specified in maintenance log
@@ -201,10 +200,15 @@ calculate_flux <- function(start_date = NULL,
     write.csv(data_small %>%
                 mutate(across(c(CO2d_ppm, GasT_C), round_comb)),
               here::here("processed_data","raw_small.csv"), row.names = FALSE)
+    #save to dropbox
+    write_csv(filtered_data, 
+              here::here("processed_data","processed_GENX_LGR_data.csv"))
   }
   
   #Output
-  write.csv(slopes_comb %>% select(-max_s), here::here("processed_data","L0.csv"), row.names = FALSE)
+  write.csv(slopes_comb %>% select(-max_s), 
+            here::here("processed_data","L0.csv"), 
+            row.names = FALSE)
   return(slopes_comb)
 }
 
