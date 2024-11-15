@@ -529,6 +529,8 @@ ggpubr::ggarrange(r2, p)
 dev.off()
 ```
 
+
+Some weird fluxes in July/August of 2023, but I don't really see a reason to remove them
 ```{r}
 l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0.csv")
 l1 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/L1.csv")
@@ -537,51 +539,29 @@ raw_small <- read_csv(here::here("processed_data", "raw_small.csv"))
 
 l0 %>%
   left_join(metadata, by = c("MIU_VALVE" = "miu_valve")) %>%
-  rename(datetime = TIMESTAMP) %>%
-  filter(year(datetime) == 2024,
-         datetime > "2024-05-21",
-         datetime < "2024-06-05") %>%
-  ggplot(aes(datetime, CH4_slope_ppm_per_day))+
+  filter(year(TIMESTAMP) == 2023,
+         TIMESTAMP > "2023-07-01",
+         datetime < "2023-08-15"
+         ) %>%
+  ggplot(aes(TIMESTAMP, CH4_slope_ppm_per_day))+
   geom_point() +
   facet_wrap(~chamber_treatment)
 
 l1 %>%
+  filter(CH4_slope_ppm_per_day < 800) %>%
   rename(datetime = TIMESTAMP) %>%
-  filter(year(datetime) == 2024,
-         datetime > "2024-05-21",
-         datetime < "2024-06-05") %>%
+  filter(#year(datetime) == 2024,
+         datetime > "2023-07-10",
+         datetime < "2023-08-15"
+  ) %>%
   ggplot(aes(datetime, CH4_slope_ppm_per_day))+
-  geom_point() +
-  facet_wrap(~chamber_treatment)
-
-l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0.csv")
-l1 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/L1.csv")
-metadata <- read_csv(here::here("Raw_data", "chamber_metadata.csv"))
-raw_small <- read_csv(here::here("processed_data", "raw_small.csv"))
-
-l0 %>%
-  left_join(metadata, by = c("MIU_VALVE" = "miu_valve")) %>%
-  rename(datetime = TIMESTAMP) %>%
-  filter(year(datetime) == 2024,
-         datetime > "2024-05-21",
-         datetime < "2024-06-05") %>%
-  ggplot(aes(datetime, CH4_slope_ppm_per_day))+
-  geom_point() +
-  facet_wrap(~chamber_treatment)
-
-l1 %>%
-  rename(datetime = TIMESTAMP) %>%
-  filter(year(datetime) == 2024,
-         datetime > "2024-05-21",
-         datetime < "2024-06-05") %>%
-  ggplot(aes(CH4_init, CH4_slope_ppm_per_day))+
   geom_point() +
   facet_wrap(~chamber_treatment)
 
 data_small <- raw_small %>%
-  filter(year(TIMESTAMP) == 2024,
-         TIMESTAMP > "2024-05-21",
-         TIMESTAMP < "2024-06-05")
+  filter(year(TIMESTAMP) == 2023,
+         TIMESTAMP > "2023-07-10",
+         TIMESTAMP < "2023-08-15")
 
 #Format data
 data_numeric <- data_small %>%
@@ -606,12 +586,6 @@ grouped_data <- data_numeric %>%
   mutate(start = min(TIMESTAMP),
          change = as.numeric(difftime(TIMESTAMP, start, units = "days")),
          change_s = as.numeric(difftime(TIMESTAMP, start, units = "secs")))
-
-#Save flags for data that will be removed in the next step
-flags <- grouped_data %>%
-  ungroup() %>%
-  select(start, MIU_VALVE, Flag) %>%
-  distinct()
   
 grouped_data %>%
   ggplot(aes(x = change_s, y = CH4d_ppm, group = group)) +
