@@ -528,3 +528,94 @@ jpeg(here::here("figures", "r2_vs_p.jpg"), width = 6, height = 3, units = "in", 
 ggpubr::ggarrange(r2, p)
 dev.off()
 ```
+
+```{r}
+l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0.csv")
+l1 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/L1.csv")
+metadata <- read_csv(here::here("Raw_data", "chamber_metadata.csv"))
+raw_small <- read_csv(here::here("processed_data", "raw_small.csv"))
+
+l0 %>%
+  left_join(metadata, by = c("MIU_VALVE" = "miu_valve")) %>%
+  rename(datetime = TIMESTAMP) %>%
+  filter(year(datetime) == 2024,
+         datetime > "2024-05-21",
+         datetime < "2024-06-05") %>%
+  ggplot(aes(datetime, CH4_slope_ppm_per_day))+
+  geom_point() +
+  facet_wrap(~chamber_treatment)
+
+l1 %>%
+  rename(datetime = TIMESTAMP) %>%
+  filter(year(datetime) == 2024,
+         datetime > "2024-05-21",
+         datetime < "2024-06-05") %>%
+  ggplot(aes(datetime, CH4_slope_ppm_per_day))+
+  geom_point() +
+  facet_wrap(~chamber_treatment)
+
+l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0.csv")
+l1 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/L1.csv")
+metadata <- read_csv(here::here("Raw_data", "chamber_metadata.csv"))
+raw_small <- read_csv(here::here("processed_data", "raw_small.csv"))
+
+l0 %>%
+  left_join(metadata, by = c("MIU_VALVE" = "miu_valve")) %>%
+  rename(datetime = TIMESTAMP) %>%
+  filter(year(datetime) == 2024,
+         datetime > "2024-05-21",
+         datetime < "2024-06-05") %>%
+  ggplot(aes(datetime, CH4_slope_ppm_per_day))+
+  geom_point() +
+  facet_wrap(~chamber_treatment)
+
+l1 %>%
+  rename(datetime = TIMESTAMP) %>%
+  filter(year(datetime) == 2024,
+         datetime > "2024-05-21",
+         datetime < "2024-06-05") %>%
+  ggplot(aes(CH4_init, CH4_slope_ppm_per_day))+
+  geom_point() +
+  facet_wrap(~chamber_treatment)
+
+data_small <- raw_small %>%
+  filter(year(TIMESTAMP) == 2024,
+         TIMESTAMP > "2024-05-21",
+         TIMESTAMP < "2024-06-05")
+
+#Format data
+data_numeric <- data_small %>%
+  mutate(CH4d_ppm = as.numeric(CH4d_ppm),
+         CO2d_ppm = as.numeric(CO2d_ppm),
+         GasT_C = as.numeric(GasT_C),
+         MIU_VALVE = as.numeric(MIU_VALVE),
+         CH4d_ppm = ifelse(CH4d_ppm<=0, NA, CH4d_ppm),
+         CO2d_ppm = ifelse(CO2d_ppm<=0, NA, CO2d_ppm)) %>%
+  filter(!MIU_VALVE %in% c(0, 16),
+         !is.na(MIU_VALVE)) %>%
+  mutate(Flag = "No issues")
+
+#Remove first peak
+grouped_data <- data_numeric %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  #Group flux intervals
+  arrange(TIMESTAMP) %>%
+  mutate(group = group_fun(MIU_VALVE)) %>%
+  group_by(group, MIU_VALVE)  %>%
+  #Record the amount of time from when chamber closed
+  mutate(start = min(TIMESTAMP),
+         change = as.numeric(difftime(TIMESTAMP, start, units = "days")),
+         change_s = as.numeric(difftime(TIMESTAMP, start, units = "secs")))
+
+#Save flags for data that will be removed in the next step
+flags <- grouped_data %>%
+  ungroup() %>%
+  select(start, MIU_VALVE, Flag) %>%
+  distinct()
+  
+grouped_data %>%
+  ggplot(aes(x = change_s, y = CH4d_ppm, group = group)) +
+  geom_line(alpha = 0.1)+
+  facet_wrap(~MIU_VALVE)
+```
+
