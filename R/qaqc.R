@@ -43,7 +43,7 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
     summarize(stuck = sum(stuck)>=2, .groups = "drop") %>%
     rename(MIU_VALVE = miu_valve_flux) %>%
     ## Re-join all slopes
-    left_join(slopes %>%
+    full_join(slopes %>%
                 mutate(date = as.Date(TIMESTAMP)),
               by = c("date", "MIU_VALVE")) %>%
     mutate(across(contains("CO2|CH4"), ~ifelse(stuck, NA, .)),
