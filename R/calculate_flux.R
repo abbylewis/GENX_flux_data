@@ -158,6 +158,8 @@ calculate_flux <- function(start_date = NULL,
               init = first(conc),
               max_s = unique(max_s),
               TIMESTAMP = unique(start),
+              flux_start = min(TIMESTAMP),
+              flux_end = max(TIMESTAMP),
               n = unique(n),
               .groups = "drop") %>%
     select(-model) %>%
