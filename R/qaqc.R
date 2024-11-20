@@ -9,7 +9,9 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
     select(TIMESTAMP, AirTemp_C, miu_valve) %>%
     rename(time_1min = TIMESTAMP) #prep to join with slopes
   
-  slopes <- read_csv(L0_file, show_col_types = F) 
+  slopes <- read_csv(L0_file, show_col_types = F) %>%
+    filter(MIU_VALVE %in% c(1:12),
+           !is.na(flux_start))
   
   #Identify when measurements were taken
   measurement_times <- slopes %>%
@@ -19,7 +21,7 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
     distinct()
     
   ### STUCK OPEN/CLOSED
-  # Use temperature data to filter out fluxes
+  # Use temperature data to identify cases where the chamber was stuck open
   stuck_removed <- bme_temp %>%
     ## Format data
     #Can only use daytime data for this
@@ -46,8 +48,7 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
     full_join(slopes %>%
                 mutate(date = as.Date(TIMESTAMP)),
               by = c("date", "MIU_VALVE")) %>%
-    mutate(across(contains("CO2|CH4"), ~ifelse(stuck, NA, .)),
-           Flag_stuck = ifelse(is.na(stuck), "No temp data",
+    mutate(Flag_stuck = ifelse(is.na(stuck), "No temp data",
                                ifelse(stuck, "Stuck",
                                       "No issues"))) %>%
     select(-date, -stuck)
@@ -78,10 +79,7 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
   slopes_metadata <- metadata %>%
     left_join(slopes_umol %>%
                 mutate(MIU_VALVE = as.numeric(MIU_VALVE)), 
-              by = c("miu_valve" = "MIU_VALVE"))
-  
-  slopes_final <- slopes_metadata %>%
-    filter(CH4_max < 1000) %>%
+              by = c("miu_valve" = "MIU_VALVE")) %>%
     rename(Flag_QAQC_log = Flag) %>%
     select(all_of(c("chamber_treatment", "miu_valve", "TIMESTAMP", "n", 
                     "CH4_slope_ppm_per_day", "CO2_slope_ppm_per_day",
@@ -91,7 +89,14 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
                     "CH4_min", "CO2_min", "AirTemp_C", "Flag_stuck", 
                     "Flag_QAQC_log", "Flag_AirTemp_C")))
   
+  #Last QAQC before export
+  slopes_final <- slopes_metadata %>%
+    filter(CH4_max < 1000) %>%
+    mutate(across(contains("CO2|CH4"), ~ifelse(stuck, NA, .))) 
+  
   #Output
   write.csv(slopes_final, here::here("L1.csv"), row.names = FALSE)
+  #File without removing any data (for TE)
+  write.csv(slopes_metadata, here::here("processed_data", "L1_TE.csv"), row.names = FALSE)
   return(slopes_metadata)
 }

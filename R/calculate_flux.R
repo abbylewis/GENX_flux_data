@@ -39,7 +39,8 @@ calculate_flux <- function(start_date = NULL,
   
   exclude <- c("GENX_INSTRUMENT_FLUX_COMB_20240417020046.dat",
                "GENX_INSTRUMENT_FLUX_COMB_20240403020045.dat",
-               "GENX_INSTRUMENT_FLUX_COMB_20240501020048.dat")
+               "GENX_INSTRUMENT_FLUX_COMB_20240501020048.dat",
+               "GENX_LGR_04142021_20210505020005.dat")
   files <- files[!grepl(paste0(exclude, collapse = "|"), files)]
   message(paste0("Calculating fluxes for ", length(files), " files"))
   
@@ -206,7 +207,6 @@ calculate_flux <- function(start_date = NULL,
     write.csv(data_small %>%
                 mutate(across(c(CO2d_ppm, GasT_C), round_comb)),
               here::here("processed_data","raw_small.csv"), row.names = FALSE)
-    #save to dropbox
     write_csv(filtered_data, 
               here::here("processed_data","processed_GENX_LGR_data.csv"))
   }
