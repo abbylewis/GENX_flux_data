@@ -20,7 +20,11 @@ download_new_data <- function(lgr_folder = here::here("Raw_data","dropbox_downlo
   relevant_files <- drop_dir(path = "GCREW_LOGGERNET_DATA") %>%
     filter(grepl("GENX_INSTRUMENT_FLUX_COMB", name) |
              grepl("GENX_FLUX_", name) |
-             grepl("GENX_LGR_", name))
+             grepl("GENX_LGR_", name) |
+             #Add replacements for files with issues (using LGR1 instead of COMB)
+             grepl("GENX_INSTRUMENT_FLUX_LGR1_20240417020048.dat|GENX_INSTRUMENT_FLUX_LGR1_20240403020047.dat|GENX_INSTRUMENT_FLUX_LGR1_20240501020050.dat", 
+                   name),
+           )
   current <- drop_dir(path = "GCREW_LOGGERNET_DATA/current_data") %>%
     filter(grepl("GENX_INSTRUMENT_FLUX_COMB", name),
            !grepl("backup", name))

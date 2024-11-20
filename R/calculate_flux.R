@@ -37,6 +37,10 @@ calculate_flux <- function(start_date = NULL,
     return(read_csv(here::here("processed_data","L0.csv"), show_col_types = F))
   }
   
+  exclude <- c("GENX_INSTRUMENT_FLUX_COMB_20240417020046.dat",
+               "GENX_INSTRUMENT_FLUX_COMB_20240403020045.dat",
+               "GENX_INSTRUMENT_FLUX_COMB_20240501020048.dat")
+  files <- files[!grepl(paste0(exclude, collapse = "|"), files)]
   message(paste0("Calculating fluxes for ", length(files), " files"))
   
   #Load data
