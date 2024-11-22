@@ -81,8 +81,8 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
                 mutate(MIU_VALVE = as.numeric(MIU_VALVE)), 
               by = c("miu_valve" = "MIU_VALVE")) %>%
     rename(Flag_QAQC_log = Flag) %>%
-    select(all_of(c("chamber_treatment", "miu_valve", "TIMESTAMP", "n", 
-                    "CH4_slope_ppm_per_day", "CO2_slope_ppm_per_day",
+    select(all_of(c("chamber_treatment", "miu_valve", "TIMESTAMP", "flux_start", 
+                    "flux_end", "n", "CH4_slope_ppm_per_day", "CO2_slope_ppm_per_day",
                     "CH4_slope_umol_per_day", "CO2_slope_umol_per_day",
                     "CH4_R2", "CO2_R2", "CH4_p", "CO2_p", "CH4_rmse", "CO2_rmse", 
                     "CH4_init", "CO2_init", "CH4_max", "CO2_max", 

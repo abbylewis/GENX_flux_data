@@ -14,7 +14,7 @@ calculate_flux <- function(start_date = NULL,
                            end_date = NULL,
                            modif_start_date = file.info(here::here("processed_data","L0.csv"))$mtime,
                            reprocess = F,
-                           plot = F){
+                           plot = reprocess){
   ### Load files ###
   files <- list.files(here::here("Raw_data","dropbox_downloads"), full.names = T)
   #By default, only calculate slopes for files that have been modified/created since the last time we ran the script
@@ -49,7 +49,7 @@ calculate_flux <- function(start_date = NULL,
     map(read_csv, col_types = cols(.default = "c"), skip = 1)  %>%
     bind_rows() %>%
     filter(!TIMESTAMP == "TS") %>%
-    mutate(TIMESTAMP = as_datetime(TIMESTAMP)) %>%
+    mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "America/New_York")) %>%
     filter(!is.na(TIMESTAMP),
            year(TIMESTAMP)>=2021) %>%
     distinct() 
@@ -67,7 +67,6 @@ calculate_flux <- function(start_date = NULL,
   }
   rm(data_raw) #Save memory
   
-  ### Calculate slopes ###
   #Format data
   data_numeric <- data_small %>%
     mutate(CH4d_ppm = as.numeric(CH4d_ppm),
@@ -76,15 +75,18 @@ calculate_flux <- function(start_date = NULL,
            MIU_VALVE = as.numeric(MIU_VALVE),
            CH4d_ppm = ifelse(CH4d_ppm<=0, NA, CH4d_ppm),
            CO2d_ppm = ifelse(CO2d_ppm<=0, NA, CO2d_ppm)) %>%
-    filter(!MIU_VALVE %in% c(0, 16),
-           !is.na(MIU_VALVE)) %>%
+    filter(!is.na(MIU_VALVE),
+           MIU_VALVE %in% 1:12) %>%
     mutate(Flag = "No issues")
   
   #Remove data as specified in maintenance log
   googlesheets4::gs4_deauth() # No authentication needed
+  today <- Sys.time()
   maint_log <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1-fcWU3TK936cR0kPvLTy6CUF_GTvHTwGbiAKDCIE05s/edit?gid=0#gid=0") %>%
-    mutate(Start_time = as_datetime(Start_time),
-           End_time = as_datetime(End_time))
+    mutate(Start_time = as_datetime(Start_time, tz = "America/New_York"),
+           End_time = as_datetime(End_time, tz = "America/New_York"),
+           End_time = ifelse(is.na(End_time), today, End_time),
+           End_time = as_datetime(End_time, tz = "America/New_York"))
   for(i in 1:nrow(maint_log)){
     data_numeric <- data_numeric %>%
       mutate(Flag = ifelse(TIMESTAMP < maint_log$End_time[i] & 
@@ -106,52 +108,70 @@ calculate_flux <- function(start_date = NULL,
                                CO2d_ppm))
   }
   
-  #Remove first peak
-  #Visually identified thresholds
-  peaks <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1GTmdqDhUpxZ2dtGLe6tE0KyIE6kd_gqZV9r2jjKgyu0/edit?gid=0#gid=0") %>%
-    group_by(miu_valve) %>%
-    ungroup() %>%
-    complete(start_date = seq.Date(min(as.Date(start_date)), Sys.Date(), by = "1 day"),
-             miu_valve) %>%
-    group_by(miu_valve) %>%
-    fill(time_s) %>%
-    rename(cutoff = time_s)
-  
+  #Group flux intervals, prep for slopes
   grouped_data <- data_numeric %>%
     mutate(date = as.Date(TIMESTAMP)) %>%
-    left_join(peaks, by = c("MIU_VALVE" = "miu_valve", "date" = "start_date")) %>%
     #Group flux intervals
     arrange(TIMESTAMP) %>%
     mutate(group = group_fun(MIU_VALVE)) %>%
     group_by(group, MIU_VALVE)  %>%
     #Record the amount of time from when chamber closed
     mutate(start = min(TIMESTAMP),
+           end = max(TIMESTAMP),
            change = as.numeric(difftime(TIMESTAMP, start, units = "days")),
            change_s = as.numeric(difftime(TIMESTAMP, start, units = "secs")),
-           n = sum(change_s > cutoff & !is.na(CH4d_ppm)),
            max_s = ifelse(sum(!is.na(CH4d_ppm) > 0),
                           change_s[which.max(CH4d_ppm)],
-                          NA))
+                          NA),
+           min_s = ifelse(sum(!is.na(CH4d_ppm) > 0),
+                          change_s[which.min(CH4d_ppm)],
+                          NA),)
+  
+  buffer <- 60 #Buffer of time after peak (s)
+  rolling_window = 11 #days
+  peaks <- grouped_data %>%
+    group_by(group, MIU_VALVE)  %>%
+    filter(max(change_s) < 1000, #After ~15 min there is probably a problem
+    ) %>%
+    group_by(MIU_VALVE, date, group, end, start) %>%
+    summarize(max_s = unique(max_s), .groups = "drop") %>%
+    filter((difftime(end, start, units = "secs") - max_s) > 20) %>%
+    group_by(MIU_VALVE, date) %>%
+    summarize(cutoff = density(max_s, bw = 10)$x[which.max(density(max_s, bw = 10)$y)],
+              cutoff = round(cutoff) + buffer,
+              .groups = "drop") %>%
+    group_by(MIU_VALVE) %>%
+    arrange(date) %>%
+    mutate(cutoff = zoo::rollmax(cutoff, 
+                                 rolling_window, 
+                                 align = "center", 
+                                 fill = NA))
   
   #Save flags for data that will be removed in the next step
   flags <- grouped_data %>%
     ungroup() %>%
     select(start, MIU_VALVE, Flag) %>%
-    distinct()
+    distinct() %>%
+    group_by(MIU_VALVE, start) %>%
+    filter(n() == 1 | !Flag == "No issues")
   
   filtered_data <- grouped_data %>%
+    left_join(peaks) %>%
+    group_by(group, MIU_VALVE)  %>%
+    mutate(n = sum(change_s >= cutoff)) %>%
     #Remove earlier measurements
-    filter(change_s > cutoff,
-           change_s < 1000, #After ~15 min there is probably a problem
-           n >= 5, #need at least 5 data points to calculate slope
+    filter(change_s >= cutoff,
+           max(change_s) < 1000, #After ~15 min there is probably a problem
            n < 200 #probably some issue if this many measurements are taken
     ) 
   
   #Run lm
   slopes <- filtered_data %>%
     pivot_longer(c(CH4d_ppm, CO2d_ppm), names_to = "gas", values_to = "conc") %>%
-    group_by(gas, group, MIU_VALVE) %>%
+    group_by(gas, group, MIU_VALVE, date) %>%
     filter(!is.na(conc)) %>%
+    mutate(n = n()) %>%
+    filter(n > 5) %>%
     summarize(model = list(lm(conc ~ change)),
               slope_ppm_per_day = model[[1]]$coefficients[[2]],
               Temp_init = first(GasT_C),
@@ -162,10 +182,11 @@ calculate_flux <- function(start_date = NULL,
               min = min(conc),
               init = first(conc),
               max_s = unique(max_s),
-              TIMESTAMP = unique(start),
               flux_start = min(TIMESTAMP),
               flux_end = max(TIMESTAMP),
-              n = unique(n),
+              TIMESTAMP = unique(start),
+              n = sum(!is.na(conc)),
+              cutoff = unique(cutoff),
               .groups = "drop") %>%
     select(-model) %>%
     mutate(gas = ifelse(gas == "CH4d_ppm", "CH4", "CO2")) %>%
@@ -177,6 +198,8 @@ calculate_flux <- function(start_date = NULL,
   if(plot){
     for(year_i in unique(year(slopes$TIMESTAMP))){
       p <- slopes %>%
+        filter(max_s <=1000,
+               month(date) %in% c(1:12)) %>%
         mutate(MIU_VALVE = factor(MIU_VALVE, 
                                   levels = c(1,4,7,10,
                                              3,6,9,12,
@@ -184,6 +207,7 @@ calculate_flux <- function(start_date = NULL,
         filter(year(TIMESTAMP) == year_i) %>%
         ggplot(aes(x = TIMESTAMP, y = max_s)) +
         geom_point(alpha = 0.02)+
+        geom_line(aes(y = cutoff, x = as.POSIXct(date)), color = "red")+
         facet_wrap(~MIU_VALVE)+
         ggtitle(year_i)+
         xlab("Date")+
@@ -207,8 +231,6 @@ calculate_flux <- function(start_date = NULL,
     write.csv(data_small %>%
                 mutate(across(c(CO2d_ppm, GasT_C), round_comb)),
               here::here("processed_data","raw_small.csv"), row.names = FALSE)
-    write_csv(filtered_data, 
-              here::here("processed_data","processed_GENX_LGR_data.csv"))
   }
   
   #Output
