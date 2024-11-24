@@ -231,6 +231,8 @@ calculate_flux <- function(start_date = NULL,
     write.csv(data_small %>%
                 mutate(across(c(CO2d_ppm, GasT_C), round_comb)),
               here::here("processed_data","raw_small.csv"), row.names = FALSE)
+    write_csv(filtered_data, 
+              here::here("processed_data","processed_GENX_LGR_data.csv"))
   }
   
   #Output
