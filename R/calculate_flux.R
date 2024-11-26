@@ -89,19 +89,19 @@ calculate_flux <- function(start_date = NULL,
            End_time = as_datetime(End_time, tz = "America/New_York"))
   for(i in 1:nrow(maint_log)){
     data_numeric <- data_numeric %>%
-      mutate(Flag = ifelse(TIMESTAMP < maint_log$End_time[i] & 
-                             TIMESTAMP > maint_log$Start_time[i] &
+      mutate(Flag = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
+                             TIMESTAMP >= maint_log$Start_time[i] &
                              MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                            maint_log$Flag[i],
                            Flag),
-             CH4d_ppm = ifelse(TIMESTAMP < maint_log$End_time[i] & 
-                                 TIMESTAMP > maint_log$Start_time[i] &
+             CH4d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
+                                 TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                CH4d_ppm),
-             CO2d_ppm = ifelse(TIMESTAMP < maint_log$End_time[i] & 
-                                 TIMESTAMP > maint_log$Start_time[i] &
+             CO2d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
+                                 TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
@@ -110,7 +110,7 @@ calculate_flux <- function(start_date = NULL,
   
   #Group flux intervals, prep for slopes
   grouped_data <- data_numeric %>%
-    mutate(date = as.Date(TIMESTAMP)) %>%
+    mutate(date = as.Date(TIMESTAMP, tz = "America/New_York")) %>%
     #Group flux intervals
     arrange(TIMESTAMP) %>%
     mutate(group = group_fun(MIU_VALVE)) %>%
@@ -128,8 +128,8 @@ calculate_flux <- function(start_date = NULL,
                           NA),)
   
   buffer <- 60 #Buffer of time after peak (s)
-  rolling_window = 11 #days
-  peaks <- grouped_data %>%
+  rolling_window = 15 #days
+  peaks_raw <- grouped_data %>%
     group_by(group, MIU_VALVE)  %>%
     filter(max(change_s) < 1000, #After ~15 min there is probably a problem
     ) %>%
@@ -139,24 +139,36 @@ calculate_flux <- function(start_date = NULL,
     group_by(MIU_VALVE, date) %>%
     summarize(cutoff = density(max_s, bw = 10)$x[which.max(density(max_s, bw = 10)$y)],
               cutoff = round(cutoff) + buffer,
-              .groups = "drop") %>%
+              .groups = "drop") 
+  old_peaks <- read_csv(here::here("processed_data","peaks_raw.csv"), show_col_types = F)
+  peaks_comb <- old_peaks %>%
+    rename(old = cutoff) %>%
+    full_join(peaks_raw) %>%
+    mutate(cutoff = ifelse(is.na(cutoff), old, cutoff)) %>%
+    select(-old)
+  write_csv(peaks_comb, here::here("processed_data","peaks_raw.csv"))
+  
+  peaks <- peaks_comb %>%
     group_by(MIU_VALVE) %>%
     arrange(date) %>%
-    mutate(cutoff = zoo::rollmax(cutoff, 
-                                 rolling_window, 
-                                 align = "center", 
-                                 fill = "extend"))
+    mutate(cutoff = zoo::rollapply(cutoff, 
+                                   width = rolling_window, 
+                                   FUN = max,
+                                   na.rm = T,
+                                   fill = "expand",
+                                   partial = T,
+                                   align = "center"))
   
   #Save flags for data that will be removed in the next step
   flags <- grouped_data %>%
     ungroup() %>%
-    select(start, MIU_VALVE, Flag) %>%
+    select(start, MIU_VALVE, Flag, date, group) %>%
     distinct() %>%
-    group_by(MIU_VALVE, start) %>%
+    group_by(MIU_VALVE, start, date, group) %>%
     filter(n() == 1 | !Flag == "No issues")
   
   filtered_data <- grouped_data %>%
-    left_join(peaks) %>%
+    left_join(peaks, by = c("MIU_VALVE", "date")) %>%
     group_by(group, MIU_VALVE)  %>%
     mutate(n = sum(change_s >= cutoff)) %>%
     #Remove earlier measurements
@@ -165,13 +177,22 @@ calculate_flux <- function(start_date = NULL,
            n < 200 #probably some issue if this many measurements are taken
     ) 
   
+  #Data flags
+  data_flags <- filtered_data %>%
+    group_by(group, MIU_VALVE, date) %>%
+    summarize(Flag_CO2_slope = ifelse(sum(!is.na(CO2d_ppm)) > 5, "No issues", "Insufficient data"),
+              Flag_CH4_slope = ifelse(sum(!is.na(CH4d_ppm)) > 5, "No issues", "Insufficient data"),
+              cutoff_removed = unique(cutoff),
+              n_removed = unique(n),
+              .groups = "drop") 
+  
   #Run lm
   slopes <- filtered_data %>%
     pivot_longer(c(CH4d_ppm, CO2d_ppm), names_to = "gas", values_to = "conc") %>%
     group_by(gas, group, MIU_VALVE, date) %>%
-    filter(!is.na(conc)) %>%
-    mutate(n = n()) %>%
-    filter(n > 5) %>%
+    mutate(n = sum(!is.na(conc))) %>%
+    filter(!is.na(conc),
+           n > 5) %>%
     summarize(model = list(lm(conc ~ change)),
               slope_ppm_per_day = model[[1]]$coefficients[[2]],
               Temp_init = first(GasT_C),
@@ -193,7 +214,11 @@ calculate_flux <- function(start_date = NULL,
     pivot_wider(names_from = gas, 
                 values_from = c(slope_ppm_per_day, R2, p, rmse, init, max, min),
                 names_glue = "{gas}_{.value}") %>%
-    full_join(flags, by = c("TIMESTAMP" = "start", "MIU_VALVE"))
+    full_join(flags, by = c("TIMESTAMP" = "start", "MIU_VALVE", "date", "group")) %>%
+    full_join(data_flags, by = c("group", "MIU_VALVE", "date")) %>%
+    mutate(cutoff = ifelse(is.na(cutoff), cutoff_removed, cutoff),
+           n = ifelse(is.na(n), n_removed, n)) %>%
+    select(-cutoff_removed, -n_removed)
   
   if(plot){
     for(year_i in unique(year(slopes$TIMESTAMP))){
@@ -222,6 +247,7 @@ calculate_flux <- function(start_date = NULL,
   if(!reprocess){
     #Load previously calculated slopes
     old_slopes <- read_csv(here::here("processed_data","L0.csv"), show_col_types = F) %>%
+      mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "America/New_York")) %>%
       filter(!TIMESTAMP %in% slopes$TIMESTAMP)
     slopes_comb <- bind_rows(old_slopes, slopes)
   } else {

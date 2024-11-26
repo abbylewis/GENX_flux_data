@@ -38,7 +38,7 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
     #Now only work with the chamber being measured
     filter(miu_valve_bme == miu_valve_flux) %>%
     mutate(stuck = ifelse(temp_change_quantile < 0.5, T, F),
-           date = as.Date(time_1min)) %>%
+           date = as.Date(time_1min, tz = "America/New_York")) %>%
     filter(!is.na(stuck)) %>%
     ## Remove the full day if two measurements seem stuck
     group_by(date, miu_valve_flux) %>%
@@ -46,7 +46,7 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
     rename(MIU_VALVE = miu_valve_flux) %>%
     ## Re-join all slopes
     full_join(slopes %>%
-                mutate(date = as.Date(TIMESTAMP)),
+                mutate(date = as.Date(TIMESTAMP, tz = "America/New_York")),
               by = c("date", "MIU_VALVE")) %>%
     mutate(Flag_stuck = ifelse(is.na(stuck), "No temp data",
                                ifelse(stuck, "Stuck",
@@ -87,6 +87,7 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
                     "CH4_R2", "CO2_R2", "CH4_p", "CO2_p", "CH4_rmse", "CO2_rmse", 
                     "CH4_init", "CO2_init", "CH4_max", "CO2_max", 
                     "CH4_min", "CO2_min", "AirTemp_C", "Flag_stuck", 
+                    "Flag_CO2_slope", "Flag_CH4_slope",
                     "Flag_QAQC_log", "Flag_AirTemp_C")))
   
   #Last QAQC before export
