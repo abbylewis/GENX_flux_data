@@ -92,11 +92,11 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
   #Last QAQC before export
   slopes_final <- slopes_metadata %>%
     filter(CH4_max < 1000) %>%
-    mutate(across(contains("CO2|CH4"), ~ifelse(stuck, NA, .))) 
+    mutate(across(contains("CO2|CH4"), ~ifelse(stuck == "Stuck", NA, .))) 
   
   #Output
   write.csv(slopes_final, here::here("L1.csv"), row.names = FALSE)
   #File without removing any data (for TE)
   write.csv(slopes_metadata, here::here("processed_data", "L1_TE.csv"), row.names = FALSE)
-  return(slopes_metadata)
+  return(slopes_final)
 }
