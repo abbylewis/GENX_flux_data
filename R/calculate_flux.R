@@ -145,7 +145,7 @@ calculate_flux <- function(start_date = NULL,
     mutate(cutoff = zoo::rollmax(cutoff, 
                                  rolling_window, 
                                  align = "center", 
-                                 fill = NA))
+                                 fill = "extend"))
   
   #Save flags for data that will be removed in the next step
   flags <- grouped_data %>%
