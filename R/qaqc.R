@@ -70,6 +70,7 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
                               predict(lm_temp, #Fill
                                       newdata = data.frame(Temp_init)), 
                               AirTemp_C),
+           Flag_AirTemp_C = ifelse(is.na(AirTemp_C), "Missing air temp", Flag_AirTemp_C),
            CH4_slope_umol_per_day = CH4_slope_ppm_per_day * 
              265.8 / (0.08206*(AirTemp_C + 273.15)),
            CO2_slope_umol_per_day = CO2_slope_ppm_per_day * 

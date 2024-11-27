@@ -27,6 +27,7 @@ calculate_flux <- function(start_date = NULL,
                                as.Date(end_date), 
                                by = "1 day") %>%
       format("%Y%m%d")
+    if(as.Date(end_date) >= Sys.Date()) {possible_file_names <- c(possible_file_names, "current.dat")}
     files <- files[grepl(paste0(possible_file_names, collapse = "|"), files)]
   } else if (!is.null(start_date) | !is.null(end_date)){
     stop("If you provide a start or end date, you must provide both")
