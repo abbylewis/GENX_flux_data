@@ -41,7 +41,8 @@ calculate_flux <- function(start_date = NULL,
   exclude <- c("GENX_INSTRUMENT_FLUX_COMB_20240417020046.dat",
                "GENX_INSTRUMENT_FLUX_COMB_20240403020045.dat",
                "GENX_INSTRUMENT_FLUX_COMB_20240501020048.dat",
-               "GENX_LGR_04142021_20210505020005.dat")
+               "GENX_LGR_04142021_20210505020005.dat"
+               )
   files <- files[!grepl(paste0(exclude, collapse = "|"), files)]
   message(paste0("Calculating fluxes for ", length(files), " files"))
   
@@ -62,7 +63,7 @@ calculate_flux <- function(start_date = NULL,
                !duplicated(CH4d_ppm)) %>% #I've spent some time looking into this and there are some duplicated LGR rows
       select(TIMESTAMP, CH4d_ppm, CO2d_ppm, MIU_VALVE, GasT_C)
   } else {
-    #NOTE GENX_FLUX_20210602020004.dat has issues with timestamp
+    #NOTE GENX_FLUX_20210602020004.dat has issues with timestamp (update 3 Dec 2024- don't see this)
     data_small <- data_raw %>%
       select(TIMESTAMP, CH4d_ppm, CO2d_ppm, MIU_VALVE, GasT_C)
   }
@@ -149,16 +150,38 @@ calculate_flux <- function(start_date = NULL,
     select(-old)
   write_csv(peaks_comb, here::here("processed_data","peaks_raw.csv"))
   
+  #remove outliers, then calculate rolling max
   peaks <- peaks_comb %>%
     group_by(MIU_VALVE) %>%
     arrange(date) %>%
+    mutate(sd = zoo::rollapply(cutoff, 
+                               width = rolling_window, 
+                               FUN = sd,
+                               na.rm = T,
+                               fill = "expand",
+                               partial = T,
+                               align = "center"),
+           mean = zoo::rollapply(cutoff, 
+                                 width = rolling_window, 
+                                 FUN = mean,
+                                 na.rm = T,
+                                 fill = "expand",
+                                 partial = T,
+                                 align = "center")) %>%
+    filter(!cutoff > (mean + 2*sd)) %>%
+    select(-mean, -sd) %>%
     mutate(cutoff = zoo::rollapply(cutoff, 
                                    width = rolling_window, 
                                    FUN = max,
                                    na.rm = T,
                                    fill = "expand",
                                    partial = T,
-                                   align = "center"))
+                                   align = "center")) %>%
+    #Manually reset these because there are two peaks
+    mutate(cutoff = ifelse(date > as.Date("2024-09-30") &
+                             date < as.Date("2024-10-15"),
+                           300,
+                           cutoff))
   
   #Save flags for data that will be removed in the next step
   flags <- grouped_data %>%
