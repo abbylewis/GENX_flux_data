@@ -178,7 +178,7 @@ calculate_flux <- function(start_date = NULL,
                                    partial = T,
                                    align = "center")) %>%
     #Manually reset these because there are two peaks
-    mutate(cutoff = ifelse(date > as.Date("2024-09-30") &
+    mutate(cutoff = ifelse(date > as.Date("2024-09-25") &
                              date < as.Date("2024-10-15"),
                            300,
                            cutoff))
@@ -304,7 +304,7 @@ group_fun <- function(MIU_VALVE) {
   }
   return(group)
 }
-#calculate_flux(start_date = "2021-01-01", 
+#calculate_flux(start_date = "2024-10-01", 
 #               end_date = Sys.Date()+1,
 #               modif_start_date = NULL,
 #               reprocess = TRUE)

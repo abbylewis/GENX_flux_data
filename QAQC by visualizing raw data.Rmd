@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
 #Create function to assign groups for separate readings
 group_fun <- function(MIU_VALVE) {
   group <- rep(1, length(MIU_VALVE))
@@ -35,7 +36,7 @@ files <- files[!grepl(paste0(exclude, collapse = "|"), files)]
 #For testing
 files <- files[grepl("2024", files)]
 files
-files <- files[grepl("20241214235906", files)]
+files <- files[grepl("202410", files)]
 
 message(paste0("Calculating fluxes for ", length(files), " files"))
 
@@ -196,7 +197,7 @@ peaks <- peaks_comb %>%
                                  partial = T,
                                  align = "center")) %>%
   #Manually reset these because there are two peaks
-  mutate(cutoff = ifelse(date > as.Date("2024-09-30") &
+  mutate(cutoff = ifelse(date > as.Date("2024-09-25") &
                            date < as.Date("2024-10-15"),
                          300,
                          cutoff))
@@ -280,9 +281,9 @@ if(plot){
       xlab("Date")+
       ylab("Time to peak (s)")+
       theme_bw()
-    jpeg(here::here("figures", paste0("TimeToPeak_", year_i, ".jpeg")), width = 6, height = 5, units = "in", res = 300)
+    #jpeg(here::here("figures", paste0("TimeToPeak_", year_i, ".jpeg")), width = 6, height = 5, units = "in", res = 300)
     print(p)
-    dev.off()
+    #dev.off()
   }
 }
 ```
