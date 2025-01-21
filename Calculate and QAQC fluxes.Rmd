@@ -47,3 +47,102 @@ if(reprocess){
 data <- qaqc(here::here("processed_data","L0.csv"))
 ```
 
+Some visualizations
+
+```{r}
+library(tidyverse)
+l1 <- read_csv(here::here("L1.csv")) %>%
+  mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "America/New_York"))
+
+l1 %>%
+  mutate(year = factor(year(TIMESTAMP)),
+         doy = yday(TIMESTAMP)) %>%
+  ggplot(aes(x = doy, y = CH4_slope_umol_per_day/0.196, color = year)) +
+  geom_point() +
+  ylab(bquote("CH"[4]~"flux (mg m"^-2~"day"^-1))+
+  ylim(-15000, 15000)
+
+l1 %>%
+  mutate(year = factor(year(TIMESTAMP)),
+         doy = yday(TIMESTAMP)) %>%
+  ggplot(aes(x = doy, y = CH4_slope_umol_per_day/0.196, color = as.factor(miu_valve))) +
+  geom_point() +
+  ylim(c(-15000, 15000))+
+  ylab(bquote("CH"[4]~"flux (mg m"^-2~"day"^-1))+
+  facet_wrap(~year)
+
+l1 %>%
+  mutate(year = factor(year(TIMESTAMP))) %>%
+  group_by(miu_valve, year) %>%
+  summarize(pct = sum(CH4_slope_umol_per_day < 0)/n()*100) %>%
+  ggplot() +
+  geom_bar(aes(fill = as.factor(miu_valve), y = pct, x = year), stat = "identity", position = "dodge")+
+  ylab("Percent of fluxes that are negative")
+
+l1 %>%
+  mutate(hour = hour(TIMESTAMP),
+         year = year(TIMESTAMP)) %>%
+  group_by(miu_valve, hour, year) %>%
+  summarize(pct = sum(CH4_slope_umol_per_day < 0)/n()*100) %>%
+  ggplot() +
+  geom_smooth(aes(color = as.factor(miu_valve), y = pct, x = hour))+
+  ylab("Percent of fluxes that are negative")+
+  facet_wrap(~year)
+
+l1 %>%
+  filter(year(TIMESTAMP) == 2024) %>%
+  mutate(hour = hour(TIMESTAMP),
+         year = year(TIMESTAMP)) %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4_slope_umol_per_day)) +
+  geom_point()+
+  facet_wrap(~miu_valve)
+
+l1 %>%
+  mutate(hour = hour(TIMESTAMP) + minute(TIMESTAMP)/60,
+         year = year(TIMESTAMP)) %>%
+  ggplot(aes(x = hour, y = CH4_slope_umol_per_day/0.196)) +
+  geom_point(alpha = 0.1)+
+  ylab(bquote("CH"[4]~"flux (mg m"^-2~"day"^-1~")"))+
+  ylim(c(-15000,15000))+
+  facet_wrap(~year)
+
+l1 %>%
+  mutate(hour = hour(TIMESTAMP) + minute(TIMESTAMP)/60,
+         year = year(TIMESTAMP),
+         month = month(TIMESTAMP),
+         season = ifelse(month %in% c(12, 1, 2),
+                         "Winter",
+                         ifelse(month %in% c(3, 4, 5),
+                                "Spring",
+                                ifelse(month %in% c(6, 7, 8),
+                                       "Summer",
+                                       "Autumn")))) %>%
+  group_by(year, season) %>%
+  filter(length(unique(as.Date(TIMESTAMP))) >50) %>%
+  filter(abs(CH4_slope_umol_per_day)/0.196 < 15000) %>%
+  ggplot(aes(x = hour, y = CH4_slope_umol_per_day/0.196)) +
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs", k = 5))+
+  ylab(bquote("CH"[4]~"flux (mg m"^-2~"day"^-1~")"))+
+  ggh4x::facet_grid2(cols = vars(year), rows = vars(season), scales = "free_y", independent = "y")
+
+l1 %>%
+  mutate(hour = hour(TIMESTAMP) + minute(TIMESTAMP)/60,
+         year = year(TIMESTAMP),
+         month = month(TIMESTAMP)) %>%
+  filter(abs(CH4_slope_umol_per_day)/0.196 < 15000) %>%
+  ggplot(aes(x = hour, y = CH4_slope_umol_per_day/0.196)) +
+  geom_smooth()+
+  ylab(bquote("CH"[4]~"flux (mg m"^-2~"day"^-1~")"))+
+  ggh4x::facet_grid2(cols = vars(year), scales = "free_y", independent = "y")
+
+l1 %>%
+  mutate(doy = month(TIMESTAMP),
+         year = year(TIMESTAMP)) %>%
+  group_by(miu_valve, doy, year) %>%
+  summarize(pct = sum(CH4_slope_umol_per_day < 0)/n()*100) %>%
+  ggplot() +
+  geom_line(aes(color = as.factor(miu_valve), y = pct, x = doy))+
+  ylab("Percent of fluxes that are negative")+
+  facet_wrap(~year)
+```
+

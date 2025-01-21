@@ -82,7 +82,7 @@ Optional: remove data based on the maintenance log
 #Remove data as specified in maintenance log
 googlesheets4::gs4_deauth() # No authentication needed
 today <- Sys.time()
-maint_log <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1-fcWU3TK936cR0kPvLTy6CUF_GTvHTwGbiAKDCIE05s/edit?gid=0#gid=0") %>%
+maint_log <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1-fcWU3TK936cR0kPvLTy6CUF_GTvHTwGbiAKDCIE05s/edit?gid=0#gid=0", col_types = "c") %>%
   mutate(Start_time = as_datetime(Start_time, tz = "America/New_York"),
          End_time = as_datetime(End_time, tz = "America/New_York"),
          End_time = ifelse(is.na(End_time), today, End_time),
@@ -149,6 +149,8 @@ Identify peaks
 ```{r}
 buffer <- 60 #Buffer of time after peak (s)
 rolling_window = 15 #days
+default = 60
+range_thresh = 0.02
 peaks_raw <- grouped_data %>%
   group_by(group, MIU_VALVE)  %>%
   filter(max(change_s) < 1000, #After ~15 min there is probably a problem
@@ -158,6 +160,7 @@ peaks_raw <- grouped_data %>%
             range = max(CH4d_ppm)-min(CH4d_ppm)) %>%
   filter((difftime(end, start, units = "secs") - max_s) > 20,
          ) %>%
+  mutate(max_s = ifelse(range < range_thresh, default, max_s)) %>%
   group_by(MIU_VALVE, date) %>%
   summarize(cutoff = density(max_s, bw = 10)$x[which.max(density(max_s, bw = 10)$y)],
             cutoff = round(cutoff) + buffer,

@@ -51,6 +51,7 @@ calculate_flux <- function(start_date = NULL,
     map(read_csv, col_types = cols(.default = "c"), skip = 1)  %>%
     bind_rows() %>%
     filter(!TIMESTAMP == "TS") %>%
+    #NOTE GENX_FLUX_20210602020004.dat has issues with timestamp
     mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "America/New_York")) %>%
     filter(!is.na(TIMESTAMP),
            year(TIMESTAMP)>=2021) %>%
@@ -63,7 +64,6 @@ calculate_flux <- function(start_date = NULL,
                !duplicated(CH4d_ppm)) %>% #I've spent some time looking into this and there are some duplicated LGR rows
       select(TIMESTAMP, CH4d_ppm, CO2d_ppm, MIU_VALVE, GasT_C)
   } else {
-    #NOTE GENX_FLUX_20210602020004.dat has issues with timestamp (update 3 Dec 2024- don't see this)
     data_small <- data_raw %>%
       select(TIMESTAMP, CH4d_ppm, CO2d_ppm, MIU_VALVE, GasT_C)
   }
@@ -84,7 +84,8 @@ calculate_flux <- function(start_date = NULL,
   #Remove data as specified in maintenance log
   googlesheets4::gs4_deauth() # No authentication needed
   today <- Sys.time()
-  maint_log <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1-fcWU3TK936cR0kPvLTy6CUF_GTvHTwGbiAKDCIE05s/edit?gid=0#gid=0") %>%
+  maint_log <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1-fcWU3TK936cR0kPvLTy6CUF_GTvHTwGbiAKDCIE05s/edit?gid=0#gid=0",
+                                         col_types = "c") %>%
     mutate(Start_time = as_datetime(Start_time, tz = "America/New_York"),
            End_time = as_datetime(End_time, tz = "America/New_York"),
            End_time = ifelse(is.na(End_time), today, End_time),
@@ -131,13 +132,17 @@ calculate_flux <- function(start_date = NULL,
   
   buffer <- 60 #Buffer of time after peak (s)
   rolling_window = 15 #days
+  default = 60
+  range_thresh = 0.02
   peaks_raw <- grouped_data %>%
     group_by(group, MIU_VALVE)  %>%
     filter(max(change_s) < 1000, #After ~15 min there is probably a problem
     ) %>%
     group_by(MIU_VALVE, date, group, end, start) %>%
-    summarize(max_s = unique(max_s), .groups = "drop") %>%
+    summarize(max_s = unique(max_s), .groups = "drop",
+              range = max(CH4d_ppm, na.rm = T)-min(CH4d_ppm, na.rm = T)) %>%
     filter((difftime(end, start, units = "secs") - max_s) > 20) %>%
+    mutate(max_s = ifelse(range < range_thresh, default, max_s)) %>%
     group_by(MIU_VALVE, date) %>%
     summarize(cutoff = density(max_s, bw = 10)$x[which.max(density(max_s, bw = 10)$y)],
               cutoff = round(cutoff) + buffer,
