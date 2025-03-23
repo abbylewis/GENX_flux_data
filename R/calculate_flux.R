@@ -1,4 +1,7 @@
 
+source(here::here("R","load_data.R"))
+source(here::here("R","filter_old_data.R"))
+
 #' calculate_flux
 #'
 #' @description
@@ -47,36 +50,21 @@ calculate_flux <- function(start_date = NULL,
   message(paste0("Calculating fluxes for ", length(files), " files"))
   
   #Load data
-  data_raw <- files %>%
-    map(read_csv, col_types = cols(.default = "c"), skip = 1)  %>%
-    bind_rows() %>%
+  data_small <- files %>%
+    map(load_data) %>% #custom data loading function that deals with multiple file formats
+    bind_rows()  %>%
     filter(!TIMESTAMP == "TS") %>%
-    #NOTE GENX_FLUX_20210602020004.dat has issues with timestamp
     mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "America/New_York")) %>%
     filter(!is.na(TIMESTAMP),
            year(TIMESTAMP)>=2021) %>%
-    distinct() 
-  
-  #Account for different formatting among files
-  if("LGR_Time" %in% colnames(data_raw)){
-    data_small <- data_raw %>%
-      filter(is.na(LGR_Time) | !duplicated(LGR_Time) | 
-               !duplicated(CH4d_ppm)) %>% #I've spent some time looking into this and there are some duplicated LGR rows
-      select(TIMESTAMP, CH4d_ppm, CO2d_ppm, MIU_VALVE, GasT_C)
-  } else {
-    data_small <- data_raw %>%
-      select(TIMESTAMP, CH4d_ppm, CO2d_ppm, MIU_VALVE, GasT_C)
-  }
-  rm(data_raw) #Save memory
+    distinct()
   
   #Format data
   data_numeric <- data_small %>%
-    mutate(CH4d_ppm = as.numeric(CH4d_ppm),
-           CO2d_ppm = as.numeric(CO2d_ppm),
-           GasT_C = as.numeric(GasT_C),
-           MIU_VALVE = as.numeric(MIU_VALVE),
-           CH4d_ppm = ifelse(CH4d_ppm<=0, NA, CH4d_ppm),
-           CO2d_ppm = ifelse(CO2d_ppm<=0, NA, CO2d_ppm)) %>%
+    mutate(across(c("CH4d_ppm", "CO2d_ppm", "N2Od_ppb", "Manifold_Timer", "MIU_VALVE"), as.numeric)) %>%
+    mutate(N2Od_ppb = ifelse(N2Od_ppb <=0, NA, N2Od_ppb),
+           CH4d_ppm = ifelse(CH4d_ppm <=0, NA, CH4d_ppm),
+           CO2d_ppm = ifelse(CO2d_ppm <=0, NA, CO2d_ppm)) %>%
     filter(!is.na(MIU_VALVE),
            MIU_VALVE %in% 1:12) %>%
     mutate(Flag = "No issues")
@@ -108,7 +96,13 @@ calculate_flux <- function(start_date = NULL,
                                  maint_log$Remove[i] == "y" &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
-                               CO2d_ppm))
+                               CO2d_ppm),
+             N2Od_ppb = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
+                                 TIMESTAMP >= maint_log$Start_time[i] &
+                                 maint_log$Remove[i] == "y" &
+                                 MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
+                               NA,
+                               N2Od_ppb))
   }
   
   #Group flux intervals, prep for slopes
@@ -130,101 +124,50 @@ calculate_flux <- function(start_date = NULL,
                           change_s[which.min(CH4d_ppm)],
                           NA),)
   
-  buffer <- 60 #Buffer of time after peak (s)
-  rolling_window = 15 #days
-  default = 60
-  range_thresh = 0.02
-  peaks_raw <- grouped_data %>%
+  #Set aside data after the system switched to process differently
+  time_split <- split(grouped_data, grouped_data$Format)
+  #Process new format
+  start_cutoff <- 200 #Buffer of time after flux window
+  end_cutoff <- 540
+  filtered_data_new <- time_split$NEW %>%
     group_by(group, MIU_VALVE)  %>%
-    filter(max(change_s) < 1000, #After ~15 min there is probably a problem
-    ) %>%
-    group_by(MIU_VALVE, date, group, end, start) %>%
-    summarize(max_s = unique(max_s), .groups = "drop",
-              range = max(CH4d_ppm, na.rm = T)-min(CH4d_ppm, na.rm = T)) %>%
-    filter((difftime(end, start, units = "secs") - max_s) > 20) %>%
-    mutate(max_s = ifelse(range < range_thresh, default, max_s)) %>%
-    group_by(MIU_VALVE, date) %>%
-    summarize(cutoff = density(max_s, bw = 10)$x[which.max(density(max_s, bw = 10)$y)],
-              cutoff = round(cutoff) + buffer,
-              .groups = "drop") 
-  old_peaks <- read_csv(here::here("processed_data","peaks_raw.csv"), show_col_types = F)
-  peaks_comb <- old_peaks %>%
-    rename(old = cutoff) %>%
-    full_join(peaks_raw) %>%
-    mutate(cutoff = ifelse(is.na(cutoff), old, cutoff)) %>%
-    select(-old)
-  write_csv(peaks_comb, here::here("processed_data","peaks_raw.csv"))
-  
-  #remove outliers, then calculate rolling max
-  peaks <- peaks_comb %>%
-    group_by(MIU_VALVE) %>%
-    arrange(date) %>%
-    mutate(sd = zoo::rollapply(cutoff, 
-                               width = rolling_window, 
-                               FUN = sd,
-                               na.rm = T,
-                               fill = "expand",
-                               partial = T,
-                               align = "center"),
-           mean = zoo::rollapply(cutoff, 
-                                 width = rolling_window, 
-                                 FUN = mean,
-                                 na.rm = T,
-                                 fill = "expand",
-                                 partial = T,
-                                 align = "center")) %>%
-    filter(!cutoff > (mean + 2*sd)) %>%
-    select(-mean, -sd) %>%
-    mutate(cutoff = zoo::rollapply(cutoff, 
-                                   width = rolling_window, 
-                                   FUN = max,
-                                   na.rm = T,
-                                   fill = "expand",
-                                   partial = T,
-                                   align = "center")) %>%
-    #Manually reset these because there are two peaks
-    mutate(cutoff = ifelse(date > as.Date("2024-09-25") &
-                             date < as.Date("2024-10-15"),
-                           300,
-                           cutoff))
-  
-  #Save flags for data that will be removed in the next step
-  flags <- grouped_data %>%
-    ungroup() %>%
-    select(start, MIU_VALVE, Flag, date, group) %>%
-    distinct() %>%
-    group_by(MIU_VALVE, start, date, group) %>%
-    filter(n() == 1 | !Flag == "No issues")
-  
-  filtered_data <- grouped_data %>%
-    left_join(peaks, by = c("MIU_VALVE", "date")) %>%
-    group_by(group, MIU_VALVE)  %>%
-    mutate(n = sum(change_s >= cutoff)) %>%
+    mutate(n = sum(Manifold_Timer >= start_cutoff &
+                     Manifold_Timer <= end_cutoff)) %>%
     #Remove earlier measurements
-    filter(change_s >= cutoff,
+    filter(Manifold_Timer >= start_cutoff,
+           Manifold_Timer <= end_cutoff,
            max(change_s) < 1000, #After ~15 min there is probably a problem
            n < 200 #probably some issue if this many measurements are taken
     ) 
   
+  #Process using old methods
+  filtered_data_old <- filter_old_data(time_split$OLD)
+  
+  #Combine
+  filtered_data <- rbind(filtered_data_old, filtered_data_new)
+  
   #Data flags
   data_flags <- filtered_data %>%
     group_by(group, MIU_VALVE, date) %>%
-    summarize(Flag_CO2_slope = ifelse(sum(!is.na(CO2d_ppm)) > 5, "No issues", "Insufficient data"),
-              Flag_CH4_slope = ifelse(sum(!is.na(CH4d_ppm)) > 5, "No issues", "Insufficient data"),
+    summarize(Flag_CO2_slope = ifelse(sum(!is.na(CO2d_ppm)) > 5, 
+                                      "No issues", "Insufficient data"),
+              Flag_N2O_slope = ifelse(sum(!is.na(N2Od_ppb)) > 5, 
+                                      "No issues", "Insufficient data"),
+              Flag_CH4_slope = ifelse(sum(!is.na(CH4d_ppm)) > 5, 
+                                      "No issues", "Insufficient data"),
               cutoff_removed = unique(cutoff),
               n_removed = unique(n),
               .groups = "drop") 
   
   #Run lm
   slopes <- filtered_data %>%
-    pivot_longer(c(CH4d_ppm, CO2d_ppm), names_to = "gas", values_to = "conc") %>%
+    pivot_longer(c(CH4d_ppm, CO2d_ppm, N2Od_ppb), names_to = "gas", values_to = "conc") %>%
     group_by(gas, group, MIU_VALVE, date) %>%
     mutate(n = sum(!is.na(conc))) %>%
     filter(!is.na(conc),
            n > 5) %>%
     summarize(model = list(lm(conc ~ change)),
               slope_ppm_per_day = model[[1]]$coefficients[[2]],
-              Temp_init = first(GasT_C),
               R2 = summary(model[[1]])$r.squared,
               p = summary(model[[1]])$coefficients[,4][2],
               rmse = sqrt(mean(model[[1]]$residuals^2)),
@@ -239,11 +182,14 @@ calculate_flux <- function(start_date = NULL,
               cutoff = unique(cutoff),
               .groups = "drop") %>%
     select(-model) %>%
-    mutate(gas = ifelse(gas == "CH4d_ppm", "CH4", "CO2")) %>%
+    mutate(gas = case_match(gas,
+                            "CH4d_ppm" ~ "CH4",
+                            "CO2d_ppm" ~ "CO2",
+                            "N2Od_ppb" ~ "N2O")) %>%
     pivot_wider(names_from = gas, 
                 values_from = c(slope_ppm_per_day, R2, p, rmse, init, max, min),
                 names_glue = "{gas}_{.value}") %>%
-    full_join(flags, by = c("TIMESTAMP" = "start", "MIU_VALVE", "date", "group")) %>%
+    #full_join(flags, by = c("TIMESTAMP" = "start", "MIU_VALVE", "date", "group")) %>%
     full_join(data_flags, by = c("group", "MIU_VALVE", "date")) %>%
     mutate(cutoff = ifelse(is.na(cutoff), cutoff_removed, cutoff),
            n = ifelse(is.na(n), n_removed, n)) %>%
@@ -284,7 +230,7 @@ calculate_flux <- function(start_date = NULL,
     #Whenever we reprocess everything, save the raw output for QAQC efforts
     round_comb <- function(x){round(as.numeric(x), 2)}
     write.csv(data_small %>%
-                mutate(across(c(CO2d_ppm, GasT_C), round_comb)),
+                mutate(across(c(CO2d_ppm), round_comb)),
               here::here("processed_data","raw_small.csv"), row.names = FALSE)
     write_csv(filtered_data, 
               here::here("processed_data","processed_GENX_LGR_data.csv"))
