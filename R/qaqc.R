@@ -63,13 +63,13 @@ qaqc <- function(L0_file = here::here("processed_data","L0.csv")){
               by = c("MIU_VALVE", "time_1min")) 
   
   #Fill in temperature with a linear regression (LGR vs BME)
-  lm_temp <- lm(AirTemp_C ~ Temp_init, data = slopes_with_bme)
+  #lm_temp <- lm(AirTemp_C ~ Temp_init, data = slopes_with_bme)
   slopes_umol <- slopes_with_bme %>%
     mutate(Flag_AirTemp_C = ifelse(is.na(AirTemp_C), "Filled from LGR", "No issues"),
-           AirTemp_C = ifelse(is.na(AirTemp_C), 
-                              predict(lm_temp, #Fill
-                                      newdata = data.frame(Temp_init)), 
-                              AirTemp_C),
+           #AirTemp_C = ifelse(is.na(AirTemp_C), 
+            #                  predict(lm_temp, #Fill
+             #                         newdata = data.frame(Temp_init)), 
+              #                AirTemp_C),
            Flag_AirTemp_C = ifelse(is.na(AirTemp_C), "Missing air temp", Flag_AirTemp_C),
            CH4_slope_umol_per_day = CH4_slope_ppm_per_day * 
              265.8 / (0.08206*(AirTemp_C + 273.15)),

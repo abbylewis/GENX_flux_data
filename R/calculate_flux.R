@@ -124,6 +124,14 @@ calculate_flux <- function(start_date = NULL,
                           change_s[which.min(CH4d_ppm)],
                           NA),)
   
+  #Save flags for data that will be removed in the next step
+  flags <- grouped_data %>%
+    ungroup() %>%
+    select(start, MIU_VALVE, Flag, date, group) %>%
+    distinct() %>%
+    group_by(MIU_VALVE, start, date, group) %>%
+    filter(n() == 1 | !Flag == "No issues")
+  
   #Set aside data after the system switched to process differently
   time_split <- split(grouped_data, grouped_data$Format)
   #Process new format
@@ -189,7 +197,7 @@ calculate_flux <- function(start_date = NULL,
     pivot_wider(names_from = gas, 
                 values_from = c(slope_ppm_per_day, R2, p, rmse, init, max, min),
                 names_glue = "{gas}_{.value}") %>%
-    #full_join(flags, by = c("TIMESTAMP" = "start", "MIU_VALVE", "date", "group")) %>%
+    full_join(flags, by = c("TIMESTAMP" = "start", "MIU_VALVE", "date", "group")) %>%
     full_join(data_flags, by = c("group", "MIU_VALVE", "date")) %>%
     mutate(cutoff = ifelse(is.na(cutoff), cutoff_removed, cutoff),
            n = ifelse(is.na(n), n_removed, n)) %>%

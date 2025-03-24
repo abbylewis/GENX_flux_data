@@ -22,6 +22,52 @@ group_fun <- function(MIU_VALVE) {
 }
 ```
 
+```{r}
+# Check nighttime CO2 fluxes compare across years
+library(tidyverse)
+l0 <- read_csv("processed_data/L0.csv") 
+l0 %>%
+  filter(year(date) %in% c(2024, 2025)) %>%
+  ggplot(aes(x = date, y = CH4_init)) +
+  geom_point(alpha = 0.1)+
+  facet_wrap(~MIU_VALVE)+
+  scale_x_date(date_breaks = "2 months", date_labels = "%b")
+
+l0 %>%
+  filter(year(date)==2025,
+         CH4_slope_ppm_per_day < 500) %>%
+  ggplot(aes(x = CH4_init, y = CH4_slope_ppm_per_day, color = date)) +
+  geom_point()+
+  facet_wrap(~MIU_VALVE)
+
+l0 %>%
+  filter(month(date) == 3) %>%
+  mutate(Format = ifelse(date > "2025-03-15", "NEW", "OLD")) %>%
+  ggplot(aes(x = hour(flux_start), y = CO2_slope_ppm_per_day)) +
+  geom_point()+
+  facet_wrap(~Format)
+
+l0 %>%
+  select(date, CO2_slope_ppm_per_day, CH4_slope_ppm_per_day) %>%
+  pivot_longer(cols = -date, names_to = "Gas", values_to = "Slope") %>%
+  filter(month(date) == 3) %>%
+  mutate(Format = ifelse(date > "2025-03-15", "NEW", "OLD"),
+         month = month(date)) %>%
+  ggplot(aes(x = Format, y = Slope)) +
+  geom_boxplot()+
+  ggh4x::facet_grid2(month~Gas, scales = "free", independent = "y")
+
+l0 %>%
+  filter(hour(flux_start) >= 0,
+         hour(flux_start) <= 4) %>%
+  group_by(date, MIU_VALVE) %>%
+  summarize(CO2_slope_ppm_per_day = mean(CO2_slope_ppm_per_day, na.rm = T)) %>%
+  ggplot(aes(x = date, y = CO2_slope_ppm_per_day)) +
+  geom_point(alpha = 0.2)+
+  ylim(-10000,10000)+
+  facet_wrap(~MIU_VALVE)
+```
+
 Load data
 
 ```{r}
