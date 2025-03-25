@@ -1,11 +1,11 @@
 filter_old_data <- function(grouped_data){
   
-  if(nrow(grouped_data) == 0){
+  if(is.null(grouped_data)){
     #Return empty dataframe
-    return(setNames(data.frame(matrix(ncol = 15, nrow = 0)), 
+    return(setNames(data.frame(matrix(ncol = 17, nrow = 0)), 
                c("TIMESTAMP", "CH4d_ppm", "CO2d_ppm", "N2Od_ppb", "MIU_VALVE", "Manifold_Timer", 
                  "Flag", "date", "group", "start", "end", "change", "change_s", 
-                 "max_s", "min_s", "n")))
+                 "max_s", "min_s", "n", "cutoff")))
   }
   
   buffer <- 60 #Buffer of time after peak (s)

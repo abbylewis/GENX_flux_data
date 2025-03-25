@@ -140,7 +140,8 @@ calculate_flux <- function(start_date = NULL,
   filtered_data_new <- time_split$NEW %>%
     group_by(group, MIU_VALVE)  %>%
     mutate(n = sum(Manifold_Timer >= start_cutoff &
-                     Manifold_Timer <= end_cutoff)) %>%
+                     Manifold_Timer <= end_cutoff),
+           cutoff = NA) %>%
     #Remove earlier measurements
     filter(Manifold_Timer >= start_cutoff,
            Manifold_Timer <= end_cutoff,
@@ -203,6 +204,28 @@ calculate_flux <- function(start_date = NULL,
            n = ifelse(is.na(n), n_removed, n)) %>%
     select(-cutoff_removed, -n_removed)
   
+  if(!reprocess){
+    #Load previously calculated slopes
+    old_slopes <- read_csv(here::here("processed_data","L0.csv"), show_col_types = F) %>%
+      mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "America/New_York")) %>%
+      filter(!TIMESTAMP %in% slopes$TIMESTAMP)
+    slopes_comb <- bind_rows(old_slopes, slopes)
+  } else {
+    slopes_comb <- slopes
+    #Whenever we reprocess everything, save the raw output for QAQC efforts
+    round_comb <- function(x){round(as.numeric(x), 2)}
+    write.csv(data_small %>%
+                mutate(across(c(CO2d_ppm), round_comb)),
+              here::here("processed_data","raw_small.csv"), row.names = FALSE)
+    write_csv(filtered_data, 
+              here::here("processed_data","processed_GENX_LGR_data.csv"))
+  }
+  
+  #Output
+  write.csv(slopes_comb %>% select(-max_s), 
+            here::here("processed_data","L0.csv"), 
+            row.names = FALSE)
+  
   if(plot){
     for(year_i in unique(year(slopes$TIMESTAMP))){
       p <- slopes %>%
@@ -227,27 +250,6 @@ calculate_flux <- function(start_date = NULL,
     }
   }
   
-  if(!reprocess){
-    #Load previously calculated slopes
-    old_slopes <- read_csv(here::here("processed_data","L0.csv"), show_col_types = F) %>%
-      mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "America/New_York")) %>%
-      filter(!TIMESTAMP %in% slopes$TIMESTAMP)
-    slopes_comb <- bind_rows(old_slopes, slopes)
-  } else {
-    slopes_comb <- slopes
-    #Whenever we reprocess everything, save the raw output for QAQC efforts
-    round_comb <- function(x){round(as.numeric(x), 2)}
-    write.csv(data_small %>%
-                mutate(across(c(CO2d_ppm), round_comb)),
-              here::here("processed_data","raw_small.csv"), row.names = FALSE)
-    write_csv(filtered_data, 
-              here::here("processed_data","processed_GENX_LGR_data.csv"))
-  }
-  
-  #Output
-  write.csv(slopes_comb %>% select(-max_s), 
-            here::here("processed_data","L0.csv"), 
-            row.names = FALSE)
   return(slopes_comb)
 }
 
