@@ -1,0 +1,64 @@
+---
+title: "New format"
+author: "Abby Lewis"
+date: "2025-03-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load and format data
+
+```{r}
+slopes_l0 <- read_csv(here::here("processed_data", "L0.csv"), 
+                      show_col_types = F) %>%
+  filter(year(TIMESTAMP) == 2025) %>% 
+  rename(chamber = MIU_VALVE) %>%
+  pivot_longer(matches("CH4_|N2O_|CO2_"), 
+               names_to = c("gas", ".value"), 
+               names_sep="_" ) %>%
+  filter(!gas == "Flag")
+```
+
+Generate plots
+
+```{r}
+color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
+                 'mediumseagreen','limegreen','yellowgreen','yellow2',
+                 'darkgoldenrod2','darkorange2','orangered1','red2')
+
+jpeg("../figures/slopes.jpg", width = 7, height = 3, units = "in", res = 300)
+slopes_l0 %>%
+  mutate(chamber = as.factor(chamber)) %>%
+  ggplot(aes(x = TIMESTAMP, y = slope, color = chamber)) +
+  geom_point(size = 0.5) +
+  geom_line() +
+  ggh4x::facet_grid2(.~gas, independent = "y", scales = "free_y") +
+  scale_color_manual(values = color.gradient)+
+  theme_bw()
+dev.off()
+
+jpeg("../figures/R2.jpg", width = 7, height = 6, units = "in", res = 300)
+slopes_l0 %>%
+  mutate(chamber = as.factor(chamber)) %>%
+  ggplot(aes(x = TIMESTAMP, y = R2, color = chamber)) +
+  geom_point(size = 0.5) +
+  scale_color_manual(values = color.gradient)+
+  ggh4x::facet_grid2(chamber~gas, scales = "free_y")+
+  theme_bw()
+dev.off()
+
+jpeg("../figures/R2 vs slope.jpg", width = 6, height = 3, units = "in", res = 300)
+slopes_l0 %>% 
+  mutate(chamber = as.factor(chamber)) %>%
+  ggplot(aes(x = abs(slope), y = R2, color = chamber)) +
+  geom_point() +
+  ylim(c(0,1)) +
+  ggh4x::facet_grid2(.~gas, independent = "x", scales = "free_x") +
+  scale_color_manual(values = color.gradient)+
+  theme_bw()
+dev.off()
+```
+
