@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
 ```
 
 Load and format data
@@ -40,6 +41,18 @@ slopes_l0 %>%
   theme_bw()
 dev.off()
 
+jpeg("../figures/slopes2.jpg", width = 7, height = 6, units = "in", res = 300)
+slopes_l0 %>%
+  mutate(chamber = as.factor(chamber)) %>%
+  ggplot(aes(x = TIMESTAMP, y = slope, color = chamber)) +
+  geom_hline(yintercept = 0, color = "grey50") +
+  geom_point(size = 0.5) +
+  geom_line() +
+  ggh4x::facet_grid2(chamber~gas, independent = "y", scales = "free_y") +
+  scale_color_manual(values = color.gradient)+
+  theme_bw()
+dev.off()
+
 jpeg("../figures/R2.jpg", width = 7, height = 6, units = "in", res = 300)
 slopes_l0 %>%
   mutate(chamber = as.factor(chamber)) %>%
@@ -60,5 +73,15 @@ slopes_l0 %>%
   scale_color_manual(values = color.gradient)+
   theme_bw()
 dev.off()
+
+slopes_l0 %>%
+  mutate(chamber = as.factor(chamber),
+         Hour = hour(TIMESTAMP)) %>%
+  ggplot(aes(x = Hour, y = slope, color = chamber)) +
+  geom_point(size = 0.5) +
+  geom_smooth(span = 0.5, se = F) +
+  ggh4x::facet_grid2(.~gas, independent = "y", scales = "free_y") +
+  scale_color_manual(values = color.gradient)+
+  theme_bw()
 ```
 

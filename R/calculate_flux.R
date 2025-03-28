@@ -54,7 +54,7 @@ calculate_flux <- function(start_date = NULL,
     map(load_data) %>% #custom data loading function that deals with multiple file formats
     bind_rows()  %>%
     filter(!TIMESTAMP == "TS") %>%
-    mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "America/New_York")) %>%
+    mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "EST")) %>%
     filter(!is.na(TIMESTAMP),
            year(TIMESTAMP)>=2021) %>%
     distinct()
