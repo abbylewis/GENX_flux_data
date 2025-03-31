@@ -206,8 +206,10 @@ calculate_flux <- function(start_date = NULL,
   
   if(!reprocess){
     #Load previously calculated slopes
-    old_slopes <- read_csv(here::here("processed_data","L0.csv"), show_col_types = F) %>%
-      mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "America/New_York")) %>%
+    old_slopes <- read_csv(here::here("processed_data","L0.csv"), 
+                           col_types = "nnDcccnnnnnnnnnnnnnnnnnnnnnnncccc",
+                           show_col_types = F) %>%
+      mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "EST")) %>%
       filter(!TIMESTAMP %in% slopes$TIMESTAMP)
     slopes_comb <- bind_rows(old_slopes, slopes)
   } else {
