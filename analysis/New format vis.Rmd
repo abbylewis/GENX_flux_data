@@ -13,9 +13,12 @@ library(tidyverse)
 Load and format data
 
 ```{r}
+days_to_plot <- 40
+today <- Sys.Date()
 slopes_l0 <- read_csv(here::here("processed_data", "L0.csv"), 
                       show_col_types = F) %>%
-  filter(year(TIMESTAMP) == 2025) %>% 
+  filter(year(TIMESTAMP) == 2025,
+         TIMESTAMP > (today - days(days_to_plot))) %>% 
   rename(chamber = MIU_VALVE) %>%
   pivot_longer(matches("CH4_|N2O_|CO2_"), 
                names_to = c("gas", ".value"), 
@@ -38,6 +41,7 @@ slopes_l0 %>%
   geom_line() +
   ggh4x::facet_grid2(.~gas, independent = "y", scales = "free_y") +
   scale_color_manual(values = color.gradient)+
+  scale_x_datetime(date_breaks = "2 day", date_labels = "%b %d") +
   theme_bw()
 dev.off()
 
@@ -50,6 +54,7 @@ slopes_l0 %>%
   geom_line() +
   ggh4x::facet_grid2(chamber~gas, independent = "y", scales = "free_y") +
   scale_color_manual(values = color.gradient)+
+  scale_x_datetime(date_breaks = "2 day", date_labels = "%b %d") +
   theme_bw()
 dev.off()
 
@@ -60,11 +65,11 @@ slopes_l0 %>%
   geom_point(size = 0.5) +
   scale_color_manual(values = color.gradient)+
   ggh4x::facet_grid2(chamber~gas, scales = "free_y")+
+  scale_x_datetime(date_breaks = "2 day", date_labels = "%b %d") +
   theme_bw()
 dev.off()
 
-jpeg("../figures/R2 vs slope.jpg", width = 6, height = 3, units = "in", res = 300)
-slopes_l0 %>% 
+p <- slopes_l0 %>% 
   mutate(chamber = as.factor(chamber)) %>%
   ggplot(aes(x = abs(slope), y = R2, color = chamber)) +
   geom_point() +
@@ -72,7 +77,7 @@ slopes_l0 %>%
   ggh4x::facet_grid2(.~gas, independent = "x", scales = "free_x") +
   scale_color_manual(values = color.gradient)+
   theme_bw()
-dev.off()
+plotly::ggplotly(p)
 
 slopes_l0 %>%
   mutate(chamber = as.factor(chamber),

@@ -6,7 +6,7 @@ library(tidyverse)
 
 download_chamber_temp <- function(chamber_temp_folder = here::here("Raw_data", "dropbox_chamber_temp")){
   #Identify all files
-  files <- drop_dir(path = "GCREW_LOGGERNET_DATA")
+  files <- drop_dir(path = "GCREW_LOGGERNET_DATA/archive_data")
   relevant_files <- files %>%
     filter(grepl("GENX_ARD_LOG", name))
   current <- drop_dir(path = "GCREW_LOGGERNET_DATA/current_data") %>%

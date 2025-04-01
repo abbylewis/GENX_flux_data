@@ -17,7 +17,7 @@ download_new_data <- function(lgr_folder = here::here("Raw_data","dropbox_downlo
   #Identify all files
   #GENX flux vs GENX LGR in 2021
   message("Looking for new data files on dropbox")
-  relevant_files <- drop_dir(path = "GCREW_LOGGERNET_DATA") %>%
+  relevant_files <- drop_dir(path = "GCREW_LOGGERNET_DATA/archive_data") %>%
     filter(grepl("GENX_INSTRUMENT_FLUX_COMB", name) |
              grepl("GENX_FLUX_", name) |
              grepl("GENX_LGR_", name) |
