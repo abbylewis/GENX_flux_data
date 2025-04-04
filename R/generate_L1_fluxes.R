@@ -14,13 +14,16 @@ source(here::here("R", "download_chamber_temp.R"))
 #' @export
 #'
 #' @examples
-generate_target <- function(reprocess = F){
+generate_target <- function(reprocess = F, temp = T){
   #First - check for new data and download locally
   lgr <- download_new_data(lgr_folder = here::here("Raw_data","dropbox_downloads"))
   
+  if(temp){
+    temp <- download_chamber_temp(chamber_temp_folder = here::here("Raw_data", "dropbox_chamber_temp"))
+  }
+  
   #Second- calculate fluxes for new data, generating the L0 file
   if(reprocess){
-    temp <- download_chamber_temp(chamber_temp_folder = here::here("Raw_data", "dropbox_chamber_temp"))
     L0 <- calculate_flux(start_date = "2021-01-01", 
                          end_date = Sys.Date()+1,
                          modif_start_date = NULL,
@@ -35,4 +38,4 @@ generate_target <- function(reprocess = F){
   return(data)
 }
 
-target <- generate_target(reprocess = F)
+target <- generate_target(reprocess = F, temp = T)
