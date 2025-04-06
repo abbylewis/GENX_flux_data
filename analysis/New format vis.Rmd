@@ -13,7 +13,7 @@ library(tidyverse)
 Load and format data
 
 ```{r}
-days_to_plot <- 5
+days_to_plot <- 10
 today <- Sys.Date()
 slopes_l0 <- read_csv(here::here("processed_data", "L0.csv"), 
                       show_col_types = F) %>%
