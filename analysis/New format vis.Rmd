@@ -17,7 +17,7 @@ days_to_plot <- 5
 today <- Sys.Date()
 slopes_l0 <- read_csv(here::here("processed_data", "L0.csv"), 
                       show_col_types = F) %>%
-  filter(TIMESTAMP <= today,
+  filter(as.Date(TIMESTAMP) <= today,
          TIMESTAMP > (today - days(days_to_plot))) %>% 
   rename(chamber = MIU_VALVE) %>%
   pivot_longer(matches("CH4_|N2O_|CO2_"), 
