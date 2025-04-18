@@ -15,13 +15,13 @@ source(here::here("R","filter_old_data.R"))
 
 calculate_flux <- function(start_date = NULL,
                            end_date = NULL,
-                           modif_start_date = file.info(here::here("processed_data","L0.csv"))$mtime,
                            reprocess = F,
                            plot = reprocess){
   ### Load files ###
   files <- list.files(here::here("Raw_data","dropbox_downloads"), full.names = T)
   #By default, only calculate slopes for files that have been modified/created since the last time we ran the script
-  if(!is.null(modif_start_date)){
+  if(!reprocess){
+    modif_start_date = file.info(here::here("processed_data","L0.csv"))$mtime
     files <- files[file.info(files)$mtime > modif_start_date]
   }
   #If a start and end date are provided, look for files that match these dates

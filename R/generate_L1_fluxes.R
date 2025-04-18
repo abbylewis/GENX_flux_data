@@ -26,7 +26,6 @@ generate_target <- function(reprocess = F, temp = T){
   if(reprocess){
     L0 <- calculate_flux(start_date = "2021-01-01", 
                          end_date = Sys.Date()+1,
-                         modif_start_date = NULL,
                          reprocess = reprocess)
   } else {
     L0 <- calculate_flux()
@@ -38,4 +37,4 @@ generate_target <- function(reprocess = F, temp = T){
   return(data)
 }
 
-target <- generate_target(reprocess = F, temp = T)
+target <- generate_target(reprocess = F, temp = F)
