@@ -90,5 +90,17 @@ slopes_l0 %>%
   ggh4x::facet_grid2(.~gas, independent = "y", scales = "free_y") +
   scale_color_manual(values = color.gradient)+
   theme_bw()
+
+slopes_l0 %>%
+  mutate(chamber = as.factor(chamber)) %>%
+  ggplot(aes(x = TIMESTAMP, y = init, color = chamber)) +
+  geom_point(size = 0.5) +
+  geom_line() +
+  ggh4x::facet_grid2(.~gas, independent = "y", scales = "free_y") +
+  scale_color_manual(values = color.gradient)+
+  scale_x_datetime(date_breaks = "2 day", date_labels = "%b %d") +
+  theme_bw()+
+  theme(legend.key.spacing.y = unit(0, "cm"),
+        legend.key.size = unit(0.5, "cm"))
 ```
 
