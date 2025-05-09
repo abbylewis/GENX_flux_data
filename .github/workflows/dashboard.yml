@@ -1,0 +1,27 @@
+on:
+  workflow_dispatch:
+  schedule:
+  - cron: "0 11 * * *"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: rocker/tidyverse:4.4.1
+      
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: load packages
+      run: install.packages(c("shiny", "rsconnect"))
+      shell: Rscript {0}
+      
+    - name: set auth
+      run: |
+        Rscript -e "rsconnect::setAccountInfo(name='aslewis', token=${{secrets.TOKEN}}, secret=${{secrets.SECRET}})"
+
+    - name: run dashboard
+      run: |
+        Rscript "./R/generate_target.R"
+        Rscript "./dashboard lightweight/run_dashboard.R"

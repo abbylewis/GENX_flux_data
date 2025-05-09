@@ -1,0 +1,83 @@
+---
+title: "GENX Data Dashboard"
+title-block-banner: true
+format: 
+  html:
+    page-layout: full
+server: shiny
+---
+
+```{r, message=FALSE, warning=FALSE}
+#| context: setup
+
+library(tidyverse)
+library(plotly)
+
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0.csv", 
+                      show_col_types = F) 
+
+chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
+                   "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
+                   "c_10_e4.5", "c_11_e5.25", "c_12_e6.0")
+
+color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
+                 'mediumseagreen','limegreen','yellowgreen','yellow2',
+                 'darkgoldenrod2','darkorange2','orangered1','red2')
+```
+
+## Fluxes
+
+```{r}
+#| panel: sidebar
+dateInput('today', 'Today', 
+          min = "2025-03-18", max = Sys.Date(), 
+          value = Sys.Date())
+sliderInput('days_to_plot', 'Days of historical data to plot', 
+            0, 
+            round(as.numeric(difftime(Sys.Date(), "2025-03-18", units = "days"))),
+            value = 5)
+checkboxGroupInput('gases', 'Gases to plot', 
+            choices = c("CH4", "CO2", "N2O"),
+            selected = c("CH4", "CO2", "N2O"))
+```
+
+```{r}
+#| panel: fill
+plotlyOutput('plot1')
+```
+
+
+```{r}
+#| context: server
+#Code for plots
+output$plot1 <- renderPlotly({
+  slopes_recent <- slopes_l0 %>%
+    filter(as.Date(TIMESTAMP) <= input$today,
+           TIMESTAMP > (input$today - days(input$days_to_plot))) %>% 
+    rename(chamber = MIU_VALVE) %>%
+    mutate(CH4_slope_ppm_per_day = ifelse(CH4_slope_ppm_per_day > 20 & 
+                                            CH4_R2 < 0.9,
+                                          NA, 
+                                          CH4_slope_ppm_per_day)) %>%
+    pivot_longer(matches("CH4_|N2O_|CO2_"), 
+                 names_to = c("gas", ".value"), 
+                 names_sep="_" ) %>%
+    filter(!gas == "Flag")
+  
+  p1 <- slopes_recent %>%
+    mutate(chamber = factor(chamber, labels = chamber_levels),
+           R2 = round(R2, 2)) %>%
+    filter(gas %in% input$gases) %>%
+    ggplot(aes(x = TIMESTAMP, y = slope, color = chamber, label = R2)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_point(size = 0.5) +
+    geom_line() +
+    #geom_vline(xintercept = as_datetime("2025-05-07 14:00:00"), linetype = "dashed", color = "grey70") +
+    facet_wrap(~gas, scales = "free_y", nrow = 1) +
+    scale_color_manual(values = color.gradient)+
+    theme_bw()+
+    theme(axis.title.x = element_blank())
+  
+  plotly::ggplotly(p1, tooltip=c("chamber", "R2", "TIMESTAMP"))
+})
+```
