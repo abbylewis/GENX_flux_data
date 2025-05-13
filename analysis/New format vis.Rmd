@@ -32,6 +32,55 @@ slopes_recent <- slopes_l0 %>%
   filter(!gas == "Flag")
 ```
 
+
+Partition GPP, R, NEE
+
+```{r}
+#https://onlinelibrary.wiley.com/doi/10.1111/j.1365-2486.2009.02041.x
+#https://www.bgc-jena.mpg.de/5624848/Flux-partitioning
+
+slopes_l0 %>%
+  filter(as.Date(TIMESTAMP) > as.Date("2025-03-18")) %>% 
+  rename(chamber = MIU_VALVE) %>%
+  mutate(CH4_slope_ppm_per_day = ifelse(CH4_slope_ppm_per_day > 20 & 
+                                          CH4_R2 < 0.9,
+                                        NA, 
+                                        CH4_slope_ppm_per_day)) %>%
+  pivot_longer(matches("CH4_|N2O_|CO2_"), 
+               names_to = c("gas", ".value"), 
+               names_sep="_" ) %>%
+  filter(gas == "CO2") %>%
+  mutate(Date = as.Date(TIMESTAMP),
+         time = ifelse(hour(TIMESTAMP) %in% c(10:2), "day",
+                       ifelse(hour(TIMESTAMP) %in% c(23, 0, 1, 2),
+                              "night",
+                              NA))) %>%
+  filter(!is.na(time)) %>%
+  group_by(time, Date, chamber, gas) %>%
+  summarise(slope = mean(slope, na.rm = T),
+            .groups = "drop") %>%
+  select(Date, time, slope, chamber, gas) %>%
+  pivot_wider(names_from = time, 
+              values_from = slope) %>%
+  mutate(chamber = as.factor(chamber),
+         dif = day-night) %>%
+  pivot_longer(c(day, night, dif), 
+               names_to = "time", 
+               values_to = "slope") %>%
+  ggplot(aes(x = Date, y = slope, color = chamber)) +
+  geom_hline(yintercept = 0, color = "grey70") +
+  geom_point(size = 0.5) +
+  geom_line() +
+  geom_smooth(se = F) +
+  #geom_vline(xintercept = as_datetime("2025-05-07 14:00:00"), linetype = "dashed", color = "grey70") +
+  facet_grid(time~gas, scales = "free_y") +
+  scale_color_manual(values = color.gradient)+
+  theme_bw()+
+  theme(legend.key.spacing.y = unit(0, "cm"),
+        legend.key.size = unit(0.5, "cm"))
+```
+
+
 Generate plots
 
 ```{r}
