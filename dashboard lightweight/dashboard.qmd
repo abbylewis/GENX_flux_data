@@ -15,7 +15,7 @@ server: shiny
   background-repeat: no-repeat;
   
   /* Make it taller */
-  min-height: 100px;
+  min-height: 150px;
   
   color: white; 
 }
@@ -24,24 +24,6 @@ server: shiny
 .quarto-title-banner .subtitle, 
 .quarto-title-banner .author {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); /* make text readable */
-  
-/* Target all input labels and text in sidebar (all inputs in columns) */
-.sidebar input,
-.sidebar select,
-.sidebar label,
-.sidebar .form-group,
-.sidebar .shiny-input-container {
-  font-size: 0.1em;
-}
-
-/* Shrink spacing between inputs */
-.sidebar .form-group {
-  margin-bottom: 0.5rem;
-}
-
-/* Reduce slider handle and text */
-.sidebar .irs {
-  font-size: 0.1em;
 }
 </style>
 
@@ -66,8 +48,12 @@ color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
 ## Fluxes
 
 ```{r}
+#| panel: fill
+plotlyOutput('plot1')
+```
+
+```{r}
 #| panel: sidebar
-#| layout-ncol: 2
 dateInput('today', 'Today', 
           min = "2025-03-18", max = Sys.Date(), 
           value = Sys.Date())
@@ -80,11 +66,6 @@ checkboxGroupInput('gases', 'Gases to plot',
             selected = c("CH4", "CO2", "N2O"))
 radioButtons("daily", label = "Time step", 
              choices = c("Hourly", "Daily mean"), selected = ("Hourly"))
-```
-
-```{r}
-#| panel: fill
-plotlyOutput('plot1')
 ```
 
 ```{r}
