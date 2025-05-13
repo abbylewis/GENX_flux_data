@@ -7,13 +7,51 @@ format:
 server: shiny
 ---
 
+<style>
+.quarto-title-banner {
+  background-image: url("images/genx.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  
+  /* Make it taller */
+  min-height: 100px;
+  
+  color: white; 
+}
+
+.quarto-title-banner .title, 
+.quarto-title-banner .subtitle, 
+.quarto-title-banner .author {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); /* make text readable */
+  
+/* Target all input labels and text in sidebar (all inputs in columns) */
+.sidebar input,
+.sidebar select,
+.sidebar label,
+.sidebar .form-group,
+.sidebar .shiny-input-container {
+  font-size: 0.1em;
+}
+
+/* Shrink spacing between inputs */
+.sidebar .form-group {
+  margin-bottom: 0.5rem;
+}
+
+/* Reduce slider handle and text */
+.sidebar .irs {
+  font-size: 0.1em;
+}
+</style>
+
 ```{r, message=FALSE, warning=FALSE}
 #| context: setup
 
 library(tidyverse)
 library(plotly)
 
-slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0.csv", 
+slopes_l0 <- read_csv("./data/L0.csv", 
                       show_col_types = F) 
 
 chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
@@ -29,6 +67,7 @@ color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
 
 ```{r}
 #| panel: sidebar
+#| layout-ncol: 2
 dateInput('today', 'Today', 
           min = "2025-03-18", max = Sys.Date(), 
           value = Sys.Date())
@@ -39,13 +78,14 @@ sliderInput('days_to_plot', 'Days of historical data to plot',
 checkboxGroupInput('gases', 'Gases to plot', 
             choices = c("CH4", "CO2", "N2O"),
             selected = c("CH4", "CO2", "N2O"))
+radioButtons("daily", label = "Time step", 
+             choices = c("Hourly", "Daily mean"), selected = ("Hourly"))
 ```
 
 ```{r}
 #| panel: fill
 plotlyOutput('plot1')
 ```
-
 
 ```{r}
 #| context: server
@@ -64,7 +104,19 @@ output$plot1 <- renderPlotly({
                  names_sep="_" ) %>%
     filter(!gas == "Flag")
   
-  p1 <- slopes_recent %>%
+  if(input$daily == "Daily mean"){
+    slopes_recent2 <- slopes_recent %>%
+      mutate(TIMESTAMP = as.Date(TIMESTAMP),
+             TIMESTAMP = as.POSIXct(TIMESTAMP)) %>%
+      group_by(TIMESTAMP, chamber, gas) %>%
+      summarize(slope = mean(slope, na.rm = T),
+                R2 = mean(R2, na.rm = T),
+                .groups = "drop")
+  } else {
+    slopes_recent2 <- slopes_recent
+  }
+  
+  p1 <- slopes_recent2 %>%
     mutate(chamber = factor(chamber, labels = chamber_levels),
            R2 = round(R2, 2)) %>%
     filter(gas %in% input$gases) %>%
@@ -76,7 +128,8 @@ output$plot1 <- renderPlotly({
     facet_wrap(~gas, scales = "free_y", nrow = 1) +
     scale_color_manual(values = color.gradient)+
     theme_bw()+
-    theme(axis.title.x = element_blank())
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
   
   plotly::ggplotly(p1, tooltip=c("chamber", "R2", "TIMESTAMP"))
 })
