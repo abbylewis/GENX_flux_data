@@ -25,6 +25,7 @@ server: shiny
 .quarto-title-banner .author {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); /* make text readable */
 }
+
 </style>
 
 ```{r, message=FALSE, warning=FALSE}
@@ -54,16 +55,22 @@ plotlyOutput('plot1')
 
 ```{r}
 #| panel: sidebar
+
+h4("Plot Specifications")
+
 dateInput('today', 'Today', 
           min = "2025-03-18", max = Sys.Date(), 
           value = Sys.Date())
+br()
 sliderInput('days_to_plot', 'Days of historical data to plot', 
             0, 
             round(as.numeric(difftime(Sys.Date(), "2025-03-18", units = "days"))),
             value = 5)
+br()
 checkboxGroupInput('gases', 'Gases to plot', 
             choices = c("CH4", "CO2", "N2O"),
             selected = c("CH4", "CO2", "N2O"))
+br()
 radioButtons("daily", label = "Time step", 
              choices = c("Hourly", "Daily mean"), selected = ("Hourly"))
 ```
