@@ -46,8 +46,6 @@ color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
                  'darkgoldenrod2','darkorange2','orangered1','red2')
 ```
 
-## Fluxes
-
 ```{r}
 #| panel: fill
 plotlyOutput('plot1')
