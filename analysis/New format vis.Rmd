@@ -30,6 +30,10 @@ slopes_recent <- slopes_l0 %>%
                names_to = c("gas", ".value"), 
                names_sep="_" ) %>%
   filter(!gas == "Flag")
+
+color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
+                 'mediumseagreen','limegreen','yellowgreen','yellow2',
+                 'darkgoldenrod2','darkorange2','orangered1','red2')
 ```
 
 
@@ -39,7 +43,7 @@ Partition GPP, R, NEE
 #https://onlinelibrary.wiley.com/doi/10.1111/j.1365-2486.2009.02041.x
 #https://www.bgc-jena.mpg.de/5624848/Flux-partitioning
 
-slopes_l0 %>%
+p <- slopes_l0 %>%
   filter(as.Date(TIMESTAMP) > as.Date("2025-03-18")) %>% 
   rename(chamber = MIU_VALVE) %>%
   mutate(CH4_slope_ppm_per_day = ifelse(CH4_slope_ppm_per_day > 20 & 
@@ -78,16 +82,14 @@ slopes_l0 %>%
   theme_bw()+
   theme(legend.key.spacing.y = unit(0, "cm"),
         legend.key.size = unit(0.5, "cm"))
+
+plotly::ggplotly(p)
 ```
 
 
 Generate plots
 
 ```{r}
-color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
-                 'mediumseagreen','limegreen','yellowgreen','yellow2',
-                 'darkgoldenrod2','darkorange2','orangered1','red2')
-
 jpeg("../figures/slopes.jpg", width = 7, height = 3, units = "in", res = 300)
 p1 <- slopes_recent %>%
   mutate(chamber = as.factor(chamber)) %>%

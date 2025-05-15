@@ -81,9 +81,8 @@ ul.task-list li input[type="checkbox"] {
 .quarto-title-banner .author {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); /* make text readable */
 }
+
 </style>
-<section id="fluxes" class="level2">
-<h2 class="anchored" data-anchor-id="fluxes">Fluxes</h2>
 <div class="panel-grid layout-sidebar ms-md-0 layout-sidebar-right">
 <div class="panel-fill panel-grid g-col-24 g-col-lg-17 pt-3 pt-lg-0">
 <div class="g-col-24">
@@ -96,16 +95,25 @@ ul.task-list li input[type="checkbox"] {
 </div>
 <div class="cell panel-sidebar card bg-light p-2 g-col-24 g-col-lg-7">
 <div class="cell-output-display">
+<h4 class="anchored">Plot Specifications</h4>
+</div>
+<div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2025-05-13" data-initial-date="2025-05-13" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2025-05-15" data-initial-date="2025-05-15" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
+</div>
+<div class="cell-output-display">
+<br>
 </div>
 <div class="cell-output-display">
 <div class="form-group shiny-input-container">
 <label class="control-label" id="days_to_plot-label" for="days_to_plot">Days of historical data to plot</label>
-<input class="js-range-slider" id="days_to_plot" data-skin="shiny" data-min="0" data-max="56" data-from="5" data-step="1" data-grid="true" data-grid-num="9.33333333333333" data-grid-snap="false" data-prettify-separator="," data-prettify-enabled="true" data-keyboard="true" data-data-type="number">
+<input class="js-range-slider" id="days_to_plot" data-skin="shiny" data-min="0" data-max="58" data-from="5" data-step="1" data-grid="true" data-grid-num="9.66666666666667" data-grid-snap="false" data-prettify-separator="," data-prettify-enabled="true" data-keyboard="true" data-data-type="number">
 </div>
+</div>
+<div class="cell-output-display">
+<br>
 </div>
 <div class="cell-output-display">
 <div id="gases" class="form-group shiny-input-checkboxgroup shiny-input-container" role="group" aria-labelledby="gases-label">
@@ -131,6 +139,9 @@ ul.task-list li input[type="checkbox"] {
 </div>
 </div>
 </div>
+</div>
+<div class="cell-output-display">
+<br>
 </div>
 <div class="cell-output-display">
 <div id="daily" class="form-group shiny-input-radiogroup shiny-input-container" role="radiogroup" aria-labelledby="daily-label">
@@ -254,7 +265,6 @@ ojs_define <- function(..., .session = shiny::getDefaultReactiveDomain()) {
 {"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages","version"]},"class":{"type":"character","attributes":{},"value":["data.frame"]},"row.names":{"type":"integer","attributes":{},"value":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73]}},"value":[{"type":"character","attributes":{},"value":["base","bit","bit64","bslib","cachem","cli","colorspace","compiler","crayon","data.table","datasets","digest","dplyr","evaluate","fastmap","forcats","generics","ggplot2","glue","graphics","grDevices","grid","gtable","hms","htmltools","htmlwidgets","httpuv","httr","jquerylib","jsonlite","knitr","later","lazyeval","lifecycle","lubridate","magrittr","memoise","methods","mime","munsell","parallel","pillar","pkgconfig","plotly","promises","purrr","R6","Rcpp","readr","rlang","rmarkdown","rstudioapi","sass","scales","shiny","stats","stringi","stringr","tibble","tidyr","tidyselect","tidyverse","timechange","tools","tzdb","utils","vctrs","viridisLite","vroom","withr","xfun","xtable","yaml"]},{"type":"character","attributes":{},"value":["4.4.1","4.5.0.1","4.6.0-1","0.9.0","1.1.0","3.6.4","2.1-1","4.4.1","1.5.3","1.16.4","4.4.1","0.6.37","1.1.4","1.0.3","1.2.0","1.0.0","0.1.3","3.5.1","1.8.0","4.4.1","4.4.1","4.4.1","0.3.6","1.1.3","0.5.8.1","1.6.4","1.6.15","1.4.7","0.1.4","1.9.1","1.49","1.4.1","0.2.2","1.0.4","1.9.4","2.0.3","2.0.1","4.4.1","0.12","0.5.1","4.4.1","1.10.1","2.0.3","4.10.4","1.3.2","1.0.4","2.6.1","1.0.14","2.1.5","1.1.5","2.29","0.17.1","0.4.9","1.3.0","1.10.0","4.4.1","1.8.4","1.5.1","3.2.1","1.3.1","1.2.1","2.0.0","0.3.0","4.4.1","0.4.0","4.4.1","0.6.5","0.4.2","1.6.5","3.0.2","0.50","1.8-4","2.3.10"]}]}]}
 </script>
 <!--/html_preserve-->
-</section>
 
 </main>
 <!-- /main column -->
