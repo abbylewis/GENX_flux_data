@@ -23,7 +23,7 @@ jobs:
 
     - name: set slack
       run: |
-        Rscript -e "slackr_setup(channel = '#genx_bot', username = 'GENX QAQC bot', token = ${{secrets.SLACKRTOKEN}}, incoming_webhook_url = ${{secrets.SLACKRURL}})"
+        Rscript -e "slackr::slackr_setup(channel = '#genx_bot', username = 'GENX QAQC bot', token = ${{secrets.SLACKRTOKEN}}, incoming_webhook_url = ${{secrets.SLACKRURL}})"
 
     - name: run dashboard
       run: |
