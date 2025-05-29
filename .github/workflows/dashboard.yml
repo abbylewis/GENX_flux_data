@@ -14,12 +14,21 @@ jobs:
       uses: actions/checkout@v4
 
     - name: load packages
-      run: install.packages(c("shiny", "rsconnect"))
+      run: install.packages(c("shiny", "rsconnect", "slackr"))
       shell: Rscript {0}
       
     - name: set auth
       run: |
         Rscript -e "rsconnect::setAccountInfo(name='aslewis', token=${{secrets.TOKEN}}, secret=${{secrets.SECRET}})"
+
+    - name: set slack
+      run: |
+        Rscript -e "slackr_setup(channel = '#genx_bot', username = "GENX QAQC bot", token = ${{secrets.SLACKRTOKEN}}, incoming_webhook_url = ${{secrets.SLACKRURL}})"
+
+    - name: run dashboard
+      run: |
+        Rscript "./dashboard lightweight/run_dashboard.R"
+
 
     - name: run dashboard
       run: |

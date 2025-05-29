@@ -14,7 +14,7 @@ download_water_level <- function(water_level_folder = here::here("Raw_data", "dr
            !grepl("backup", name))
   
   #Remove files that are already loaded
-  already_loaded <- list.files(chamber_temp_folder)
+  already_loaded <- list.files(water_level_folder)
   relevant_files <- relevant_files %>%
     filter(!name %in% already_loaded)
   
@@ -27,10 +27,10 @@ download_water_level <- function(water_level_folder = here::here("Raw_data", "dr
   } else {
     message("Downloading ", nrow(relevant_files), " files")
     all_data <- relevant_files$path_display %>%
-      map(load_file, output_dir = chamber_temp_folder)
+      map(load_file, output_dir = water_level_folder)
   }
   
-  message("Processing and saving all historical temp data")
+  message("Processing and saving all historical water level data")
   
   data <- list.files(water_level_folder, full.names = T) %>%
     map(read.csv, skip = 1) %>%
@@ -43,33 +43,12 @@ download_water_level <- function(water_level_folder = here::here("Raw_data", "dr
   metadata <- read_csv(here::here("Raw_data","chamber_metadata.csv"),
                        show_col_types = F)
   
-  temp_output <- data %>%
-    select(c(TIMESTAMP, starts_with("BMETemp"))) %>%
-    pivot_longer(cols = -TIMESTAMP, names_to = "chamber", values_to = "AirTemp_C") %>%
-    mutate(chamber = str_extract(sub("BMETemp.", "", chamber), "[0-9]+"),
-           AirTemp_C = as.numeric(AirTemp_C),
-           chamber = as.numeric(chamber)) %>%
-    filter(!AirTemp_C %in% c(0),
-           !AirTemp_C < -40,
-           !AirTemp_C > 100,
-           !(AirTemp_C < 0 & month(TIMESTAMP) %in% c(6,7,8))) %>%
-    left_join(metadata, by = "chamber") %>%
-    select(chamber_treatment, TIMESTAMP, AirTemp_C) %>%
-    filter(!is.na(chamber_treatment))
+  water_level_output <- data %>%
+    filter(Statname == "GENX") %>%
+    select(c(TIMESTAMP, Depth, Temperature, Specific_Conductivity, Salinity, TDS))
   
-  temp_output_daily <- temp_output %>%
-    mutate(Date = as.Date(TIMESTAMP),
-           AirTemp_C = as.numeric(AirTemp_C)) %>%
-    group_by(Date, chamber_treatment) %>%
-    summarise(AirTemp_C = mean(AirTemp_C, na.rm = TRUE),
-              .groups = "drop")
-  
-  write.csv(temp_output, 
+  write.csv(water_level_output, 
             here::here("processed_data", "water_level.csv"), 
-            row.names = FALSE)
-  
-  write.csv(temp_output_daily,
-            here::here("processed_data", "water_level_daily.csv"), 
             row.names = FALSE)
   
   return(T)

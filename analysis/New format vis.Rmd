@@ -236,3 +236,89 @@ slopes_l0 %>%
 dev.off()
 ```
 
+```{r}
+water_level <- read_csv("../processed_data/water_level.csv")
+
+p <- water_level %>%
+  filter(year(TIMESTAMP) == 2025, 
+         month(TIMESTAMP) %in% c(3:5)) %>%
+  ggplot(aes(x = TIMESTAMP, y = Depth)) +
+  geom_line()
+plotly::ggplotly(p)
+
+p <- water_level %>%
+  filter(year(TIMESTAMP) == 2025) %>%
+  ggplot(aes(x = TIMESTAMP, y = Salinity)) +
+  geom_line()
+plotly::ggplotly(p)
+
+met <- read_csv("../processed_data/met.csv")
+
+p <- met %>%
+  mutate(Date = as.Date(TIMESTAMP - seconds(1))) %>%
+  group_by(Date) %>%
+  summarize(Rain_Accumulation = max(Rain_Accumulation, na.rm = TRUE)) %>%
+  distinct() %>%
+  filter(year(Date) == 2025, 
+         month(Date) %in% c(3:4)) %>%
+  ggplot(aes(x = Date, y = Rain_Accumulation)) +
+  geom_col()
+plotly::ggplotly(p)
+
+p <- met %>%
+  mutate(rounded_hour = round_date(TIMESTAMP, unit = "hour")) %>%
+  filter(year(TIMESTAMP) == 2025, 
+         month(TIMESTAMP) %in% c(3:4),
+         TIMESTAMP > as.Date("2025-03-30"),
+         TIMESTAMP < as.Date("2025-04-02"))%>%
+  group_by(rounded_hour) %>%
+  summarize(Rain_Intensity = mean(Rain_Intensity, na.rm = TRUE)) %>%
+  ggplot(aes(x = rounded_hour, y = Rain_Intensity)) +
+  geom_col()
+plotly::ggplotly(p)
+
+p <- met %>%
+  mutate(rounded_hour = round_date(TIMESTAMP, unit = "hour")) %>%
+  filter(year(TIMESTAMP) == 2025, 
+         month(TIMESTAMP) %in% c(3:4),
+         TIMESTAMP > as.Date("2025-03-30"),
+         TIMESTAMP < as.Date("2025-04-02"))%>%
+  group_by(rounded_hour) %>%
+  summarize(Rain_Intensity = mean(Rain_Intensity, na.rm = TRUE)) %>%
+  ggplot(aes(x = rounded_hour, y = Rain_Intensity>0)) +
+  geom_point()
+plotly::ggplotly(p)
+
+p <- met %>%
+  mutate(rounded_hour = round_date(TIMESTAMP, unit = "hour")) %>%
+  filter(year(TIMESTAMP) == 2025, 
+         month(TIMESTAMP) %in% c(3:4),
+         TIMESTAMP > as.Date("2025-03-30"),
+         TIMESTAMP < as.Date("2025-04-02"))%>%
+  group_by(rounded_hour) %>%
+  summarize(Wind_direction_avg = mean(Wind_direction_avg, na.rm = TRUE)) %>%
+  ggplot(aes(x = rounded_hour, y = Wind_direction_avg)) +
+  geom_line()
+plotly::ggplotly(p)
+
+p <- met %>%
+  mutate(rounded_hour = round_date(TIMESTAMP, unit = "hour")) %>%
+  filter(year(TIMESTAMP) == 2025, 
+         month(TIMESTAMP) %in% c(3:4))%>%
+  group_by(rounded_hour) %>%
+  summarize(Wind_speed_avg = mean(Wind_speed_avg, na.rm = TRUE)) %>%
+  ggplot(aes(x = rounded_hour, y = Wind_speed_avg)) +
+  geom_line()
+plotly::ggplotly(p)
+
+p <- met %>%
+  mutate(rounded_hour = round_date(TIMESTAMP, unit = "hour")) %>%
+  filter(year(TIMESTAMP) == 2025, 
+         month(TIMESTAMP) %in% c(3:5))%>%
+  group_by(rounded_hour) %>%
+  summarize(Air_Pressure = mean(Air_Pressure, na.rm = TRUE)) %>%
+  ggplot(aes(x = rounded_hour, y = Air_Pressure)) +
+  geom_line()
+plotly::ggplotly(p)
+```
+
