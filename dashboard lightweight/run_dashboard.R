@@ -14,4 +14,5 @@ copy_target <- file.copy(here::here("processed_data","L0.csv"), here::here("dash
 quarto_publish_app(input = here::here("dashboard lightweight"), 
                    server = "shinyapps.io")
 
+data <- read.csv(here::here("dashboard lightweight", "data", "L0.csv"))
 slackr::slackr('test message')
