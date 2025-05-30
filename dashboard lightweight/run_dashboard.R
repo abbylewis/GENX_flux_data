@@ -34,9 +34,9 @@ slackr::slackr_setup(
 )
 
 if(nrow(error_check) > 0) {
-  slackr::slackr(paste0("Hi team! I noticed that CO2 and CH4 R2 values have been low recently for the following chamber(s):\n",
+  slackr::slackr_msg(paste0("Hi team! I noticed that CO2 and CH4 R2 values have been low recently for the following chamber(s):\n",
                    paste(error_check$MIU_VALVE, collapse = ", "),
                    "\nYou might want to take a quick look at the dashboard and make sure things look okay:\n",
                    "https://aslewis.shinyapps.io/dashboard/",
-                   "Thanks! -genx bot"))
+                   "\nThanks! -genx bot"))
 }

@@ -23,7 +23,7 @@ jobs:
 
     - name: run dashboard
       env:
-        SLACKRTOKEN: ${{ secrets.SLACKRTOKEN }}
-        SLACKRURL: ${{ secrets.SLACKRURL }}
+        SLACKRTOKEN: ${{secrets.SLACKRTOKEN}}
+        SLACKRURL: ${{secrets.SLACKRURL}}
       run: |
         Rscript "./dashboard lightweight/run_dashboard.R"
