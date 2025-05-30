@@ -12,8 +12,8 @@ copy_target <- file.copy(here::here("processed_data","L0.csv"), here::here("dash
 #copy_met <- file.copy(here::here("processed_data","met_2025.csv"), here::here("dashboard lightweight", "data"), overwrite = T)
 
 # Deploy
-quarto_publish_app(input = here::here("dashboard lightweight"), 
-                   server = "shinyapps.io")
+#quarto_publish_app(input = here::here("dashboard lightweight"), 
+#                   server = "shinyapps.io")
 
 # Check for errors
 data <- read.csv(here::here("dashboard lightweight", "data", "L0.csv"))
@@ -29,7 +29,7 @@ error_check <- data %>%
 slackr::slackr_setup(
   channel = "#genx_bot",
   username = "GENX QAQC bot",
-  token = Sys.getenv("SLACKRTOKEN"),
+  #token = Sys.getenv("SLACKRTOKEN"),
   incoming_webhook_url = Sys.getenv("SLACKRURL")
 )
 
