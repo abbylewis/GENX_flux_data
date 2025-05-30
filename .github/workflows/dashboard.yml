@@ -21,7 +21,7 @@ jobs:
       run: |
         Rscript -e "rsconnect::setAccountInfo(name='aslewis', token=${{secrets.TOKEN}}, secret=${{secrets.SECRET}})"
 
-    - name: set env
+    - name: set env and run
       env:
         SLACKRTOKEN: ${{ secrets.SLACKRTOKEN }}
         SLACKRURL: ${{ secrets.SLACKRURL }}

@@ -69,6 +69,12 @@ calculate_flux <- function(start_date = NULL,
            MIU_VALVE %in% 1:12) %>%
     mutate(Flag = "No issues")
   
+  #data_numeric %>%
+  #  filter(as.Date(TIMESTAMP-hours(10)) == Sys.Date(),
+  #         N2Od_ppb > 350) %>%
+  #  ggplot(aes(x = TIMESTAMP, y = N2Od_ppb, color = Manifold_Timer>200)) +
+  #  geom_point(size = 0.5)
+  
   #Remove data as specified in maintenance log
   googlesheets4::gs4_deauth() # No authentication needed
   today <- Sys.time()
