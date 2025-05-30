@@ -29,7 +29,7 @@ error_check <- data %>%
 slackr::slackr_setup(
   channel = "#genx_bot",
   username = "GENX QAQC bot",
-  #token = Sys.getenv("SLACKRTOKEN"),
+  token = Sys.getenv("SLACKRTOKEN"),
   incoming_webhook_url = Sys.getenv("SLACKRURL")
 )
 
