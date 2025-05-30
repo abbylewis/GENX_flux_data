@@ -22,11 +22,7 @@ jobs:
         Rscript -e "rsconnect::setAccountInfo(name='aslewis', token=${{secrets.TOKEN}}, secret=${{secrets.SECRET}})"
 
     - name: set env
-      run: |
-        echo SLACKRTOKEN="${{secrets.SLACKRTOKEN}}" >> ~/.Renviron
-        echo SLACKRURL=${{secrets.SLACKRURL}} >> ~/.Renviron
-      shell: bash
-      
-    - name: run dashboard
-      run: |
-        Rscript "./dashboard lightweight/run_dashboard.R"
+      env:
+        SLACKRTOKEN: ${{ secrets.SLACKRTOKEN }}
+        SLACKRURL: ${{ secrets.SLACKRURL }}
+      run:  Rscript "./dashboard lightweight/run_dashboard.R"
