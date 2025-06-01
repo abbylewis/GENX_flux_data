@@ -70,10 +70,11 @@ calculate_flux <- function(start_date = NULL,
     mutate(Flag = "No issues")
   
   data_numeric %>%
-    filter(as.Date(TIMESTAMP) == Sys.Date(),
-           N2Od_ppb > 350) %>%
-    ggplot(aes(x = TIMESTAMP, y = N2Od_ppb, color = Manifold_Timer>200)) +
-    geom_point(size = 0.5)
+    filter(TIMESTAMP >= as.Date("2025-05-31")) %>%
+    ggplot(aes(x = TIMESTAMP, y = CH4d_ppm, color = Manifold_Timer>200)) +
+    geom_point(size = 0.5)+
+    ylim(c(1.99, 2.27))+
+    ggtitle("genx")
   
   #Remove data as specified in maintenance log
   googlesheets4::gs4_deauth() # No authentication needed

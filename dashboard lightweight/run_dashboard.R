@@ -27,12 +27,7 @@ error_check <- data %>%
   filter(r2_check_ch4 < 0.7 & r2_check_co2 < 0.7)
 
 if(nrow(error_check) > 0) {
-  slackr::slackr_setup(
-    channel = "#genx_bot",
-    username = "GENX QAQC bot",
-    token = Sys.getenv("SLACKRTOKEN"),
-    incoming_webhook_url = Sys.getenv("SLACKRURL")
-  )
+  slackr::slackr_setup()
   
   slackr::slackr_msg(paste0("Hi team! I noticed that CO2 and CH4 R2 values have been low recently for the following chamber(s):\n",
                    paste(error_check$MIU_VALVE, collapse = ", "),
