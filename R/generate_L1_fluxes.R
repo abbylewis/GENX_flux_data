@@ -33,7 +33,7 @@ generate_target <- function(reprocess = F, temp = T){
   }
   
   #Third- QAQC, generating the L1 file
-  data <- qaqc(here::here("processed_data","L0.csv"))
+  #data <- qaqc(here::here("processed_data","L0.csv"))
   
   return(data)
 }
