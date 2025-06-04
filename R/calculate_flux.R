@@ -1,6 +1,7 @@
 
 source(here::here("R","load_data.R"))
 source(here::here("R","filter_old_data.R"))
+source(here::here("R","group_fun.R"))
 
 #' calculate_flux
 #'
@@ -70,10 +71,10 @@ calculate_flux <- function(start_date = NULL,
     mutate(Flag = "No issues")
   
   data_numeric %>%
-    filter(TIMESTAMP >= as.Date("2025-05-31")) %>%
-    ggplot(aes(x = TIMESTAMP, y = CH4d_ppm, color = Manifold_Timer>200)) +
+    filter(as.Date(TIMESTAMP) == as.Date("2025-03-30")) %>%
+    ggplot(aes(x = TIMESTAMP, y = N2Od_ppb, color = Manifold_Timer>200)) +
     geom_point(size = 0.5)+
-    ylim(c(1.99, 2.27))+
+    ylim(c(340, 365))+
     ggtitle("genx")
   
   #Remove data as specified in maintenance log
@@ -264,18 +265,7 @@ calculate_flux <- function(start_date = NULL,
   return(slopes_comb)
 }
 
-#Create function to assign groups for separate readings
-group_fun <- function(MIU_VALVE) {
-  group <- rep(1, length(MIU_VALVE))
-  for (i in 2:length(MIU_VALVE)) {
-    if(MIU_VALVE[i] == MIU_VALVE[i - 1]) {
-      group[i] <- group[i - 1]
-    } else {
-      group[i] <- group[i - 1] + 1
-    }
-  }
-  return(group)
-}
+
 #calculate_flux(start_date = "2024-10-01", 
 #               end_date = Sys.Date()+1,
 #               modif_start_date = NULL,

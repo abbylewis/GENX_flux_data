@@ -7,6 +7,7 @@ install.packages("slackr")
 library(quarto)
 library(tidyverse)
 
+# Refresh data
 unlink(here::here("dashboard lightweight","data","*"))
 copy_target <- file.copy(here::here("processed_data","L0.csv"), here::here("dashboard lightweight", "data"), overwrite = T)
 #copy_met <- file.copy(here::here("processed_data","met_2025.csv"), here::here("dashboard lightweight", "data"), overwrite = T)
@@ -28,7 +29,6 @@ error_check <- data %>%
 
 if(nrow(error_check) > 0) {
   slackr::slackr_setup()
-  
   slackr::slackr_msg(paste0("Hi team! I noticed that CO2 and CH4 R2 values have been low recently for the following chamber(s):\n",
                    paste(error_check$MIU_VALVE, collapse = ", "),
                    "\nYou might want to take a quick look at the dashboard and make sure things look okay:\n",
