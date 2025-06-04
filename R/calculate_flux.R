@@ -238,6 +238,12 @@ calculate_flux <- function(start_date = NULL,
             here::here("processed_data","L0.csv"), 
             row.names = FALSE)
   
+  write.csv(slopes_comb %>% 
+              select(-max_s) %>%
+              filter(TIMESTAMP > as.Date("2025-03-18")), 
+            here::here("processed_data","L0_for_dashboard.csv"), 
+            row.names = FALSE)
+  
   if(plot){
     for(year_i in unique(year(slopes$TIMESTAMP))){
       p <- slopes %>%

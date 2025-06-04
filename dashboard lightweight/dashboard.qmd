@@ -34,7 +34,7 @@ server: shiny
 library(tidyverse)
 library(plotly)
 
-slopes_l0 <- read_csv("./data/L0.csv", 
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", 
                       show_col_types = F) 
 
 #met <- read_csv("./data/met_2025.csv", 
