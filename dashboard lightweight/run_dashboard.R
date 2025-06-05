@@ -7,17 +7,8 @@ install.packages("slackr")
 library(quarto)
 library(tidyverse)
 
-# Refresh data
-unlink(here::here("dashboard lightweight","data","*"))
-copy_target <- file.copy(here::here("processed_data","L0.csv"), here::here("dashboard lightweight", "data"), overwrite = T)
-#copy_met <- file.copy(here::here("processed_data","met_2025.csv"), here::here("dashboard lightweight", "data"), overwrite = T)
-
-# Deploy
-quarto_publish_app(input = here::here("dashboard lightweight"), 
-                   server = "shinyapps.io")
-
 # Check for errors
-data <- read.csv(here::here("dashboard lightweight", "data", "L0.csv"))
+data <- read.csv(here::here("processed_data","L0_for_dashboard.csv"))
 error_check <- data %>%
   filter(!is.na(flux_start)) %>%
   group_by(MIU_VALVE) %>%
