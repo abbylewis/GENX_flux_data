@@ -34,9 +34,6 @@ server: shiny
 library(tidyverse)
 library(plotly)
 
-slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", 
-                      show_col_types = F) 
-
 #met <- read_csv("./data/met_2025.csv", 
 #                show_col_types = F) %>%
 #  mutate(Rain_binary = Rain_Intensity > 0,
@@ -96,6 +93,10 @@ radioButtons("daily", label = "Time step",
 
 ```{r}
 #| context: server
+
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", 
+                      show_col_types = F) 
+
 #Code for plots
 output$plot1 <- renderPlotly({
   slopes_recent <- slopes_l0 %>%
