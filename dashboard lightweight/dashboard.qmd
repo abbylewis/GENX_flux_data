@@ -56,6 +56,8 @@ chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
 color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
                  'mediumseagreen','limegreen','yellowgreen','yellow2',
                  'darkgoldenrod2','darkorange2','orangered1','red2')
+
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", show_col_types = F) 
 ```
 
 ```{r}
@@ -89,13 +91,16 @@ radioButtons("daily", label = "Time step",
 #checkboxGroupInput('met', 'Met vars to plot', 
 #            choices = unique(met$name),
 #            selected = c("Wind_speed_avg", "Rain_Intensity", "Wind_direction_170"))
+br()
+actionButton("reload", "Re-load data")
 ```
 
 ```{r}
 #| context: server
 
-slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", 
-                      show_col_types = F) 
+observeEvent(input$reload, {
+  slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", show_col_types = F) 
+  })
 
 #Code for plots
 output$plot1 <- renderPlotly({
