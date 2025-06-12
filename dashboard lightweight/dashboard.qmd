@@ -73,12 +73,12 @@ plotlyOutput('plot1')
 h4("Plot Specifications")
 
 dateInput('today', 'Today', 
-          min = "2025-03-18", max = Sys.Date(), 
-          value = Sys.Date())
+          min = "2025-03-18", max = as.Date(max(slopes_l0$TIMESTAMP)), 
+          value = as.Date(max(slopes_l0$TIMESTAMP)))
 br()
 sliderInput('days_to_plot', 'Days of historical data to plot', 
             0, 
-            round(as.numeric(difftime(Sys.Date(), "2025-03-18", units = "days"))),
+            round(as.numeric(difftime(as.Date(max(slopes_l0$TIMESTAMP)), "2025-03-18", units = "days"))),
             value = 5)
 br()
 checkboxGroupInput('gases', 'Gases to plot', 
@@ -91,16 +91,14 @@ radioButtons("daily", label = "Time step",
 #checkboxGroupInput('met', 'Met vars to plot', 
 #            choices = unique(met$name),
 #            selected = c("Wind_speed_avg", "Rain_Intensity", "Wind_direction_170"))
-br()
-actionButton("reload", "Re-load data")
+#br()
+#actionButton("reload", "Re-load data", class = "btn btn-primary")
 ```
 
 ```{r}
 #| context: server
 
-observeEvent(input$reload, {
-  slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", show_col_types = F) 
-  })
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", show_col_types = F) 
 
 #Code for plots
 output$plot1 <- renderPlotly({
