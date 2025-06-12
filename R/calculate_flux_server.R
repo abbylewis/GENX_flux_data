@@ -1,7 +1,7 @@
-source(here::here("R","load_data.R"))
-source(here::here("R","filter_old_data.R"))
-source(here::here("R","group_fun.R"))
-
+source(here::here("GenX-Flux-Data","R","load_data.R"))
+source(here::here("GenX-Flux-Data","R","filter_old_data.R"))
+source(here::here("GenX-Flux-Data","R","group_fun.R"))
+library(tidyverse)
 #' calculate_flux
 #'
 #' @description
@@ -17,11 +17,13 @@ calculate_flux_server <- function(start_date = NULL,
                            end_date = NULL,
                            reprocess = F){
   ### Load files ###
-  files <- list.files(here::here("C:/Campbellsci/LoggerNet/GCREW_Loggerfiles"), pattern = "GENX_INSTRUMENT_FLUX_COMB|GENX_FLUX|GENX_LGR_" ,full.names = T)
-  
-  #By default, only calculate slopes for files that have been modified/created since the last time we ran the script
+  files <- list.files(here::here("C:/Campbellsci/LoggerNet/GCREW_Rawdata_Archive"), pattern = "GENX_INSTRUMENT_FLUX_COMB|GENX_FLUX|GENX_LGR_" ,full.names = T)
+  files_new <- list.files(here::here("C:/Campbellsci/LoggerNet/GCREW_Loggerfiles"), pattern = "GENX_INSTRUMENT_FLUX_COMB|GENX_FLUX|GENX_LGR_" ,full.names = T)
+  files<- c(files,files_new)
+
+#By default, only calculate slopes for files that have been modified/created since the last time we ran the script
   if(!reprocess){
-    modif_start_date = file.info(here::here("processed_data","L0.csv"))$mtime
+    modif_start_date = file.info(here::here("GenX-Flux-Data","processed_data","L0.csv"))$mtime
     files <- files[file.info(files)$mtime > modif_start_date]
   }
   
@@ -51,7 +53,7 @@ calculate_flux_server <- function(start_date = NULL,
     return(read_csv(here::here("processed_data","L0.csv"), show_col_types = F))
   }
   
-  
+  print(files)
   #Load data
   data_small <- files %>%
     map(load_data) %>% #custom data loading function that deals with multiple file formats
@@ -209,7 +211,7 @@ calculate_flux_server <- function(start_date = NULL,
   
   if(!reprocess){
     #Load previously calculated slopes
-    old_slopes <- read_csv(here::here("processed_data","L0.csv"), 
+    old_slopes <- read_csv(here::here("GenX-Flux-Data","processed_data","L0.csv"), 
                            col_types = "nnDcccnnnnnnnnnnnnnnnnnnnnnnncccc",
                            show_col_types = F) %>%
       mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "EST"),
@@ -223,26 +225,23 @@ calculate_flux_server <- function(start_date = NULL,
     round_comb <- function(x){round(as.numeric(x), 2)}
     write.csv(data_small %>%
                 mutate(across(c(CO2d_ppm), round_comb)),
-              here::here("processed_data","raw_small.csv"), row.names = FALSE)
+              here::here("GenX-Flux-Data","processed_data","raw_small.csv"), row.names = FALSE)
     write_csv(filtered_data, 
-              here::here("processed_data","processed_GENX_LGR_data.csv"))
+              here::here("GenX-Flux-Data","processed_data","processed_GENX_LGR_data.csv"))
   }
   
   #Output
   write.csv(slopes_comb %>% select(-max_s), 
-            here::here("processed_data","L0.csv"), 
+            here::here("GenX-Flux-Data","processed_data","L0.csv"), 
             row.names = FALSE)
   
   write.csv(slopes_comb %>% 
               select(-max_s) %>%
               filter(TIMESTAMP > as.Date("2025-03-18")), 
-            here::here("processed_data","L0_for_dashboard.csv"), 
+            here::here("GenX-Flux-Data","processed_data","L0_for_dashboard.csv"), 
             row.names = FALSE)
   
   return(slopes_comb)
 }
 
-#calculate_flux(start_date = "2024-10-01", 
-#               end_date = Sys.Date()+1,
-#               modif_start_date = NULL,
-#               reprocess = TRUE)
+calculate_flux_server(reprocess = FALSE)
