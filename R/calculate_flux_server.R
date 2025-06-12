@@ -18,7 +18,7 @@ calculate_flux_server <- function(start_date = NULL,
                            end_date = NULL,
                            reprocess = F){
   ### Load files ###
-  files <- list.files(here::here("Raw_data","dropbox_downloads"), full.names = T)
+  files <- list.files(here::here("C:/Campbellsci/LoggerNet/GCREW_Loggerfiles"), pattern = "GENX_INSTRUMENT_FLUX_COMB|GENX_FLUX|GENX_LGR_" ,full.names = T)
   
   #By default, only calculate slopes for files that have been modified/created since the last time we ran the script
   if(!reprocess){
