@@ -18,8 +18,7 @@ calculate_flux_server <- function(start_date = NULL,
                            reprocess = F){
   ### Load files ###
   files <- list.files(here::here("C:/Campbellsci/LoggerNet/GCREW_Rawdata_Archive"), pattern = "GENX_INSTRUMENT_FLUX_COMB|GENX_FLUX|GENX_LGR_" ,full.names = T)
-  files_new <- list.files(here::here("C:/Campbellsci/LoggerNet/GCREW_Loggerfiles"), pattern = "GENX_INSTRUMENT_FLUX_COMB|GENX_FLUX|GENX_LGR_" ,full.names = T)
-  files<- c(files,files_new)
+
 
 #By default, only calculate slopes for files that have been modified/created since the last time we ran the script
   if(!reprocess){
@@ -39,18 +38,23 @@ calculate_flux_server <- function(start_date = NULL,
     stop("If you provide a start or end date, you must provide both")
   } 
   
-  #Exclude a few problematic files
+
+   files_new <- list.files(here::here("C:/Campbellsci/LoggerNet/GCREW_Loggerfiles"), pattern = "GENX_INSTRUMENT_FLUX_COMB|GENX_FLUX|GENX_LGR_" ,full.names = T)
+   files<- c(files,files_new)
+  
+#Exclude a few problematic files
   exclude <- c("GENX_INSTRUMENT_FLUX_COMB_20240417020046.dat",
                "GENX_INSTRUMENT_FLUX_COMB_20240403020045.dat",
                "GENX_INSTRUMENT_FLUX_COMB_20240501020048.dat",
-               "GENX_LGR_04142021_20210505020005.dat"
+               "GENX_LGR_04142021_20210505020005.dat",
+		"GENX_INSTRUMENT_FLUX_COMB.dat.backup"
                )
   files <- files[!grepl(paste0(exclude, collapse = "|"), files)]
   
   #If there aren't any files to process, stop now
   if(length(files) == 0){
     message("No files to process")
-    return(read_csv(here::here("processed_data","L0.csv"), show_col_types = F))
+    return(read_csv(here::here("GenX-Flux-Data","processed_data","L0.csv"), show_col_types = F))
   }
   
   print(files)
@@ -109,6 +113,7 @@ calculate_flux_server <- function(start_date = NULL,
                                NA,
                                N2Od_ppb))
   }
+message("finished maint")
   
   #Group flux intervals, prep for slopes
   grouped_data <- data_numeric %>%
@@ -159,7 +164,7 @@ calculate_flux_server <- function(start_date = NULL,
   
   #Combine
   filtered_data <- rbind(filtered_data_old, filtered_data_new)
-  
+  message(max(filtered_data$TIMESTAMP))
   #Data flags
   data_flags <- filtered_data %>%
     group_by(group, MIU_VALVE, date) %>%
@@ -172,7 +177,7 @@ calculate_flux_server <- function(start_date = NULL,
               cutoff_removed = unique(cutoff),
               n_removed = unique(n),
               .groups = "drop") 
-  
+  message("finished qaqc")
   #Run lm
   slopes <- filtered_data %>%
     pivot_longer(c(CH4d_ppm, CO2d_ppm, N2Od_ppb), names_to = "gas", values_to = "conc") %>%
@@ -208,7 +213,7 @@ calculate_flux_server <- function(start_date = NULL,
     mutate(cutoff = ifelse(is.na(cutoff), cutoff_removed, cutoff),
            n = ifelse(is.na(n), n_removed, n)) %>%
     select(-cutoff_removed, -n_removed)
-  
+  message(max(slopes$TIMESTAMP))
   if(!reprocess){
     #Load previously calculated slopes
     old_slopes <- read_csv(here::here("GenX-Flux-Data","processed_data","L0.csv"), 
@@ -240,8 +245,8 @@ calculate_flux_server <- function(start_date = NULL,
               filter(TIMESTAMP > as.Date("2025-03-18")), 
             here::here("GenX-Flux-Data","processed_data","L0_for_dashboard.csv"), 
             row.names = FALSE)
-  
+  message("DONE")
   return(slopes_comb)
 }
 
-calculate_flux_server(reprocess = FALSE)
+calculate_flux_server(reprocess = TRUE, start_date = "2025-06-01", end_date = "2025-06-13")
