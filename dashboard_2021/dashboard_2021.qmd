@@ -1,5 +1,5 @@
 ---
-title: "GENX Data Dashboard"
+title: "GENX Data Dashboard - 2021"
 title-block-banner: true
 format: 
   html:
@@ -71,21 +71,27 @@ plotlyOutput('plot1')
 h4("Plot Specifications")
 
 dateInput('today', 'Today', 
-          min = "2025-03-18", 
-          max = "2025-03-19", 
-          value = "2025-03-19")
+          min = "2025-03-18", max = as.Date("2025-12-31"), 
+          value = as.Date("2025-09-01"))
 br()
 sliderInput('days_to_plot', 'Days of historical data to plot', 
             0, 
-            5,
-            value = 5)
+            365,
+            value = 150)
 br()
 checkboxGroupInput('gases', 'Gases to plot', 
-            choices = c("CH4", "CO2", "N2O"),
-            selected = c("CH4", "CO2", "N2O"))
+            choices = c("CH4", "CO2"),
+            selected = c("CH4", "CO2"))
 br()
 radioButtons("daily", label = "Time step", 
              choices = c("Hourly", "Daily mean"), selected = ("Hourly"))
+br()
+radioButtons("time", label = "Time of day", 
+             choices = c("Night", "Day", "All"), selected = ("All"))
+br()
+checkboxGroupInput('years', 'Years to plot', 
+            choices = c("2021", "2022", "2023", "2024", "2025"),
+            selected = c("2021", "2025"))
 #br()
 #checkboxGroupInput('met', 'Met vars to plot', 
 #            choices = unique(met$name),
@@ -97,21 +103,27 @@ radioButtons("daily", label = "Time step",
 ```{r}
 #| context: server
 
-slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", show_col_types = F) 
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0.csv", show_col_types = F) %>%
+  mutate(year = year(TIMESTAMP),
+         yday = yday(TIMESTAMP))
 
-updateDateInput(inputId = "today", 
-                  max = as.Date(max(slopes_l0$TIMESTAMP)),
-                  value = as.Date(max(slopes_l0$TIMESTAMP)))
-
-updateSliderInput(inputId = 'days_to_plot',
-                  max = round(as.numeric(difftime(as.Date(max(slopes_l0$TIMESTAMP)), "2025-03-18", units = "days"))),
-                  value = 5)
+#updateDateInput(inputId = "today", 
+#                  max = as.Date("2025-12-31"),
+#                  value = as.Date(max(slopes_l0$TIMESTAMP)))
+#
+#updateSliderInput(inputId = 'days_to_plot',
+#                  max = round(as.numeric(difftime(as.Date(max(slopes_l0$TIMESTAMP)), #"2025-03-18", units = "days"))),
+#                  value = 5)
 
 #Code for plots
 output$plot1 <- renderPlotly({
-  slopes_recent <- slopes_l0 %>%
-    filter(as.Date(TIMESTAMP) <= input$today,
-           TIMESTAMP > (input$today - days(input$days_to_plot))) %>% 
+  slopes <- slopes_l0 %>%
+    filter(yday <= yday(input$today),
+           yday > (yday(input$today) - as.numeric(input$days_to_plot)),
+           year %in% as.numeric(input$years)) 
+  year(slopes$TIMESTAMP) <- 2025
+  
+  slopes_recent <- slopes %>% 
     rename(chamber = MIU_VALVE) %>%
     mutate(CH4_slope_ppm_per_day = ifelse(CH4_slope_ppm_per_day > 20 & 
                                             CH4_R2 < 0.9,
@@ -122,19 +134,29 @@ output$plot1 <- renderPlotly({
                  names_sep="_" ) %>%
     filter(!gas == "Flag")
   
-  if(input$daily == "Daily mean"){
+  if(input$time == "Night"){
     slopes_recent2 <- slopes_recent %>%
+      filter(hour(TIMESTAMP) > 22 | hour(TIMESTAMP) < 4) 
+    } else if (input$time == "Day") {
+      slopes_recent2 <- slopes_recent %>%
+        filter(hour(TIMESTAMP) > 9 & hour(TIMESTAMP) < 16) 
+    } else {
+        slopes_recent2 <- slopes_recent
+      }
+  
+  if(input$daily == "Daily mean"){
+    slopes_recent3 <- slopes_recent2 %>%
       mutate(TIMESTAMP = as.Date(TIMESTAMP),
              TIMESTAMP = as.POSIXct(TIMESTAMP)) %>%
-      group_by(TIMESTAMP, chamber, gas) %>%
+      group_by(TIMESTAMP, chamber, gas, year) %>%
       summarize(slope = mean(slope, na.rm = T),
                 R2 = mean(R2, na.rm = T),
                 .groups = "drop")
   } else {
-    slopes_recent2 <- slopes_recent
+    slopes_recent3 <- slopes_recent2
   }
   
-  p1 <- slopes_recent2 %>%
+  p1 <- slopes_recent3 %>%
     mutate(chamber = factor(chamber, labels = chamber_levels),
            R2 = round(R2, 2)) %>%
     filter(gas %in% input$gases) %>%
@@ -143,7 +165,7 @@ output$plot1 <- renderPlotly({
     geom_point(size = 0.5) +
     geom_line() +
     #geom_vline(xintercept = as_datetime("2025-05-07 14:00:00"), linetype = "dashed", color = "grey70") +
-    facet_wrap(~gas, scales = "free_y", nrow = 1) +
+    facet_grid(gas~year, scales = "free_y") +
     scale_color_manual(values = color.gradient)+
     theme_bw()+
     theme(axis.title.x = element_blank(),

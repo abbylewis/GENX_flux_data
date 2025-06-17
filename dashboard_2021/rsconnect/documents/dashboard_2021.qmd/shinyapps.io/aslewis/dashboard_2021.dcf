@@ -1,12 +1,12 @@
-name: dashboard
-title:
+name: dashboard_2021
+title: dashboard_2021
 username: aslewis
 account: aslewis
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
-appId: 13396217
-bundleId: 10473156
-url: https://aslewis.shinyapps.io/dashboard/
+appId: 14939595
+bundleId: 10466864
+url: https://aslewis.shinyapps.io/dashboard_2021/
 version: 1
 quarto_version: 1.5.57
 quarto_engines: knitr

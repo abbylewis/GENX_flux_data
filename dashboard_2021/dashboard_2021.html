@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>GENX Data Dashboard</title>
+<title>GENX Data Dashboard - 2021</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -23,16 +23,16 @@ ul.task-list li input[type="checkbox"] {
 </style>
 
 
-<script src="dashboard_files/libs/clipboard/clipboard.min.js"></script>
-<script src="dashboard_files/libs/quarto-html/quarto.js"></script>
-<script src="dashboard_files/libs/quarto-html/popper.min.js"></script>
-<script src="dashboard_files/libs/quarto-html/tippy.umd.min.js"></script>
-<script src="dashboard_files/libs/quarto-html/anchor.min.js"></script>
-<link href="dashboard_files/libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="dashboard_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-<script src="dashboard_files/libs/bootstrap/bootstrap.min.js"></script>
-<link href="dashboard_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="dashboard_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="dashboard_2021_files/libs/clipboard/clipboard.min.js"></script>
+<script src="dashboard_2021_files/libs/quarto-html/quarto.js"></script>
+<script src="dashboard_2021_files/libs/quarto-html/popper.min.js"></script>
+<script src="dashboard_2021_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="dashboard_2021_files/libs/quarto-html/anchor.min.js"></script>
+<link href="dashboard_2021_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="dashboard_2021_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="dashboard_2021_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="dashboard_2021_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="dashboard_2021_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
 
 
 </head>
@@ -42,7 +42,7 @@ ul.task-list li input[type="checkbox"] {
 <header id="title-block-header" class="quarto-title-block default page-columns page-full">
   <div class="quarto-title-banner page-columns page-full">
     <div class="quarto-title column-page">
-      <h1 class="title">GENX Data Dashboard</h1>
+      <h1 class="title">GENX Data Dashboard - 2021</h1>
                       </div>
   </div>
     
@@ -100,7 +100,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2025-03-19" data-initial-date="2025-03-19" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2025-12-31" data-initial-date="2025-09-01" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div class="cell-output-display">
@@ -109,7 +109,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div class="form-group shiny-input-container">
 <label class="control-label" id="days_to_plot-label" for="days_to_plot">Days of historical data to plot</label>
-<input class="js-range-slider" id="days_to_plot" data-skin="shiny" data-min="0" data-max="5" data-from="5" data-step="1" data-grid="true" data-grid-num="5" data-grid-snap="false" data-prettify-separator="," data-prettify-enabled="true" data-keyboard="true" data-data-type="number">
+<input class="js-range-slider" id="days_to_plot" data-skin="shiny" data-min="0" data-max="365" data-from="180" data-step="1" data-grid="true" data-grid-num="9.86486486486486" data-grid-snap="false" data-prettify-separator="," data-prettify-enabled="true" data-keyboard="true" data-data-type="number">
 </div>
 </div>
 <div class="cell-output-display">
@@ -129,12 +129,6 @@ ul.task-list li input[type="checkbox"] {
 <label>
 <input type="checkbox" name="gases" value="CO2" checked="checked">
 <span>CO2</span>
-</label>
-</div>
-<div class="checkbox">
-<label>
-<input type="checkbox" name="gases" value="N2O" checked="checked">
-<span>N2O</span>
 </label>
 </div>
 </div>
@@ -157,6 +151,74 @@ ul.task-list li input[type="checkbox"] {
 <label>
 <input type="radio" name="daily" value="Daily mean">
 <span>Daily mean</span>
+</label>
+</div>
+</div>
+</div>
+</div>
+<div class="cell-output-display">
+<br>
+</div>
+<div class="cell-output-display">
+<div id="time" class="form-group shiny-input-radiogroup shiny-input-container" role="radiogroup" aria-labelledby="time-label">
+<label class="control-label" id="time-label" for="time">Time of day</label>
+<div class="shiny-options-group">
+<div class="radio">
+<label>
+<input type="radio" name="time" value="Night">
+<span>Night</span>
+</label>
+</div>
+<div class="radio">
+<label>
+<input type="radio" name="time" value="Day">
+<span>Day</span>
+</label>
+</div>
+<div class="radio">
+<label>
+<input type="radio" name="time" value="All" checked="checked">
+<span>All</span>
+</label>
+</div>
+</div>
+</div>
+</div>
+<div class="cell-output-display">
+<br>
+</div>
+<div class="cell-output-display">
+<div id="years" class="form-group shiny-input-checkboxgroup shiny-input-container" role="group" aria-labelledby="years-label">
+<label class="control-label" id="years-label" for="years">Years to plot</label>
+<div class="shiny-options-group">
+<div class="checkbox">
+<label>
+<input type="checkbox" name="years" value="2021" checked="checked">
+<span>2021</span>
+</label>
+</div>
+<div class="checkbox">
+<label>
+<input type="checkbox" name="years" value="2022">
+<span>2022</span>
+</label>
+</div>
+<div class="checkbox">
+<label>
+<input type="checkbox" name="years" value="2023">
+<span>2023</span>
+</label>
+</div>
+<div class="checkbox">
+<label>
+<input type="checkbox" name="years" value="2024">
+<span>2024</span>
+</label>
+</div>
+<div class="checkbox">
+<label>
+<input type="checkbox" name="years" value="2025" checked="checked">
+<span>2025</span>
 </label>
 </div>
 </div>
@@ -191,24 +253,28 @@ chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
 color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
                  'mediumseagreen','limegreen','yellowgreen','yellow2',
                  'darkgoldenrod2','darkorange2','orangered1','red2')
+
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0.csv", show_col_types = F)
 </script>
  
 <script type="application/shiny-prerendered" data-context="server">
-slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", show_col_types = F) 
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0.csv", show_col_types = F) %>%
+  mutate(year = year(TIMESTAMP),
+         yday = yday(TIMESTAMP))
 
-updateDateInput(inputId = "today", 
-                  max = as.Date(max(slopes_l0$TIMESTAMP)),
+updateSliderInput(inputId = "today", 
+                  max = as.Date("2025-12-31"),
                   value = as.Date(max(slopes_l0$TIMESTAMP)))
-
-updateSliderInput(inputId = 'days_to_plot',
-                  max = round(as.numeric(difftime(as.Date(max(slopes_l0$TIMESTAMP)), "2025-03-18", units = "days"))),
-                  value = 5)
 
 #Code for plots
 output$plot1 <- renderPlotly({
-  slopes_recent <- slopes_l0 %>%
-    filter(as.Date(TIMESTAMP) <= input$today,
-           TIMESTAMP > (input$today - days(input$days_to_plot))) %>% 
+  slopes <- slopes_l0 %>%
+    filter(yday <= yday(input$today),
+           yday > (yday(input$today) - as.numeric(input$days_to_plot)),
+           year %in% as.numeric(input$years)) 
+  year(slopes$TIMESTAMP) <- 2025
+  
+  slopes_recent <- slopes %>% 
     rename(chamber = MIU_VALVE) %>%
     mutate(CH4_slope_ppm_per_day = ifelse(CH4_slope_ppm_per_day > 20 & 
                                             CH4_R2 < 0.9,
@@ -219,19 +285,29 @@ output$plot1 <- renderPlotly({
                  names_sep="_" ) %>%
     filter(!gas == "Flag")
   
-  if(input$daily == "Daily mean"){
+  if(input$time == "Night"){
     slopes_recent2 <- slopes_recent %>%
+      filter(hour(TIMESTAMP) > 22 | hour(TIMESTAMP) < 4) 
+    } else if (input$time == "Day") {
+      slopes_recent2 <- slopes_recent %>%
+        filter(hour(TIMESTAMP) > 9 & hour(TIMESTAMP) < 16) 
+    } else {
+        slopes_recent2 <- slopes_recent
+      }
+  
+  if(input$daily == "Daily mean"){
+    slopes_recent3 <- slopes_recent2 %>%
       mutate(TIMESTAMP = as.Date(TIMESTAMP),
              TIMESTAMP = as.POSIXct(TIMESTAMP)) %>%
-      group_by(TIMESTAMP, chamber, gas) %>%
+      group_by(TIMESTAMP, chamber, gas, year) %>%
       summarize(slope = mean(slope, na.rm = T),
                 R2 = mean(R2, na.rm = T),
                 .groups = "drop")
   } else {
-    slopes_recent2 <- slopes_recent
+    slopes_recent3 <- slopes_recent2
   }
   
-  p1 <- slopes_recent2 %>%
+  p1 <- slopes_recent3 %>%
     mutate(chamber = factor(chamber, labels = chamber_levels),
            R2 = round(R2, 2)) %>%
     filter(gas %in% input$gases) %>%
@@ -240,7 +316,7 @@ output$plot1 <- renderPlotly({
     geom_point(size = 0.5) +
     geom_line() +
     #geom_vline(xintercept = as_datetime("2025-05-07 14:00:00"), linetype = "dashed", color = "grey70") +
-    facet_wrap(~gas, scales = "free_y", nrow = 1) +
+    facet_grid(gas~year, scales = "free_y") +
     scale_color_manual(values = color.gradient)+
     theme_bw()+
     theme(axis.title.x = element_blank(),
@@ -302,7 +378,7 @@ ojs_define <- function(..., .session = shiny::getDefaultReactiveDomain()) {
 <!--/html_preserve-->
 <!--html_preserve-->
 <script type="application/shiny-prerendered" data-context="execution_dependencies">
-{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages","version"]},"class":{"type":"character","attributes":{},"value":["data.frame"]},"row.names":{"type":"integer","attributes":{},"value":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68]}},"value":[{"type":"character","attributes":{},"value":["base","bslib","cachem","cli","compiler","data.table","datasets","digest","dplyr","evaluate","farver","fastmap","forcats","generics","ggplot2","glue","graphics","grDevices","grid","gtable","hms","htmltools","htmlwidgets","httpuv","httr","jquerylib","jsonlite","knitr","later","lazyeval","lifecycle","lubridate","magrittr","memoise","methods","mime","pillar","pkgconfig","plotly","promises","purrr","R6","RColorBrewer","Rcpp","readr","rlang","rmarkdown","rstudioapi","sass","scales","shiny","stats","stringi","stringr","tibble","tidyr","tidyselect","tidyverse","timechange","tools","tzdb","utils","vctrs","viridisLite","withr","xfun","xtable","yaml"]},{"type":"character","attributes":{},"value":["4.4.1","0.9.0","1.1.0","3.6.5","4.4.1","1.17.4","4.4.1","0.6.37","1.1.4","1.0.3","2.1.2","1.2.0","1.0.0","0.1.4","3.5.2","1.8.0","4.4.1","4.4.1","4.4.1","0.3.6","1.1.3","0.5.8.1","1.6.4","1.6.15","1.4.7","0.1.4","2.0.0","1.50","1.4.1","0.2.2","1.0.4","1.9.4","2.0.3","2.0.1","4.4.1","0.13","1.10.2","2.0.3","4.10.4","1.3.2","1.0.4","2.6.1","1.1-3","1.0.14","2.1.5","1.1.6","2.29","0.17.1","0.4.10","1.4.0","1.10.0","4.4.1","1.8.7","1.5.1","3.2.1","1.3.1","1.2.1","2.0.0","0.3.0","4.4.1","0.5.0","4.4.1","0.6.5","0.4.2","3.0.2","0.52","1.8-4","2.3.10"]}]}]}
+{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages","version"]},"class":{"type":"character","attributes":{},"value":["data.frame"]},"row.names":{"type":"integer","attributes":{},"value":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74]}},"value":[{"type":"character","attributes":{},"value":["base","bit","bit64","bslib","cachem","cli","compiler","crayon","curl","data.table","datasets","digest","dplyr","evaluate","farver","fastmap","forcats","generics","ggplot2","glue","graphics","grDevices","grid","gtable","hms","htmltools","htmlwidgets","httpuv","httr","jquerylib","jsonlite","knitr","later","lazyeval","lifecycle","lubridate","magrittr","memoise","methods","mime","parallel","pillar","pkgconfig","plotly","promises","purrr","R6","RColorBrewer","Rcpp","readr","rlang","rmarkdown","rstudioapi","sass","scales","shiny","stats","stringi","stringr","tibble","tidyr","tidyselect","tidyverse","timechange","tools","tzdb","utils","vctrs","viridisLite","vroom","withr","xfun","xtable","yaml"]},{"type":"character","attributes":{},"value":["4.4.1","4.6.0","4.6.0-1","0.9.0","1.1.0","3.6.5","4.4.1","1.5.3","6.2.3","1.17.4","4.4.1","0.6.37","1.1.4","1.0.3","2.1.2","1.2.0","1.0.0","0.1.4","3.5.2","1.8.0","4.4.1","4.4.1","4.4.1","0.3.6","1.1.3","0.5.8.1","1.6.4","1.6.15","1.4.7","0.1.4","2.0.0","1.50","1.4.1","0.2.2","1.0.4","1.9.4","2.0.3","2.0.1","4.4.1","0.13","4.4.1","1.10.2","2.0.3","4.10.4","1.3.2","1.0.4","2.6.1","1.1-3","1.0.14","2.1.5","1.1.6","2.29","0.17.1","0.4.10","1.4.0","1.10.0","4.4.1","1.8.7","1.5.1","3.2.1","1.3.1","1.2.1","2.0.0","0.3.0","4.4.1","0.5.0","4.4.1","0.6.5","0.4.2","1.6.5","3.0.2","0.52","1.8-4","2.3.10"]}]}]}
 </script>
 <!--/html_preserve-->
 
