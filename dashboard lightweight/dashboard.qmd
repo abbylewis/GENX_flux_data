@@ -97,7 +97,7 @@ radioButtons("daily", label = "Time step",
 ```{r}
 #| context: server
 
-slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", show_col_types = F) 
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0_for_dashboard.csv", show_col_types = F) 
 
 updateDateInput(inputId = "today", 
                   max = as.Date(max(slopes_l0$TIMESTAMP)),
