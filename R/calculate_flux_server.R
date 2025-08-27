@@ -78,7 +78,7 @@ calculate_flux_server <- function(start_date = NULL,
   #Remove data as specified in maintenance log
   googlesheets4::gs4_deauth() # No authentication needed
   today <- Sys.time()
-  maint_log <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1-fcWU3TK936cR0kPvLTy6CUF_GTvHTwGbiAKDCIE05s/edit?gid=0#gid=0",
+  maint_log <- googlesheets4::read_sheet("http://docs.google.com/spreadsheets/d/1_uk8-335NDJOdVU6OjLcxWx4MamNJeVEbVkSmdb9oRs/edit?gid=0#gid=0",
                                          col_types = "c") %>%
     mutate(Start_time = as_datetime(Start_time, tz = "America/New_York"),
            End_time = as_datetime(End_time, tz = "America/New_York"),
