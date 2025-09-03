@@ -51,7 +51,7 @@ calculate_flux_server <- function(start_date = NULL,
   #If there aren't any files to process, stop now
   if(length(files) == 0){
     message("No files to process")
-    return(read_csv(here::here("processed_data","L0.csv"), show_col_types = F))
+    return(read_csv(here::here("GenX-Flux-Data", "processed_data","L0.csv"), show_col_types = F))
   }
   
   print(files)
@@ -67,13 +67,16 @@ calculate_flux_server <- function(start_date = NULL,
   
   #Format data
   data_numeric <- data_small %>%
-    mutate(across(c("CH4d_ppm", "CO2d_ppm", "N2Od_ppb", "Manifold_Timer", "MIU_VALVE"), as.numeric)) %>%
-    mutate(N2Od_ppb = ifelse(N2Od_ppb <=0, NA, N2Od_ppb),
+    mutate(Flag = "No issues",
+           across(c("CH4d_ppm", "CO2d_ppm", "N2Od_ppb", "Manifold_Timer", "MIU_VALVE"), as.numeric),
+           Flag = ifelse(N2Od_ppb <=0 | H4d_ppm <=0 | CO2d_ppm <=0,
+                         "Negative gas measurement",
+                         Flag),
+           N2Od_ppb = ifelse(N2Od_ppb <=0, NA, N2Od_ppb),
            CH4d_ppm = ifelse(CH4d_ppm <=0, NA, CH4d_ppm),
            CO2d_ppm = ifelse(CO2d_ppm <=0, NA, CO2d_ppm)) %>%
     filter(!is.na(MIU_VALVE),
-           MIU_VALVE %in% 1:12) %>%
-    mutate(Flag = "No issues")
+           MIU_VALVE %in% 1:12) 
   
   #Remove data as specified in maintenance log
   googlesheets4::gs4_deauth() # No authentication needed
@@ -94,18 +97,21 @@ calculate_flux_server <- function(start_date = NULL,
              CH4d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                CH4d_ppm),
              CO2d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                CO2d_ppm),
              N2Od_ppb = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("N2O", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                N2Od_ppb))
