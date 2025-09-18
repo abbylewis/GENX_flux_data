@@ -51,7 +51,7 @@ calculate_flux_server <- function(start_date = NULL,
   #If there aren't any files to process, stop now
   if(length(files) == 0){
     message("No files to process")
-    return(read_csv(here::here("GenX-Flux-Data", "processed_data","L0.csv"), show_col_types = F))
+    return(read_csv(here::here("GenX-Flux-Data","processed_data","L0.csv"), show_col_types = F))
   }
   
   print(files)
@@ -69,7 +69,7 @@ calculate_flux_server <- function(start_date = NULL,
   data_numeric <- data_small %>%
     mutate(Flag = "No issues",
            across(c("CH4d_ppm", "CO2d_ppm", "N2Od_ppb", "Manifold_Timer", "MIU_VALVE"), as.numeric),
-           Flag = ifelse(N2Od_ppb <=0 | H4d_ppm <=0 | CO2d_ppm <=0,
+           Flag = ifelse(N2Od_ppb <=0 | CH4d_ppm <=0 | CO2d_ppm <=0,
                          "Negative gas measurement",
                          Flag),
            N2Od_ppb = ifelse(N2Od_ppb <=0, NA, N2Od_ppb),
