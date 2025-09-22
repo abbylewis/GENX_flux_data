@@ -5,10 +5,11 @@ account: aslewis
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 13396217
-bundleId: 10491627
+bundleId: 10937918
 url: https://aslewis.shinyapps.io/dashboard/
 version: 1
 quarto_version: 1.5.57
 quarto_engines: knitr
 asMultiple: FALSE
 asStatic: FALSE
+ignoredFiles: dashboard_hotmoments.html|dashboard_hotmoments.qmd|dashboard_hotmoments_files

@@ -1,0 +1,77 @@
+---
+title: "2021 QAQC"
+author: "Abby Lewis"
+date: "2025-09-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0.csv", show_col_types = F) %>%
+  mutate(year = year(TIMESTAMP),
+         yday = yday(TIMESTAMP))
+
+data_numeric <- slopes_l0
+today <- Sys.time()
+maint_log <- googlesheets4::read_sheet("http://docs.google.com/spreadsheets/d/1_uk8-335NDJOdVU6OjLcxWx4MamNJeVEbVkSmdb9oRs/edit?gid=0#gid=0",
+                                       col_types = "c") %>%
+  mutate(Start_time = as_datetime(Start_time, tz = "America/New_York"),
+         End_time = as_datetime(End_time, tz = "America/New_York"),
+         End_time = ifelse(is.na(End_time), today, End_time),
+         End_time = as_datetime(End_time, tz = "America/New_York"))
+for(i in 1:nrow(maint_log)){
+  data_numeric <- data_numeric %>%
+    mutate(Flag = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
+                           TIMESTAMP >= maint_log$Start_time[i] &
+                           MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
+                         maint_log$Flag[i],
+                         Flag),
+           CH4_slope_ppm_per_day = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
+                               TIMESTAMP >= maint_log$Start_time[i] &
+                               maint_log$Remove[i] == "y" &
+                               maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
+                               MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
+                             NA,
+                             CH4_slope_ppm_per_day),
+           CO2_slope_ppm_per_day = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
+                               TIMESTAMP >= maint_log$Start_time[i] &
+                               maint_log$Remove[i] == "y" &
+                               maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
+                               MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
+                             NA,
+                             CO2_slope_ppm_per_day),
+           N2O_slope_ppm_per_day = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
+                               TIMESTAMP >= maint_log$Start_time[i] &
+                               maint_log$Remove[i] == "y" &
+                               maint_log$Analyzer[i] %in% c("N2O", "all") &
+                               MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
+                             NA,
+                             N2O_slope_ppm_per_day))
+}
+
+slopes_l0 %>%
+  filter(hour(flux_start) < 5 | hour(flux_start) > 22,
+         year %in% c(2021,2025)) %>%
+  group_by(date, MIU_VALVE, year) %>%
+  summarize(pct_neg = sum(CO2_slope_ppm_per_day < 0)/sum(!is.na(CO2_slope_ppm_per_day))) %>%
+  ggplot(aes(x = date, y = pct_neg))+
+  geom_point()+
+  facet_grid(MIU_VALVE~year, scales = "free_x")
+
+slopes_2021 <- read_csv("2021-05-05_2021-12-31_CH4_CO2_fluxes.csv")
+
+slopes_2021 %>%
+  filter(hour(TIMESTAMP) < 5 | hour(TIMESTAMP) > 22) %>%
+  mutate(date = as.Date(TIMESTAMP),
+         year = year(date)) %>%
+  filter(year %in% c(2021,2025)) %>%
+  group_by(date, chamber, year) %>%
+  summarize(pct_neg = sum(CO2_slope_mmol_per_day < 0)/sum(!is.na(CO2_slope_mmol_per_day))) %>%
+  ggplot(aes(x = date, y = pct_neg))+
+  geom_point()+
+  facet_grid(chamber~year, scales = "free_x")
+```
+
