@@ -80,7 +80,7 @@ calculate_flux <- function(start_date = NULL,
   #Remove data as specified in maintenance log
   googlesheets4::gs4_deauth() # No authentication needed
   today <- Sys.time()
-  maint_log <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1-fcWU3TK936cR0kPvLTy6CUF_GTvHTwGbiAKDCIE05s/edit?gid=0#gid=0",
+  maint_log <- googlesheets4::read_sheet("http://docs.google.com/spreadsheets/d/1_uk8-335NDJOdVU6OjLcxWx4MamNJeVEbVkSmdb9oRs/edit?gid=0#gid=0",
                                          col_types = "c") %>%
     mutate(Start_time = as_datetime(Start_time, tz = "America/New_York"),
            End_time = as_datetime(End_time, tz = "America/New_York"),
@@ -96,18 +96,21 @@ calculate_flux <- function(start_date = NULL,
              CH4d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                CH4d_ppm),
              CO2d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                CO2d_ppm),
              N2Od_ppb = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("N2O", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                N2Od_ppb))

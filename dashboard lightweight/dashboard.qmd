@@ -72,8 +72,8 @@ h4("Plot Specifications")
 
 dateInput('today', 'Today', 
           min = "2025-03-18", 
-          max = "2025-03-19", 
-          value = "2025-03-19")
+          max = Sys.Date(),
+          value = Sys.Date())
 br()
 sliderInput('days_to_plot', 'Days of historical data to plot', 
             0, 
@@ -114,7 +114,7 @@ output$plot1 <- renderPlotly({
            TIMESTAMP > (input$today - days(input$days_to_plot))) %>% 
     rename(chamber = MIU_VALVE) %>%
     mutate(CH4_slope_ppm_per_day = ifelse(CH4_slope_ppm_per_day > 20 & 
-                                            CH4_R2 < 0.9,
+                                            CH4_R2 < 0.5,
                                           NA, 
                                           CH4_slope_ppm_per_day)) %>%
     pivot_longer(matches("CH4_|N2O_|CO2_"), 
