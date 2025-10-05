@@ -31,11 +31,11 @@ merged <- met[df, roll = "nearest"] %>% # Rolling join: nearest met to each flux
   rename(Ta = AirTC_Avg,
          PAR = PAR_Den_C_Avg) %>%
   mutate(NEE = CO2_slope_ppm_per_day * #CONVERT TO umolCO2/m2/s
-           265.8 / (0.08206*(Ta + 273.15)) / 60*60*24,
+           265.8 / (0.08206*(Ta + 273.15)) / (60*60*24),
          CH4 = CH4_slope_ppm_per_day * #CONVERT TO umolCH4/m2/s
-           265.8 / (0.08206*(Ta + 273.15)) / 60*60*24,
+           265.8 / (0.08206*(Ta + 273.15)) / (60*60*24),
          N2O = N2O_slope_ppm_per_day * #CONVERT TO umolN2O/m2/s
-           265.8 / (0.08206*(Ta + 273.15)) / 60*60*24) %>% 
+           265.8 / (0.08206*(Ta + 273.15)) / (60*60*24)) %>% 
   ungroup() %>%
   select(MIU_VALVE, DateTime, NEE, CH4, N2O, PAR, Ta)
 
