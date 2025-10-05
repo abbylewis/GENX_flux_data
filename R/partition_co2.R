@@ -6,14 +6,19 @@
 library(tidyverse)
 library(data.table)
 
-# Load data
+# Load slopes
 df <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0_for_dashboard.csv", show_col_types = F)
+# Update met
+download_gcrew_met()
+# Load met
 met <- read_csv("processed_data/met_2025_dashboard.csv")
 
 # Format
 df$DateTime <- as.POSIXct(df$TIMESTAMP, tz = "EST")
 met$DateTime <- as.POSIXct(met$TIMESTAMP, tz = "EST")
-setDT(df) # Convert to data.table
+
+# Convert to data.table
+setDT(df) 
 setDT(met)
 
 # Set keys: DateTime is what will be used to join fluxes with met
@@ -25,9 +30,13 @@ merged <- met[df, roll = "nearest"] %>% # Rolling join: nearest met to each flux
   rename(Ta = AirTC_Avg,
          PAR = PAR_Den_C_Avg) %>%
   mutate(NEE = CO2_slope_ppm_per_day * #CONVERT TO umolCO2/m2/s
+           265.8 / (0.08206*(Ta + 273.15)) * 60*60*24,
+         CH4 = CH4_slope_ppm_per_day * #CONVERT TO umolCH4/m2/s
+           265.8 / (0.08206*(Ta + 273.15)) * 60*60*24,
+         N2O = N2O_slope_ppm_per_day * #CONVERT TO umolN2O/m2/s
            265.8 / (0.08206*(Ta + 273.15)) * 60*60*24) %>% 
   ungroup() %>%
-  select(MIU_VALVE, DateTime, NEE, PAR, Ta)
+  select(MIU_VALVE, DateTime, NEE, CH4, N2O, PAR, Ta)
 
 # Identify nighttime
 par_night_thresh <- 5  # µmol m-2 s-1 threshold to define night
@@ -127,17 +136,18 @@ for (ch in chambers) {
   merged[targ_idx, Q10_t  := Qinterp]
 }
 
-# Predict Reco_model using time-varying parameters
+# Predict Reco using time-varying parameters
 # Reco = Rref_t * Q10_t ^ ((Ta - Tref)/10)
-merged[, Reco_model := NA_real_]
+merged[, Reco := NA_real_]
+Tref = 10
 ok_mask <- is.finite(merged$Rref_t) & is.finite(merged$Q10_t) & is.finite(merged$Ta)
-merged[ok_mask, Reco_model := Rref_t * (Q10_t ^ ((Ta[ok_mask] - Tref)/10))]
+merged[ok_mask, Reco := Rref_t * (Q10_t ^ ((Ta[ok_mask] - Tref)/10))]
 
 # Compute daytime GPP = Reco - NEE
 merged[, is_day := PAR >= par_night_thresh]
 merged[, GPP := NA_real_]
-day_mask <- merged$is_day & is.finite(merged$Reco_model) & is.finite(merged$NEE)
-merged[day_mask, GPP := Reco_model - NEE]
+day_mask <- merged$is_day & is.finite(merged$Reco) & is.finite(merged$NEE)
+merged[day_mask, GPP := Reco - NEE]
 # enforce non-negative GPP if desired
 merged[day_mask & GPP < 0, GPP := 0]
 
@@ -154,6 +164,7 @@ merged %>%
   ggplot(aes(x = Date, color = as.factor(MIU_VALVE))) +
   geom_line(aes(y = value)) +
   theme_bw()+
+  ylab("Value (µmol/m2/s)")+
   scale_color_manual(values = c('blue4','blue3','turquoise4','lightseagreen',
                                 'mediumseagreen','limegreen','yellowgreen','yellow2',
                                 'darkgoldenrod2','darkorange2','orangered1','red2'))+
