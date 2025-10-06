@@ -34,21 +34,6 @@ server: shiny
 library(tidyverse)
 library(plotly)
 
-#met <- read_csv("./data/met_2025.csv", 
-#                show_col_types = F) %>%
-#  mutate(Rain_binary = Rain_Intensity > 0,
-#         Vx = Wind_speed_avg * cos(Wind_direction_avg/365*2*pi),
-#         Vy = Wind_speed_avg * sin(Wind_direction_avg/365*2*pi),
-#         Wind_direction_170 = Vx * cos(170/365*2*pi) + Vy * sin(170/365*2*pi),
-#         Wind_direction_170 = ifelse(Wind_direction_170 < 0, 0, Wind_direction_170)) %>%
-#  select(-Vx, -Vy) %>%
-#  pivot_longer(c(-TIMESTAMP, -Wind_direction_avg)) %>%
-#  filter(!name %in% c("Rain_Duration", "Rain_Accumulation", 
-#                      "Wind_speed_max")) %>%
-#  mutate(Wind_direction_avg = ifelse(name == "Wind_speed_avg",
-#                        Wind_direction_avg,
-#                        NA))
-
 chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
                    "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
                    "c_10_e4.5", "c_11_e5.25", "c_12_e6.0")
@@ -56,14 +41,53 @@ chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
 color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
                  'mediumseagreen','limegreen','yellowgreen','yellow2',
                  'darkgoldenrod2','darkorange2','orangered1','red2')
+
+#For testing
+#input <- list()
+#input$gases <- c("CO2", "CH4")
+#input$today <- Sys.Date()
+#input$days_to_plot <- 3
+#input$daily <- "Hourly"
 ```
+
+::: {.row}
+
+::: {.column width="73%"}
+
+::: {.panel-tabset}
+
+## Areal fluxes
 
 ```{r}
 #| panel: fill
-plotlyOutput('plot1')
-#br()
-#plotlyOutput('plot2')
+
+plotlyOutput('plot_flux')
+
 ```
+
+## Partitioned CO2 (beta)
+
+```{r}
+#| panel: fill
+
+plotlyOutput('plot_co2')
+
+```
+
+## Slopes (original)
+
+```{r}
+#| panel: fill
+
+plotlyOutput('plot1')
+
+```
+
+:::
+
+:::
+
+::: {.column width="25%"}
 
 ```{r}
 #| panel: sidebar
@@ -80,23 +104,35 @@ sliderInput('days_to_plot', 'Days of historical data to plot',
             5,
             value = 5)
 br()
-checkboxGroupInput('gases', 'Gases to plot', 
+splitLayout(
+  cellWidths = c("50%", "50%"),
+  
+  # Left column
+  tagList(
+    checkboxGroupInput('gases', 'Gases to plot', 
             choices = c("CH4", "CO2", "N2O"),
             selected = c("CH4", "CO2", "N2O"))
+  ),
+  
+  #Right column
+  checkboxGroupInput('metrics', 'Metrics to plot', 
+            choices = c("GPP", "NEE", "Reco"),
+            selected = c("GPP", "NEE", "Reco"))
+)
 br()
 radioButtons("daily", label = "Time step", 
-             choices = c("Hourly", "Daily mean"), selected = ("Hourly"))
-#br()
-#checkboxGroupInput('met', 'Met vars to plot', 
-#            choices = unique(met$name),
-#            selected = c("Wind_speed_avg", "Rain_Intensity", "Wind_direction_170"))
-#br()
-#actionButton("reload", "Re-load data", class = "btn btn-primary")
+             choices = c("Hourly", "Daily mean"), 
+             selected = "Hourly")
 ```
+
+:::
+
+:::
 
 ```{r}
 #| context: server
 
+## SLOPES ##
 slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0_for_dashboard.csv", show_col_types = F) 
 
 updateDateInput(inputId = "today", 
@@ -142,6 +178,7 @@ output$plot1 <- renderPlotly({
     geom_hline(yintercept = 0, color = "grey70") +
     geom_point(size = 0.5) +
     geom_line() +
+    ylab("Slope (ppm)") +
     #geom_vline(xintercept = as_datetime("2025-05-07 14:00:00"), linetype = "dashed", color = "grey70") +
     facet_wrap(~gas, scales = "free_y", nrow = 1) +
     scale_color_manual(values = color.gradient)+
@@ -152,21 +189,90 @@ output$plot1 <- renderPlotly({
   plotly::ggplotly(p1, tooltip=c("chamber", "R2", "TIMESTAMP"))
 })
 
-#output$plot2 <- renderPlotly({
-#  met_recent <- met %>%
-#    filter(as.Date(TIMESTAMP) <= input$today,
-#           TIMESTAMP > (input$today - days(input$days_to_plot))) 
-#  
-#  p2 <- met_recent %>%
-#    filter(name %in% input$met) %>%
-#    ggplot(aes(x = TIMESTAMP, y = value, color = Wind_direction_avg)) +
-#    geom_point(size = 0.5) +
-#    facet_wrap(~name, scales = "free_y", ncol = 1) +
-#    theme_bw()+
-#    scale_color_gradientn(colors = c("red", "orange", "yellow", "limegreen", "blue", "purple", "red"), na.value = #"black")+
-#    theme(axis.title.x = element_blank(),
-#          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
-#  
-#  plotly::ggplotly(p2)
-#})
+## MET ##
+partitioned <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/partitioned_co2.csv", show_col_types = F) 
+
+#Code for plots
+output$plot_flux <- renderPlotly({
+  part_recent <- partitioned %>%
+    filter(as.Date(DateTime) <= input$today,
+           DateTime > (input$today - days(input$days_to_plot))) %>% 
+    rename(chamber = MIU_VALVE) %>%
+    select(c(CH4, N2O, NEE, DateTime, chamber)) %>%
+    pivot_longer(matches("CH4|N2O|NEE"), 
+                 names_to = "gas") %>%
+    filter(!gas == "Flag")
+  
+  if(input$daily == "Daily mean"){
+    part_recent2 <- part_recent %>%
+      mutate(DateTime = as.Date(DateTime),
+             DateTime = as.POSIXct(DateTime)) %>%
+      group_by(DateTime, chamber, gas) %>%
+      summarize(value = mean(value, na.rm = T),
+                .groups = "drop")
+  } else {
+    part_recent2 <- part_recent
+  }
+  
+  p1 <- part_recent2 %>%
+    mutate(chamber = factor(chamber, 
+                            levels = 1:12,
+                            labels = chamber_levels),
+           gas = ifelse(gas == "NEE", "CO2", gas)) %>%
+    filter(gas %in% input$gases) %>%
+    ggplot(aes(x = DateTime, y = value, color = chamber)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_point(size = 0.5) +
+    geom_line() +
+    ylab("Flux (µmol/m2/s)")+
+    facet_wrap(~gas, scales = "free_y", nrow = 1) +
+    scale_color_manual(values = color.gradient)+
+    theme_bw()+
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
+  
+  plotly::ggplotly(p1, tooltip=c("chamber", "DateTime", "value"))
+})
+
+#Code for plots
+output$plot_co2 <- renderPlotly({
+  part_recent <- partitioned %>%
+    filter(as.Date(DateTime) <= input$today,
+           DateTime > (input$today - days(input$days_to_plot))) %>% 
+    rename(chamber = MIU_VALVE) %>%
+    select(c(NEE, GPP, Reco, DateTime, chamber)) %>%
+    pivot_longer(c(NEE, GPP, Reco), 
+                 names_to = "gas") %>%
+    mutate(value = ifelse(gas == "GPP", -value, value)) %>%
+    filter(!gas == "Flag")
+  
+  if(input$daily == "Daily mean"){
+    part_recent2 <- part_recent %>%
+      mutate(DateTime = as.Date(DateTime),
+             DateTime = as.POSIXct(DateTime)) %>%
+      group_by(DateTime, chamber, gas) %>%
+      summarize(value = mean(value, na.rm = T),
+                .groups = "drop")
+  } else {
+    part_recent2 <- part_recent
+  }
+  
+  p1 <- part_recent2 %>%
+    mutate(chamber = factor(chamber, 
+                            levels = 1:12,
+                            labels = chamber_levels)) %>%
+    filter(gas %in% input$metrics) %>%
+    ggplot(aes(x = DateTime, y = value, color = chamber)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_point(size = 0.5) +
+    geom_line() +
+    ylab("Flux (µmol/m2/s)")+
+    facet_wrap(~gas, nrow = 1) +
+    scale_color_manual(values = color.gradient)+
+    theme_bw()+
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
+  
+  plotly::ggplotly(p1, tooltip=c("chamber", "DateTime", "value"))
+})
 ```

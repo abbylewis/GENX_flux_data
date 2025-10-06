@@ -152,38 +152,4 @@ merged[day_mask, GPP := Reco - NEE]
 # enforce non-negative GPP if desired
 merged[day_mask & GPP < 0, GPP := 0]
 
-merged %>%
-  mutate(Date = as.Date(DateTime),
-         chamber = factor(MIU_VALVE,
-                          levels = 1:12,
-                          labels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
-                                     "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
-                                     "c_10_e4.5", "c_11_e5.25", "c_12_e6.0"))) %>%
-  pivot_longer(c(NEE, GPP, Reco)) %>%
-  group_by(name, MIU_VALVE, Date) %>%
-  summarize(value = mean(value, na.rm = T)) %>%
-  ggplot(aes(x = Date, color = as.factor(MIU_VALVE))) +
-  geom_line(aes(y = value)) +
-  theme_bw()+
-  ylab("Value (µmol/m2/s)")+
-  scale_color_manual(values = c('blue4','blue3','turquoise4','lightseagreen',
-                                'mediumseagreen','limegreen','yellowgreen','yellow2',
-                                'darkgoldenrod2','darkorange2','orangered1','red2'))+
-  facet_wrap(~name)
-
-params_dt %>%
-  pivot_longer(c(Rref, Q10)) %>%
-  mutate(chamber = factor(MIU_VALVE,
-                          levels = 1:12,
-                          labels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
-                                     "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
-                                     "c_10_e4.5", "c_11_e5.25", "c_12_e6.0"))) %>%
-  ggplot(aes(x = center, y = value, color = chamber))+
-  facet_wrap(~name, scales = "free")+
-  scale_color_manual(values = c('blue4','blue3','turquoise4','lightseagreen',
-                                'mediumseagreen','limegreen','yellowgreen','yellow2',
-                                'darkgoldenrod2','darkorange2','orangered1','red2'))+
-  geom_line()+
-  theme_bw()
-
 write_csv(merged, "processed_data/partitioned_co2.csv")
