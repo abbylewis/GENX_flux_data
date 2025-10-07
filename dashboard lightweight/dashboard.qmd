@@ -120,9 +120,19 @@ splitLayout(
             selected = c("GPP", "NEE", "Reco"))
 )
 br()
-radioButtons("daily", label = "Time step", 
+splitLayout(
+  cellWidths = c("50%", "50%"),
+  
+  # Left column
+  radioButtons("daily", label = "Time step", 
              choices = c("Hourly", "Daily mean"), 
-             selected = "Hourly")
+             selected = "Hourly"),
+  
+  #Right column
+  radioButtons("smooth", label = "Line type", 
+             choices = c("Measured", "Smoothed"), 
+             selected = "Measured")
+)
 ```
 
 :::
@@ -177,7 +187,11 @@ output$plot1 <- renderPlotly({
     ggplot(aes(x = TIMESTAMP, y = slope, color = chamber, label = R2)) +
     geom_hline(yintercept = 0, color = "grey70") +
     geom_point(size = 0.5) +
-    geom_line() +
+    {if(input$smooth == "Smoothed") {
+      geom_smooth(se = FALSE) 
+    } else{
+      geom_line()
+    }} +
     ylab("Slope (ppm)") +
     #geom_vline(xintercept = as_datetime("2025-05-07 14:00:00"), linetype = "dashed", color = "grey70") +
     facet_wrap(~gas, scales = "free_y", nrow = 1) +
@@ -223,7 +237,11 @@ output$plot_flux <- renderPlotly({
     ggplot(aes(x = DateTime, y = value, color = chamber)) +
     geom_hline(yintercept = 0, color = "grey70") +
     geom_point(size = 0.5) +
-    geom_line() +
+    {if(input$smooth == "Smoothed") {
+      geom_smooth(se = FALSE) 
+    } else{
+      geom_line()
+    }} +
     ylab("Flux (µmol/m2/s)")+
     facet_wrap(~gas, scales = "free_y", nrow = 1) +
     scale_color_manual(values = color.gradient)+
@@ -265,13 +283,19 @@ output$plot_co2 <- renderPlotly({
     ggplot(aes(x = DateTime, y = value, color = chamber)) +
     geom_hline(yintercept = 0, color = "grey70") +
     geom_point(size = 0.5) +
-    geom_line() +
-    ylab("Flux (µmol/m2/s)")+
+    {if(input$smooth == "Smoothed") {
+      geom_smooth(se = FALSE) 
+    } else{
+      geom_line()
+    }} +
+    ylab("Flux (µmol/m²/s)") +
     facet_wrap(~gas, nrow = 1) +
-    scale_color_manual(values = color.gradient)+
-    theme_bw()+
-    theme(axis.title.x = element_blank(),
-          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
+    scale_color_manual(values = color.gradient) +
+    theme_bw() +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0)
+    )
   
   plotly::ggplotly(p1, tooltip=c("chamber", "DateTime", "value"))
 })
