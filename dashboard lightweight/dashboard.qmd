@@ -43,11 +43,11 @@ color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
                  'darkgoldenrod2','darkorange2','orangered1','red2')
 
 #For testing
-#input <- list()
-#input$gases <- c("CO2", "CH4")
-#input$today <- Sys.Date()
-#input$days_to_plot <- 3
-#input$daily <- "Hourly"
+input <- list()
+input$gases <- c("CO2", "CH4")
+input$today <- Sys.Date()
+input$days_to_plot <- 3
+input$daily <- "Hourly"
 ```
 
 ::: {.row}
@@ -80,6 +80,15 @@ plotlyOutput('plot_co2')
 #| panel: fill
 
 plotlyOutput('plot1')
+
+```
+
+## Forecasts
+
+```{r}
+#| panel: fill
+
+plotlyOutput('plot_forecast')
 
 ```
 
@@ -296,6 +305,60 @@ output$plot_co2 <- renderPlotly({
       axis.title.x = element_blank(),
       axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0)
     )
+  
+  plotly::ggplotly(p1, tooltip=c("chamber", "DateTime", "value"))
+})
+
+## FORECAST ##
+#Code for plots
+output$plot_forecast <- renderPlotly({
+  forecast <- read_csv(paste0("https://raw.githubusercontent.com/abbylewis/GENX_CH4cast/refs/heads/master/outputs/daily-",input$today,"-slosh.csv.gz"),
+                     show_col_types = F) 
+  
+  part_recent <- partitioned %>%
+    filter(as.Date(DateTime) <= (input$today + days(7)),
+           DateTime > (input$today - days(input$days_to_plot))) %>% 
+    rename(chamber = MIU_VALVE) %>%
+    select(c(CH4, DateTime, chamber)) %>%
+    pivot_longer(matches("CH4"), 
+                 names_to = "gas") %>%
+    filter(!gas == "Flag")
+  
+  part_recent2 <- part_recent %>%
+    mutate(DateTime = as.Date(DateTime),
+           DateTime = as.POSIXct(DateTime)) %>%
+    group_by(DateTime, chamber, gas) %>%
+    summarize(value = mean(value, na.rm = T),
+              .groups = "drop")
+  
+  p1 <- forecast %>%
+    mutate(site_id = factor(site_id, levels = 1:12,
+                            labels = chamber_levels)) %>%
+    pivot_wider(names_from = "parameter", values_from = "prediction") %>%
+    ggplot(aes(x = datetime, color = site_id)) +
+    geom_hline(yintercept = 0, color = "grey50") +
+    geom_vline(xintercept = input$today) +
+    geom_line(aes(y = mu)) +
+    geom_ribbon(aes(ymin = mu - sigma, ymax = mu + sigma, fill = site_id), alpha = 0.3) +
+    geom_point(data = part_recent2 %>%
+                 mutate(site_id = factor(chamber, levels = 1:12,
+                                         labels = chamber_levels)), 
+               aes(x = DateTime, y = value, 
+                   alpha = DateTime >= input$today)) +
+    geom_line(data = part_recent2 %>%
+                mutate(site_id = factor(chamber, levels = 1:12,
+                                        labels = chamber_levels)) %>%
+                filter(DateTime <= input$today), 
+               aes(x = DateTime, y = value)) +
+    scale_alpha_manual(values = c(1, .2)) +
+    scale_color_manual(values = color.gradient)+
+    scale_fill_manual(values = color.gradient)+
+    theme_bw()+
+    theme(legend.position = "none",
+          axis.title.x = element_blank()) +
+    ylab("Flux (µmol/m2/day)") +
+    #facet_wrap(~site_id) +
+    ggtitle(paste0("CH4 forecasts for ", input$today))
   
   plotly::ggplotly(p1, tooltip=c("chamber", "DateTime", "value"))
 })
