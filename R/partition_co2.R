@@ -35,7 +35,7 @@ merged <- met[df, roll = "nearest"] %>% # Rolling join: nearest met to each flux
          CH4 = CH4_slope_ppm_per_day * #CONVERT TO umolCH4/m2/s
            265.8 / (0.08206*(Ta + 273.15)) / (60*60*24) / 0.196,
          N2O = N2O_slope_ppm_per_day * #CONVERT TO umolN2O/m2/s
-           265.8 / (0.08206*(Ta + 273.15)) / (60*60*24)) / 0.196 %>% 
+           265.8 / (0.08206*(Ta + 273.15)) / (60*60*24) / 0.196) %>% 
   ungroup() %>%
   select(MIU_VALVE, DateTime, NEE, CH4, N2O, PAR, Ta)
 
@@ -153,3 +153,4 @@ merged[day_mask, GPP := Reco - NEE]
 merged[day_mask & GPP < 0, GPP := 0]
 
 write_csv(merged, "processed_data/partitioned_co2.csv")
+
