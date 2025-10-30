@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>GENX Data Dashboard</title>
+<title>CH4-cast: Data dashboard</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -43,7 +43,7 @@ ul.task-list li input[type="checkbox"] {
 <header id="title-block-header" class="quarto-title-block default page-columns page-full">
   <div class="quarto-title-banner page-columns page-full">
     <div class="quarto-title column-page">
-      <h1 class="title">GENX Data Dashboard</h1>
+      <h1 class="title">CH<sub>4</sub>-cast: Data dashboard</h1>
                       </div>
   </div>
     
@@ -65,36 +65,108 @@ ul.task-list li input[type="checkbox"] {
 
 
 <style>
+/* === Title Banner === */
 .quarto-title-banner {
+  position: relative;
   background-image: url("images/genx.jpg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  
-  /* Make it taller */
-  min-height: 150px;
-  
-  color: white; 
+  min-height: 75px;
+  color: white;
+  margin-bottom: 0;
 }
 
-.quarto-title-banner .title, 
-.quarto-title-banner .subtitle, 
+.quarto-title-banner .title,
+.quarto-title-banner .subtitle,
 .quarto-title-banner .author {
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); /* make text readable */
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  padding: 0 10vw;
 }
 
+/* === Page Layout === */
+.container,
+.row {
+  padding-left: 10vw;
+  padding-right: 2vw;
+}
+
+/* === Tabs === */
+.nav-tabs .nav-link {
+  color: black;
+}
+
+.nav-tabs .nav-link.active {
+  color: black;
+  font-weight: 600;
+  border-bottom: 2px solid black;
+}
+
+/* === Sidebar Inputs === */
+.checkbox label,
+.radio label {
+  color: #444;
+}
+
+.form-check-input:checked,
+.checkbox input[type="checkbox"]:checked,
+.radio input[type="radio"]:checked {
+  background-color: #444;
+  border-color: #444;
+}
+
+.form-check-input:focus,
+.checkbox input[type="checkbox"]:focus,
+.radio input[type="radio"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3);
+}
+
+/* SliderInput */
+.irs--shiny .irs-bar,
+.irs--shiny .irs-bar-edge,
+.irs--shiny .irs-single,
+.irs--shiny .irs-handle > i:first-child {
+  background: #444;
+  border-color: #444;
+}
+
+/* Date picker */
+.datepicker table tr td.active,
+.datepicker table tr td.active:hover,
+.datepicker table tr td.active.disabled,
+.datepicker table tr td.active.disabled:hover {
+  background-color: #444;
+  border-color: #444;
+}
+
+/* Selectize Inputs */
+.selectize-input.focus {
+  border-color: #444;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+
+/* Buttons */
+.btn-primary,
+.btn-primary:focus,
+.btn-primary:hover {
+  background-color: #444;
+  border-color: #444;
+}
 </style>
 <div class="row">
 <div class="column" style="width:73%;">
 <div class="tabset-margin-container"></div><div class="panel-tabset">
-<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true" href="">Areal fluxes</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false" href="">Partitioned CO2</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-3-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-3" role="tab" aria-controls="tabset-1-3" aria-selected="false" href="">Forecasts</a></li></ul>
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true" href="">Areal fluxes</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false" href="">Partitioned CO<sub>2</sub></a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-3-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-3" role="tab" aria-controls="tabset-1-3" aria-selected="false" href="">Forecasts</a></li></ul>
 <div class="tab-content">
 <div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
 <div class="panel-fill panel-grid">
 <div class="g-col-24">
 <div class="cell panel-fill">
 <div class="cell-output-display">
-<div class="plotly html-widget html-widget-output shiny-report-size shiny-report-theme html-fill-item" id="plot_flux" style="width:100%;height:400px;"></div>
+<div class="plotly html-widget html-widget-output shiny-report-size shiny-report-theme html-fill-item" id="plot_flux" style="width:100%;height:360px;"></div>
 </div>
 </div>
 </div>
@@ -105,7 +177,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="g-col-24">
 <div class="cell panel-fill">
 <div class="cell-output-display">
-<div class="plotly html-widget html-widget-output shiny-report-size shiny-report-theme html-fill-item" id="plot_co2" style="width:100%;height:400px;"></div>
+<div class="plotly html-widget html-widget-output shiny-report-size shiny-report-theme html-fill-item" id="plot_co2" style="width:100%;height:360px;"></div>
 </div>
 </div>
 </div>
@@ -116,7 +188,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="g-col-24">
 <div class="cell panel-fill">
 <div class="cell-output-display">
-<div class="plotly html-widget html-widget-output shiny-report-size shiny-report-theme html-fill-item" id="plot_forecast" style="width:100%;height:400px;"></div>
+<div class="plotly html-widget html-widget-output shiny-report-size shiny-report-theme html-fill-item" id="plot_forecast" style="width:100%;height:360px;"></div>
 </div>
 </div>
 </div>
@@ -156,20 +228,20 @@ ul.task-list li input[type="checkbox"] {
 <div class="shiny-options-group">
 <div class="checkbox">
 <label>
-<input type="checkbox" name="gases" value="CH4" checked="checked">
-<span>CH4</span>
+<input type="checkbox" name="gases" value="CH₄" checked="checked">
+<span>CH₄</span>
 </label>
 </div>
 <div class="checkbox">
 <label>
-<input type="checkbox" name="gases" value="CO2" checked="checked">
-<span>CO2</span>
+<input type="checkbox" name="gases" value="CO₂" checked="checked">
+<span>CO₂</span>
 </label>
 </div>
 <div class="checkbox">
 <label>
-<input type="checkbox" name="gases" value="N2O" checked="checked">
-<span>N2O</span>
+<input type="checkbox" name="gases" value="N₂O" checked="checked">
+<span>N₂O</span>
 </label>
 </div>
 </div>
@@ -265,10 +337,11 @@ color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
 
 #For testing
 input <- list()
-input$gases <- c("CO2", "CH4")
+input$gases <- c("CH₄","CO₂","N₂O")
 input$today <- Sys.Date()
 input$days_to_plot <- 3
 input$daily <- "Hourly"
+input$smooth <- "Measured"
 </script>
  
 <script type="application/shiny-prerendered" data-context="server">
@@ -292,17 +365,22 @@ output$plot_flux <- renderPlotly({
   part_recent <- partitioned %>%
     filter(as.Date(DateTime) <= input$today,
            DateTime > (input$today - days(input$days_to_plot))) %>% 
-    rename(chamber = MIU_VALVE) %>%
-    select(c(CH4, N2O, NEE, DateTime, chamber)) %>%
+    rename(Chamber = MIU_VALVE) %>%
+    select(c(CH4, N2O, NEE, DateTime, Chamber)) %>%
     pivot_longer(matches("CH4|N2O|NEE"), 
                  names_to = "gas") %>%
+    mutate(gas = case_match(gas,
+                            "CH4"~"CH₄", 
+                            "CO2"~"CO₂",
+                            "N2O"~"N₂O",
+                            .default = gas)) %>%
     filter(!gas == "Flag")
   
   if(input$daily == "Daily mean"){
     part_recent2 <- part_recent %>%
       mutate(DateTime = as.Date(DateTime),
              DateTime = as.POSIXct(DateTime)) %>%
-      group_by(DateTime, chamber, gas) %>%
+      group_by(DateTime, Chamber, gas) %>%
       summarize(value = mean(value, na.rm = T),
                 .groups = "drop")
   } else {
@@ -310,12 +388,12 @@ output$plot_flux <- renderPlotly({
   }
   
   p1 <- part_recent2 %>%
-    mutate(chamber = factor(chamber, 
+    mutate(Chamber = factor(Chamber, 
                             levels = 1:12,
                             labels = chamber_levels),
-           gas = ifelse(gas == "NEE", "CO2", gas)) %>%
+           gas = ifelse(gas == "NEE", "CO₂", gas)) %>%
     filter(gas %in% input$gases) %>%
-    ggplot(aes(x = DateTime, y = value, color = chamber)) +
+    ggplot(aes(x = DateTime, y = value, color = Chamber)) +
     geom_hline(yintercept = 0, color = "grey70") +
     geom_point(size = 0.5) +
     {if(input$smooth == "Smoothed") {
@@ -328,9 +406,15 @@ output$plot_flux <- renderPlotly({
     scale_color_manual(values = color.gradient)+
     theme_bw()+
     theme(axis.title.x = element_blank(),
-          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+          strip.background = element_rect(fill = "grey95", color = "grey"))
   
-  plotly::ggplotly(p1, tooltip=c("chamber", "DateTime", "value"))
+  plotly::ggplotly(p1, tooltip=c("Chamber", "DateTime", "value")) %>%
+    layout(
+    legend = list(
+      tracegroupgap = 0
+    )
+  )
 })
 
 #Code for plots
@@ -338,8 +422,8 @@ output$plot_co2 <- renderPlotly({
   part_recent <- partitioned %>%
     filter(as.Date(DateTime) <= input$today,
            DateTime > (input$today - days(input$days_to_plot))) %>% 
-    rename(chamber = MIU_VALVE) %>%
-    select(c(NEE, GPP, Reco, DateTime, chamber)) %>%
+    rename(Chamber = MIU_VALVE) %>%
+    select(c(NEE, GPP, Reco, DateTime, Chamber)) %>%
     pivot_longer(c(NEE, GPP, Reco), 
                  names_to = "gas") %>%
     mutate(value = ifelse(gas == "GPP", -value, value)) %>%
@@ -349,7 +433,7 @@ output$plot_co2 <- renderPlotly({
     part_recent2 <- part_recent %>%
       mutate(DateTime = as.Date(DateTime),
              DateTime = as.POSIXct(DateTime)) %>%
-      group_by(DateTime, chamber, gas) %>%
+      group_by(DateTime, Chamber, gas) %>%
       summarize(value = mean(value, na.rm = T),
                 .groups = "drop")
   } else {
@@ -357,11 +441,11 @@ output$plot_co2 <- renderPlotly({
   }
   
   p1 <- part_recent2 %>%
-    mutate(chamber = factor(chamber, 
+    mutate(Chamber = factor(Chamber, 
                             levels = 1:12,
                             labels = chamber_levels)) %>%
     filter(gas %in% input$metrics) %>%
-    ggplot(aes(x = DateTime, y = value, color = chamber)) +
+    ggplot(aes(x = DateTime, y = value, color = Chamber)) +
     geom_hline(yintercept = 0, color = "grey70") +
     geom_point(size = 0.5) +
     {if(input$smooth == "Smoothed") {
@@ -375,10 +459,16 @@ output$plot_co2 <- renderPlotly({
     theme_bw() +
     theme(
       axis.title.x = element_blank(),
-      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0)
+      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      strip.background = element_rect(fill = "grey95", color = "grey")
     )
   
-  plotly::ggplotly(p1, tooltip=c("chamber", "DateTime", "value"))
+  plotly::ggplotly(p1, tooltip=c("Chamber", "DateTime", "value")) %>%
+    layout(
+    legend = list(
+      tracegroupgap = 0
+    )
+  )
 })
 
 ## FORECAST ##
@@ -391,8 +481,8 @@ output$plot_forecast <- renderPlotly({
     filter(as.Date(DateTime) <= (input$today + days(7)),
            DateTime > (input$today - days(input$days_to_plot)),
            !CH4 < -0.02) %>% 
-    rename(chamber = MIU_VALVE) %>%
-    select(c(CH4, DateTime, chamber)) %>%
+    rename(Chamber = MIU_VALVE) %>%
+    select(c(CH4, DateTime, Chamber)) %>%
     pivot_longer(matches("CH4"), 
                  names_to = "gas") %>%
     filter(!gas == "Flag")
@@ -400,7 +490,7 @@ output$plot_forecast <- renderPlotly({
   part_recent2 <- part_recent %>%
     mutate(DateTime = as.Date(DateTime),
            DateTime = as.POSIXct(DateTime)) %>%
-    group_by(DateTime, chamber, gas) %>%
+    group_by(DateTime, Chamber, gas) %>%
     summarize(value = mean(value, na.rm = T),
               .groups = "drop")
   
@@ -411,19 +501,19 @@ output$plot_forecast <- renderPlotly({
     geom_hline(yintercept = 0, color = "grey50") +
     geom_vline(xintercept = input$today) +
     geom_line() +
-    geom_ribbon(aes(ymin = mu - sigma, ymax = mu + sigma), alpha = 0.3) +
+    geom_ribbon(aes(ymin = mu - sigma, ymax = mu + sigma), alpha = 0.1) +
     geom_point(
       data = part_recent2 %>%
-        mutate(site_id = factor(chamber, levels = 1:12, labels = chamber_levels)),
-      aes(x = DateTime, y = value), alpha = 0.6
+        mutate(site_id = factor(Chamber, levels = 1:12, labels = chamber_levels)),
+      aes(x = DateTime, y = value), alpha = 0.6, size = 0.75
     ) +
     scale_color_manual(values = color.gradient, name = "Chamber") +
     scale_fill_manual(values = color.gradient, name = "Chamber") +
-    scale_alpha_manual(values = c(1, .2), guide = "none") +
     theme_bw() +
-    theme(axis.title.x = element_blank()) +
+    theme(axis.title.x = element_blank(),
+          strip.background = element_rect(fill = "grey95", color = "grey")) +
     ylab("Flux (µmol/m²/day)") +
-    ggtitle(paste0("CH4 forecasts for ", input$today))
+    ggtitle(paste0("CH₄ forecasts for ", input$today))
   
   p1_plotly <- plotly::ggplotly(p1, tooltip = c("site_id", "datetime", "mu", "value"))
   
@@ -431,25 +521,18 @@ output$plot_forecast <- renderPlotly({
   for (i in seq_along(p1_plotly$x$data)) {
     nm <- p1_plotly$x$data[[i]]$name
     if (!is.null(nm)) {
-      # Remove parentheses and keep only the part before any comma
       nm_clean <- gsub("^\\(([^,]+),.*\\)$", "\\1", nm)
       nm_clean <- trimws(nm_clean)
       p1_plotly$x$data[[i]]$name <- nm_clean
     }
   }
   
-  # Hide duplicate legend entries if any
-  seen <- character()
-  for (i in seq_along(p1_plotly$x$data)) {
-    nm <- p1_plotly$x$data[[i]]$name
-    if (nm %in% seen) {
-      p1_plotly$x$data[[i]]$showlegend <- FALSE
-    } else {
-      seen <- c(seen, nm)
-    }
-  }
-  
-  plotly::ggplotly(p1_plotly, tooltip=c("chamber", "DateTime", "value"))
+  plotly::ggplotly(p1_plotly, tooltip=c("Chamber", "DateTime", "value")) %>%
+    layout(
+    legend = list(
+      tracegroupgap = 0
+    )
+  )
 })
 </script>
  
