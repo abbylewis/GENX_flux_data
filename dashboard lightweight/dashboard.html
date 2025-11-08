@@ -205,7 +205,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2025-10-30" data-initial-date="2025-10-30" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2025-11-08" data-initial-date="2025-11-08" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div class="cell-output-display">
@@ -349,7 +349,8 @@ input$smooth <- "Measured"
 
 ## MET ##
 partitioned <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/partitioned_co2.csv", show_col_types = F) %>%
-  mutate(GPP = ifelse(!is_day, 0, GPP))
+  mutate(GPP = ifelse(!is_day, 0, GPP)) %>%
+  filter(!CH4 < -0.02)
 
 updateDateInput(inputId = "today", 
                   max = as.Date(max(partitioned$DateTime)),
@@ -479,8 +480,7 @@ output$plot_forecast <- renderPlotly({
   
   part_recent <- partitioned %>%
     filter(as.Date(DateTime) <= (input$today + days(7)),
-           DateTime > (input$today - days(input$days_to_plot)),
-           !CH4 < -0.02) %>% 
+           DateTime > (input$today - days(input$days_to_plot))) %>% 
     rename(Chamber = MIU_VALVE) %>%
     select(c(CH4, DateTime, Chamber)) %>%
     pivot_longer(matches("CH4"), 
