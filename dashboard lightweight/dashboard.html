@@ -205,7 +205,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2025-11-08" data-initial-date="2025-11-08" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2025-11-09" data-initial-date="2025-11-09" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div class="cell-output-display">
@@ -347,10 +347,18 @@ input$smooth <- "Measured"
 <script type="application/shiny-prerendered" data-context="server">
 #Code for plots
 
-## MET ##
 partitioned <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/partitioned_co2.csv", show_col_types = F) %>%
-  mutate(GPP = ifelse(!is_day, 0, GPP)) %>%
-  filter(!CH4 < -0.02)
+  mutate(GPP = ifelse(!is_day, 0, GPP),
+         CH4 = ifelse(MIU_VALVE == 8 & DateTime > as.Date("2025-11-03"),
+                      NA,
+                      CH4),
+         NEE = ifelse(MIU_VALVE == 8 & DateTime > as.Date("2025-11-03"),
+                      NA,
+                      NEE),
+         N2O = ifelse(DateTime > as.Date("2025-05-30") & DateTime < as.Date("2025-08-25"),
+                      NA,
+                      N2O)) %>%
+  filter(!CH4 < -0.2)
 
 updateDateInput(inputId = "today", 
                   max = as.Date(max(partitioned$DateTime)),
@@ -404,7 +412,8 @@ output$plot_flux <- renderPlotly({
     }} +
     ylab("Flux (µmol/m²/s)")+
     facet_wrap(~gas, scales = "free_y", nrow = 1) +
-    scale_color_manual(values = color.gradient)+
+    scale_color_manual(values = color.gradient,
+                       breaks = chamber_levels)+
     theme_bw()+
     theme(axis.title.x = element_blank(),
           axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
@@ -495,39 +504,47 @@ output$plot_forecast <- renderPlotly({
               .groups = "drop")
   
   p1 <- forecast %>%
-    mutate(site_id = factor(site_id, levels = 1:12, labels = chamber_levels)) %>%
+    mutate(Chamber = factor(site_id, levels = 1:12, labels = chamber_levels),
+           site_id = factor(site_id, levels = 1:12, labels = chamber_levels)) %>%
     pivot_wider(names_from = "parameter", values_from = "prediction") %>%
-    ggplot(aes(x = datetime, y = mu, color = site_id, fill = site_id)) +
+    rename(value = mu,
+           DateTime = datetime) %>%
+    ggplot(aes(x = DateTime, y = value, color = Chamber, fill = site_id)) +
     geom_hline(yintercept = 0, color = "grey50") +
     geom_vline(xintercept = input$today) +
     geom_line() +
-    geom_ribbon(aes(ymin = mu - sigma, ymax = mu + sigma), alpha = 0.1) +
+    geom_ribbon(aes(ymin = value - sigma, ymax = value + sigma), alpha = 0.1) +
     geom_point(
       data = part_recent2 %>%
-        mutate(site_id = factor(Chamber, levels = 1:12, labels = chamber_levels)),
+        mutate(site_id = factor(Chamber, levels = 1:12, labels = chamber_levels),
+               Chamber = site_id),
       aes(x = DateTime, y = value), alpha = 0.6, size = 0.75
     ) +
-    scale_color_manual(values = color.gradient, name = "Chamber") +
-    scale_fill_manual(values = color.gradient, name = "Chamber") +
+    scale_color_manual(values = color.gradient, 
+                       breaks = chamber_levels,
+                       name = "Chamber") +
+    scale_fill_manual(values = color.gradient, 
+                      breaks = chamber_levels,
+                      name = "Chamber") +
     theme_bw() +
     theme(axis.title.x = element_blank(),
           strip.background = element_rect(fill = "grey95", color = "grey")) +
     ylab("Flux (µmol/m²/day)") +
     ggtitle(paste0("CH₄ forecasts for ", input$today))
   
-  p1_plotly <- plotly::ggplotly(p1, tooltip = c("site_id", "datetime", "mu", "value"))
+  #p1_plotly <- plotly::ggplotly(p1, tooltip = c("site_id", "datetime", "mu", "value"))
   
   # Clean up legend names like "(c_1_amb,orangered1)" → "c_1_amb"
-  for (i in seq_along(p1_plotly$x$data)) {
-    nm <- p1_plotly$x$data[[i]]$name
-    if (!is.null(nm)) {
-      nm_clean <- gsub("^\\(([^,]+),.*\\)$", "\\1", nm)
-      nm_clean <- trimws(nm_clean)
-      p1_plotly$x$data[[i]]$name <- nm_clean
-    }
-  }
+  #for (i in seq_along(p1_plotly$x$data)) {
+  #  nm <- p1_plotly$x$data[[i]]$name
+  #  if (!is.null(nm)) {
+  #    nm_clean <- gsub("^\\(([^,]+),.*\\)$", "\\1", nm)
+  #    nm_clean <- trimws(nm_clean)
+  #    p1_plotly$x$data[[i]]$name <- nm_clean
+  #  }
+  #}
   
-  plotly::ggplotly(p1_plotly, tooltip=c("Chamber", "DateTime", "value")) %>%
+  plotly::ggplotly(p1, tooltip=c("site_id", "DateTime", "value")) %>%
     layout(
     legend = list(
       tracegroupgap = 0
