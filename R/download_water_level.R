@@ -40,15 +40,17 @@ download_water_level <- function(water_level_folder = here::here("Raw_data", "dr
     filter(!is.na(TIMESTAMP)) %>%
     distinct()
   
-  metadata <- read_csv(here::here("Raw_data","chamber_metadata.csv"),
-                       show_col_types = F)
-  
   water_level_output <- data %>%
     filter(Statname == "GENX") %>%
     select(c(TIMESTAMP, Depth, Temperature, Specific_Conductivity, Salinity, TDS))
   
   write.csv(water_level_output, 
             here::here("processed_data", "water_level.csv"), 
+            row.names = FALSE)
+
+  write.csv(water_level_output %>%
+              filter(TIMESTAMP > as.Date("2025-03-18")), 
+            here::here("processed_data", "water_level_dashboard.csv"), 
             row.names = FALSE)
   
   return(T)
