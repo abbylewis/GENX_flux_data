@@ -2,6 +2,7 @@
 source("./R/drop_dir.R")
 source("./R/get_dropbox_token.R")
 source("./R/load_file.R")
+source("./R/load_data.R")
 library(tidyverse)
 
 download_water_level <- function(water_level_folder = here::here("Raw_data", "dropbox_water_level")){
@@ -33,7 +34,7 @@ download_water_level <- function(water_level_folder = here::here("Raw_data", "dr
   message("Processing and saving all historical water level data")
   
   data <- list.files(water_level_folder, full.names = T) %>%
-    map(read.csv, skip = 1) %>%
+    map(load_wl) %>%
     bind_rows() %>%
     filter(!TIMESTAMP == "TS") %>%
     mutate(TIMESTAMP = as_datetime(TIMESTAMP)) %>%
@@ -41,8 +42,7 @@ download_water_level <- function(water_level_folder = here::here("Raw_data", "dr
     distinct()
   
   water_level_output <- data %>%
-    filter(Statname == "GENX") %>%
-    select(c(TIMESTAMP, Depth, Temperature, Specific_Conductivity, Salinity, TDS))
+    select(c(TIMESTAMP, Depth_cm, Temperature_C, Actual_Conductivity_uScm, Salinity_PSU))
   
   write.csv(water_level_output, 
             here::here("processed_data", "water_level.csv"), 

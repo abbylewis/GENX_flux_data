@@ -42,3 +42,32 @@ load_data <- function(file){
   
   return(data_small)
 }
+
+load_wl <- function(file){
+  data_raw <- read_csv(file, col_types = cols(.default = "c"), skip = 1)
+  
+  #Account for different formatting among files
+  if("H21_Depth" %in% colnames(data_raw)){
+    data_small <- data_raw %>%
+      rename(Depth_cm = H21_Depth,
+             Temperature_C = H21_Temperature,
+             Salinity_PSU = Derived_Salinity,
+             Actual_Conductivity_uScm = H21_Electrical_Conductivity,
+             ID = `Hydros_ID(2)`) %>%
+      filter(!Depth_cm %in% c("mm", "Smp")) %>% 
+      mutate(Depth_cm = as.numeric(Depth_cm) /100) %>% #convert mm to cm
+      select(-RECORD, -Statname) 
+  } else {
+    data_small <- data_raw %>%
+      rename(ID = `Aquatroll_ID(2)`,
+             Temperature_C = Temperature,
+             Salinity_PSU = Salinity,
+             Actual_Conductivity_uScm = Actual_Conductivity,
+             Depth_cm = Depth) %>% 
+      select(-RECORD, -Statname) %>%
+      filter(!Depth_cm %in% c("cm", "Smp")) %>%
+      mutate(Depth_cm = as.numeric(Depth_cm))
+ }
+  
+  return(data_small)
+}
