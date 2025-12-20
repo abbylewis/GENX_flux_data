@@ -8,9 +8,9 @@ download_water_level <- function(water_level_folder = here::here("Raw_data", "dr
   #Identify all files
   files <- drop_dir(path = "GCREW_LOGGERNET_DATA/archive_data")
   relevant_files <- files %>%
-    filter(grepl("GENX_WaterLevel", name))
+    filter(grepl("genx_waterlevel", tolower(name)))
   current <- drop_dir(path = "GCREW_LOGGERNET_DATA/current_data") %>%
-    filter(grepl("GENX_WaterLevel", name),
+    filter(grepl("genx_waterlevel", tolower(name)),
            !grepl("backup", name))
   
   #Remove files that are already loaded
