@@ -29,6 +29,11 @@ jobs:
         run: |
           Rscript packages.R
           Rscript ./R/partition_co2.R
+          
+      - name: Water level
+        run: |
+          Rscript packages.R
+          Rscript ./R/download_water_level.R
         
       - name: Commit and push
         run: |
