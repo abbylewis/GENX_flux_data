@@ -350,15 +350,6 @@ output$sim_plot <- renderPlotly({
     facet_wrap(~time)+
     xlab("Percent difference from full dataset")
 })
-
-slopes_l0 %>%
-  filter(year == 2025) %>%
-  mutate(hour = hour(flux_start),
-         month = month(flux_start)) %>%
-  filter(!is.na(month)) %>%
-  ggplot(aes(x = hour, y = CH4_slope_ppm_per_day, color = as.factor(MIU_VALVE)))+
-  geom_smooth()+
-  facet_wrap(~month, scales = "free_y")
 ```
 
 

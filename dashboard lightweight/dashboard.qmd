@@ -29,13 +29,6 @@ server: shiny
   padding: 0 10vw;
 }
 
-/* === Page Layout === */
-.container,
-.row {
-  padding-left: 10vw;
-  padding-right: 2vw;
-}
-
 /* === Tabs === */
 .nav-tabs .nav-link {
   color: black;
@@ -134,7 +127,7 @@ input$smooth <- "Measured"
 ```{r}
 #| panel: fill
 
-plotlyOutput('plot_flux', height = "360px")
+plotlyOutput('plot_flux', height = 420)
 
 ```
 
@@ -143,7 +136,25 @@ plotlyOutput('plot_flux', height = "360px")
 ```{r}
 #| panel: fill
 
-plotlyOutput('plot_co2', height = "360px")
+plotlyOutput('plot_co2', height = 420)
+
+```
+
+## Water level
+
+```{r}
+#| panel: fill
+
+plotlyOutput('plot_wl', height = 420)
+
+```
+
+## CH₄/WL Comparison
+
+```{r}
+#| panel: fill
+
+plotlyOutput('flux_wl', height = 420)
 
 ```
 
@@ -152,7 +163,7 @@ plotlyOutput('plot_co2', height = "360px")
 ```{r}
 #| panel: fill
 
-plotlyOutput('plot_forecast', height = "360px")
+plotlyOutput('plot_forecast', height = 420)
 
 ```
 
@@ -172,7 +183,7 @@ dateInput('today', 'Today',
           max = Sys.Date(),
           value = Sys.Date())
 br()
-sliderInput('days_to_plot', 'Days of historical data to plot', 
+numericInput('days_to_plot', 'Days of historical data to plot', 
             0, 
             5,
             value = 5)
@@ -216,30 +227,24 @@ splitLayout(
 #| context: server
 
 #Code for plots
-
+################ FLUXES ####################
+#This file has BOTH fluxes and partitioned GPP/R
 partitioned <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/partitioned_co2.csv", show_col_types = F) %>%
   mutate(GPP = ifelse(!is_day, 0, GPP),
-         CH4 = ifelse(MIU_VALVE == 8 & DateTime > as.Date("2025-11-03"),
-                      NA,
-                      CH4),
-         NEE = ifelse(MIU_VALVE == 8 & DateTime > as.Date("2025-11-03"),
-                      NA,
-                      NEE),
          N2O = ifelse(DateTime > as.Date("2025-05-30") & DateTime < as.Date("2025-08-25"),
                       NA,
                       N2O)) %>%
-  filter(!CH4 < -0.2)
+  filter(is.na(CH4) | CH4 > -0.2)
 
 updateDateInput(inputId = "today", 
                   max = as.Date(max(partitioned$DateTime)),
                   value = as.Date(max(partitioned$DateTime)))
 
-updateSliderInput(inputId = 'days_to_plot',
+updateNumericInput(inputId = 'days_to_plot',
                   max = round(as.numeric(difftime(as.Date(max(partitioned$DateTime)),
                                                   "2025-03-18", units = "days"))),
                   value = 5)
 
-#Code for plots
 output$plot_flux <- renderPlotly({
   part_recent <- partitioned %>%
     filter(as.Date(DateTime) <= input$today,
@@ -297,6 +302,9 @@ output$plot_flux <- renderPlotly({
   )
 })
 
+
+################ PARTITIONED CO2 ####################
+
 #Code for plots
 output$plot_co2 <- renderPlotly({
   part_recent <- partitioned %>%
@@ -351,7 +359,47 @@ output$plot_co2 <- renderPlotly({
   )
 })
 
-## FORECAST ##
+################ WATER LEVEL ####################
+wl <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/water_level_dashboard.csv")
+output$plot_wl <- renderPlotly({
+  wl_recent <- wl %>%
+    filter(as.Date(TIMESTAMP) <= input$today,
+           TIMESTAMP > (input$today - days(input$days_to_plot))) %>% 
+    pivot_longer(c(Depth_cm:Salinity_PSU), 
+                 names_to = "variable")
+  
+  if(input$daily == "Daily mean"){
+    wl_recent2 <- wl_recent %>%
+      mutate(TIMESTAMP = as.Date(TIMESTAMP),
+             TIMESTAMP = as.POSIXct(TIMESTAMP)) %>%
+      group_by(TIMESTAMP, variable) %>%
+      summarize(value = mean(value, na.rm = T),
+                .groups = "drop")
+  } else {
+    wl_recent2 <- wl_recent
+  }
+  
+  p1 <- wl_recent2 %>%
+    ggplot(aes(x = TIMESTAMP, y = value)) +
+    geom_point(size = 0.5) +
+    {if(input$smooth == "Smoothed") {
+      geom_smooth(se = FALSE) 
+    } else{
+      geom_line()
+    }} +
+    ylab("Value") +
+    facet_wrap(~variable, ncol = 1, scales = "free_y") +
+    theme_bw() +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    )
+  
+  plotly::ggplotly(p1, tooltip=c("TIMESTAMP", "value"))
+})
+
+################ FORECAST ####################
 #Code for plots
 output$plot_forecast <- renderPlotly({
   forecast <- read_csv(paste0("https://raw.githubusercontent.com/abbylewis/GENX_CH4cast/refs/heads/master/outputs/daily-",input$today,"-slosh.csv.gz"),
@@ -415,6 +463,62 @@ output$plot_forecast <- renderPlotly({
   #}
   
   plotly::ggplotly(p1, tooltip=c("site_id", "DateTime", "value")) %>%
+    layout(
+    legend = list(
+      tracegroupgap = 0
+    )
+  )
+})
+
+################ FLUX, WL comp ####################
+#Code for plots
+
+output$flux_wl <- renderPlotly({
+  part_wl <- partitioned %>% 
+    rename(Chamber = MIU_VALVE,
+           value = CH4) %>%
+    mutate(variable = "CH₄") %>%
+    bind_rows(wl %>%
+                rename(DateTime = TIMESTAMP,
+                       value = Depth_cm) %>%
+                select(DateTime, value) %>%
+                mutate(variable = "Depth_cm")) %>%
+    filter(as.Date(DateTime) <= input$today,
+           DateTime > (input$today - days(input$days_to_plot)))  %>%
+    select(c(DateTime, Chamber, value, variable))
+  
+  if(input$daily == "Daily mean"){
+    part_wl2 <- part_wl %>%
+      mutate(DateTime = as.Date(DateTime),
+             DateTime = as.POSIXct(DateTime)) %>%
+      group_by(DateTime, Chamber, variable) %>%
+      summarize(value = mean(value, na.rm = T),
+                .groups = "drop")
+  } else {
+    part_wl2 <- part_wl
+  }
+  
+  p1 <- part_wl2 %>%
+    mutate(Chamber = factor(Chamber, 
+                            levels = 1:12,
+                            labels = chamber_levels)) %>%
+    ggplot(aes(x = DateTime, y = value, color = Chamber)) +
+    geom_point(size = 0.5) +
+    {if(input$smooth == "Smoothed") {
+      geom_smooth(se = FALSE) 
+    } else{
+      geom_line()
+    }} +
+    ylab("Value")+
+    facet_wrap(~variable, scales = "free_y", ncol = 1) +
+    scale_color_manual(values = color.gradient,
+                       breaks = chamber_levels)+
+    theme_bw()+
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+          strip.background = element_rect(fill = "grey95", color = "grey"))
+  
+  plotly::ggplotly(p1, tooltip=c("Chamber", "DateTime", "value")) %>%
     layout(
     legend = list(
       tracegroupgap = 0
