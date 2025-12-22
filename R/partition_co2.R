@@ -6,11 +6,14 @@
 library(tidyverse)
 library(data.table)
 source("R/download_gcrew_met.R")
+source("R/download_water_level.R")
 
 # Load slopes
 df <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0_for_dashboard.csv", show_col_types = F)
 # Update met
 download_gcrew_met()
+# Update water level (not used in this script, but part of daily update)
+download_water_level()
 # Load met
 met <- read_csv("processed_data/met_2025_dashboard.csv")
 
