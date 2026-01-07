@@ -42,7 +42,8 @@ download_water_level <- function(water_level_folder = here::here("Raw_data", "dr
     distinct()
   
   water_level_output <- data %>%
-    select(c(TIMESTAMP, Depth_cm, Temperature_C, Actual_Conductivity_uScm, Salinity_PSU))
+    select(c(TIMESTAMP, Depth_cm, Temperature_C, Actual_Conductivity_uScm, Salinity_PSU)) %>%
+    mutate(Depth_cm = ifelse(TIMESTAMP > as_datetime("2025-09-01"), Depth_cm - 56, Depth_cm - 76))
   
   write.csv(water_level_output, 
             here::here("processed_data", "water_level.csv"), 
