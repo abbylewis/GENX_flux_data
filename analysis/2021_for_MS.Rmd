@@ -1,0 +1,100 @@
+---
+title: "2021_for_MS"
+author: "Abby Lewis"
+date: "2026-01-08"
+output: html_document
+---
+
+Questions:
+- I have data from before 2021-05-05 12:45:00, but you don't. Should I use that cutoff?
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+
+chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
+                   "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
+                   "c_10_e4.5", "c_11_e5.25", "c_12_e6.0")
+
+color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
+                 'mediumseagreen','limegreen','yellowgreen','yellow2',
+                 'darkgoldenrod2','darkorange2','orangered1','red2')
+```
+
+```{r}
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0.csv", show_col_types = F) %>%
+  mutate(year = year(TIMESTAMP),
+         yday = yday(TIMESTAMP))
+
+asl_2021 <- slopes_l0 %>%
+  filter(year == 2021) %>%
+  rename(chamber = MIU_VALVE) %>%
+  mutate(TIMESTAMP = round_date(TIMESTAMP, "minute")) #%>%
+    #filter((CH4_slope_ppm_per_day>0 & CH4_R2 >= 0.5 & CH4_p < 0.05) |
+    #       (CH4_slope_ppm_per_day<0 & CH4_R2 >= 0.9  & CH4_p < 0.05))
+
+gln_2021 <- read_csv("../Raw_data/2021-05-05_2021-12-31_CH4_CO2_fluxes.csv")
+```
+
+Mine are a mess, GLN's look good
+```{r}
+gln_2021 %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4_slope_umol_per_day, color = as.factor(chamber)))+
+  geom_line()
+
+asl_2021 %>%
+  filter(CH4_slope_ppm_per_day < 150000) %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4_slope_ppm_per_day, color = as.factor(chamber)))+
+  geom_line()
+```
+
+When we both have data they look ok
+```{r}
+only_shared_obs <- asl_2021 %>%
+  left_join(gln_2021 %>%
+              bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP + minutes(1))) %>%
+              bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP - minutes(1)))) %>%
+  filter(!is.na(CH4_slope_ppm_per_day),
+         !is.na(CH4_slope_umol_per_day)) %>%
+  rename(ASL_ch4_slope_ppm = CH4_slope_ppm_per_day,
+         GLN_ch4_slope_umol = CH4_slope_umol_per_day)
+
+only_shared_obs %>%
+  ggplot(aes(x = ASL_ch4_slope_ppm, y = GLN_ch4_slope_umol))+
+  geom_point()
+
+only_shared_obs %>%
+  pivot_longer(c(ASL_ch4_slope_ppm, GLN_ch4_slope_umol)) %>%
+  ggplot(aes(x = TIMESTAMP, y = value, color = as.factor(chamber)))+
+  geom_line()+
+  facet_wrap(~name, scales = "free_y")
+
+all_obs <- asl_2021 %>%
+  bind_rows(gln_2021 %>%
+              bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP + minutes(1))) %>%
+              bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP - minutes(1)))) %>%
+  rename(ASL_ch4_slope_ppm = CH4_slope_ppm_per_day,
+         GLN_ch4_slope_umol = CH4_slope_umol_per_day)
+
+all_obs %>%
+  pivot_longer(c(ASL_ch4_slope_ppm, GLN_ch4_slope_umol)) %>%
+  filter(value < 150000) %>%
+  ggplot(aes(x = TIMESTAMP, y = value, color = as.factor(chamber)))+
+  geom_line()+
+  facet_wrap(~name, scales = "free_y")
+```
+
+So what is different
+```{r}
+gln_2021 %>%
+  left_join(asl_2021) %>%
+  filter(is.na(CH4_slope_ppm_per_day))
+
+removed <- asl_2021 %>%
+  filter(!is.na(flux_start)) %>%
+  left_join(gln_2021 %>%
+              bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP + minutes(1))) %>%
+              bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP - minutes(1)))) %>%
+  filter(is.na(CH4_slope_umol_per_day))
+```
+
