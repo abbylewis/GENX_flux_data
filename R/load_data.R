@@ -55,7 +55,7 @@ load_wl <- function(file){
              Actual_Conductivity_uScm = H21_Electrical_Conductivity,
              ID = `Hydros_ID(2)`) %>%
       filter(!Depth_cm %in% c("mm", "Smp")) %>% 
-      mutate(Depth_cm = as.numeric(Depth_cm) /100) %>% #convert mm to cm
+      mutate(Depth_cm = as.numeric(Depth_cm) /10) %>% #convert mm to cm
       select(-RECORD, -Statname) 
   } else {
     data_small <- data_raw %>%
