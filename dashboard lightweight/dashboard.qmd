@@ -167,6 +167,24 @@ plotlyOutput('plot_forecast', height = 420)
 
 ```
 
+## Raw data
+
+```{r}
+#| panel: fill
+splitLayout(
+  cellWidths = c("50%", "50%"),
+  
+  selectInput("raw_date", "Date",
+              choices = as.Date((Sys.Date()-days(7)):Sys.Date()),
+              selected = Sys.Date()),
+  
+  selectInput("raw_chamber", "Chamber",
+              choices = 1:12)
+)
+plotlyOutput('plot_raw', height = 420)
+
+```
+
 :::
 
 :::
@@ -524,5 +542,61 @@ output$flux_wl <- renderPlotly({
       tracegroupgap = 0
     )
   )
+})
+
+################ Raw data ####################
+raw <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/raw_for_dashboard.csv")
+
+updateSelectInput(inputId = "raw_date", 
+                  label = "Date",
+                  choices = as.Date((Sys.Date()-days(7)):Sys.Date()),
+                  selected = Sys.Date())
+
+output$plot_raw <- renderPlotly({
+  raw_plot <- raw %>%
+    filter(as.Date(TIMESTAMP) == input$raw_date,
+           MIU_VALVE == input$raw_chamber) %>% 
+    rename(Chamber = MIU_VALVE) %>%
+    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm"), 
+                 names_to = "gas") %>%
+    mutate(gas = case_match(gas,
+                            "CH4d_ppm"~"CH₄", 
+                            "CO2d_ppm"~"CO₂",
+                            "N2Od_ppm"~"N₂O",
+                            .default = gas),
+           Chamber = factor(Chamber, 
+                            levels = 1:12,
+                            labels = chamber_levels)) %>%
+    group_by(group) %>%
+    mutate(label = format(min(TIMESTAMP), "%H:%M:%S"))
+  
+  start_cutoff <- 200 #Buffer of time after flux window
+  end_cutoff <- 540
+  
+  p1 <- raw_plot %>%
+    mutate(used = ifelse(Manifold_Timer >= start_cutoff & 
+                           Manifold_Timer <= end_cutoff,
+                         "yes",
+                         "no")) %>%
+    ggplot(aes(x = TIMESTAMP, y = value, 
+               alpha = used, shape = used,
+               color = Chamber)) +
+    geom_point(size = .9) +
+    scale_alpha_manual(values = c(1,0.1),
+                       breaks = c("yes", "no"))+
+    scale_color_manual(values = color.gradient,
+                       breaks = chamber_levels)+
+    scale_shape_manual(values = c(21, 19),
+                      breaks = c("no", "yes"))+
+    ylab("Value")+
+    facet_grid(gas~label, scales = "free") +
+    theme_bw()+
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+          legend.position = "none",
+          strip.background = element_rect(fill = "grey95", color = "grey"))+
+    ggtitle(unique(raw_plot$Chamber))
+  
+  plotly::ggplotly(p1, tooltip=c("TIMESTEP", "value"))
 })
 ```
