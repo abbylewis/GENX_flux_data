@@ -22,7 +22,7 @@ color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
 ```
 
 ```{r}
-slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0.csv", show_col_types = F) %>%
+slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0.csv") %>%
   mutate(year = year(TIMESTAMP),
          yday = yday(TIMESTAMP))
 
@@ -33,7 +33,8 @@ asl_2021 <- slopes_l0 %>%
     #filter((CH4_slope_ppm_per_day>0 & CH4_R2 >= 0.5 & CH4_p < 0.05) |
     #       (CH4_slope_ppm_per_day<0 & CH4_R2 >= 0.9  & CH4_p < 0.05))
 
-gln_2021 <- read_csv("../Raw_data/2021-05-05_2021-12-31_CH4_CO2_fluxes.csv")
+gln_2021 <- read_csv("../Raw_data/2021-05-05_2021-12-13_CH4_CO2_fluxes (Jan 2025).csv") %>%
+  mutate(TIMESTAMP = as_datetime(TIMESTAMP, format = "%m/%d/%Y %H:%M"))
 ```
 
 Mine are a mess, GLN's look good
@@ -51,20 +52,23 @@ asl_2021 %>%
 When we both have data they look ok
 ```{r}
 only_shared_obs <- asl_2021 %>%
+  rename(ASL_slope_ppm_per_day = CH4_slope_ppm_per_day,
+         ASL_co2_slope_ppm_per_day = CO2_slope_ppm_per_day) %>%
   left_join(gln_2021 %>%
               bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP + minutes(1))) %>%
-              bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP - minutes(1)))) %>%
-  filter(!is.na(CH4_slope_ppm_per_day),
-         !is.na(CH4_slope_umol_per_day)) %>%
-  rename(ASL_ch4_slope_ppm = CH4_slope_ppm_per_day,
-         GLN_ch4_slope_umol = CH4_slope_umol_per_day)
+              bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP - minutes(1))) %>%
+              rename(GLN_slope_ppm_per_day = CH4_slope_ppm_per_day)) %>%
+  filter(!is.na(ASL_slope_ppm_per_day),
+         !is.na(GLN_slope_ppm_per_day))
 
 only_shared_obs %>%
-  ggplot(aes(x = ASL_ch4_slope_ppm, y = GLN_ch4_slope_umol))+
-  geom_point()
+  ggplot(aes(x = ASL_slope_ppm_per_day, y = GLN_slope_ppm_per_day))+
+  geom_point()+
+  geom_abline()+
+  geom_smooth(method = "lm")
 
 only_shared_obs %>%
-  pivot_longer(c(ASL_ch4_slope_ppm, GLN_ch4_slope_umol)) %>%
+  pivot_longer(c(ASL_slope_ppm_per_day, GLN_slope_ppm_per_day)) %>%
   ggplot(aes(x = TIMESTAMP, y = value, color = as.factor(chamber)))+
   geom_line()+
   facet_wrap(~name, scales = "free_y")
@@ -73,11 +77,11 @@ all_obs <- asl_2021 %>%
   bind_rows(gln_2021 %>%
               bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP + minutes(1))) %>%
               bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP - minutes(1)))) %>%
-  rename(ASL_ch4_slope_ppm = CH4_slope_ppm_per_day,
-         GLN_ch4_slope_umol = CH4_slope_umol_per_day)
+  rename(ASL_slope_ppm_per_day = CH4_slope_ppm_per_day,
+         GLN_slope_ppm_per_day = CH4_slope_umol_per_day)
 
 all_obs %>%
-  pivot_longer(c(ASL_ch4_slope_ppm, GLN_ch4_slope_umol)) %>%
+  pivot_longer(c(ASL_slope_ppm_per_day, GLN_slope_ppm_per_day)) %>%
   filter(value < 150000) %>%
   ggplot(aes(x = TIMESTAMP, y = value, color = as.factor(chamber)))+
   geom_line()+
@@ -91,10 +95,24 @@ gln_2021 %>%
   filter(is.na(CH4_slope_ppm_per_day))
 
 removed <- asl_2021 %>%
+  rename(ASL_slope_ppm_per_day = CH4_slope_ppm_per_day,
+         ASL_co2_slope_ppm_per_day = CO2_slope_ppm_per_day) %>%
   filter(!is.na(flux_start)) %>%
   left_join(gln_2021 %>%
               bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP + minutes(1))) %>%
               bind_rows(gln_2021 %>% mutate(TIMESTAMP = TIMESTAMP - minutes(1)))) %>%
   filter(is.na(CH4_slope_umol_per_day))
+
+removed %>%
+  filter(ASL_slope_ppm_per_day < 150000) %>%
+  ggplot(aes(x = ASL_slope_ppm_per_day))+
+  geom_density()+
+  scale_x_continuous()
+
+removed %>%
+  filter(ASL_slope_ppm_per_day < 150000) %>%
+  summarize(median = median(ASL_slope_ppm_per_day, na.rm = T),
+            mean = mean(ASL_slope_ppm_per_day, na.rm = T),
+            pct_pos = sum((!is.na(ASL_slope_ppm_per_day) & ASL_slope_ppm_per_day > 0)/sum(!is.na(ASL_slope_ppm_per_day))))
 ```
 

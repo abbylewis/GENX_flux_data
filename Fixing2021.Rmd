@@ -7,6 +7,8 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
 ```
 
 ```{r}
@@ -61,7 +63,7 @@ slopes_l0 %>%
   geom_point()+
   facet_grid(MIU_VALVE~year, scales = "free_x")
 
-slopes_2021 <- read_csv("2021-05-05_2021-12-31_CH4_CO2_fluxes.csv")
+slopes_2021 <- read_csv("Raw_data/2021-05-05_2021-12-31_CH4_CO2_fluxes.csv")
 
 slopes_2021 %>%
   filter(hour(TIMESTAMP) < 5 | hour(TIMESTAMP) > 22) %>%
