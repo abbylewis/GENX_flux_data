@@ -1,0 +1,14 @@
+name: raw_data_dashboard
+title: raw_data_dashboard
+username: aslewis
+account: aslewis
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 16411089
+bundleId: 11434949
+url: https://aslewis.shinyapps.io/raw_data_dashboard/
+version: 1
+quarto_version: 1.7.32
+quarto_engines: knitr
+asMultiple: FALSE
+asStatic: FALSE
