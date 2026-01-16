@@ -80,7 +80,7 @@ calculate_flux <- function(start_date = NULL,
   #Remove data as specified in maintenance log
   googlesheets4::gs4_deauth() # No authentication needed
   today <- Sys.time()
-  maint_log <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1-fcWU3TK936cR0kPvLTy6CUF_GTvHTwGbiAKDCIE05s/edit?gid=0#gid=0",
+  maint_log <- googlesheets4::read_sheet("http://docs.google.com/spreadsheets/d/1_uk8-335NDJOdVU6OjLcxWx4MamNJeVEbVkSmdb9oRs/edit?gid=0#gid=0",
                                          col_types = "c") %>%
     mutate(Start_time = as_datetime(Start_time, tz = "America/New_York"),
            End_time = as_datetime(End_time, tz = "America/New_York"),
@@ -115,7 +115,6 @@ calculate_flux <- function(start_date = NULL,
   
   #Group flux intervals, prep for slopes
   grouped_data <- data_numeric %>%
-    mutate(date = as.Date(TIMESTAMP, tz = "America/New_York")) %>%
     #Group flux intervals
     arrange(TIMESTAMP) %>%
     mutate(group = group_fun(MIU_VALVE)) %>%
@@ -123,6 +122,7 @@ calculate_flux <- function(start_date = NULL,
     #Record the amount of time from when chamber closed
     mutate(start = min(TIMESTAMP),
            end = max(TIMESTAMP),
+           date = as.Date(start, tz = "America/New_York"),
            change = as.numeric(difftime(TIMESTAMP, start, units = "days")),
            change_s = as.numeric(difftime(TIMESTAMP, start, units = "secs")),
            max_s = ifelse(sum(!is.na(CH4d_ppm) > 0),
@@ -272,7 +272,7 @@ calculate_flux <- function(start_date = NULL,
 }
 
 
-#calculate_flux(start_date = "2024-10-01", 
-#               end_date = Sys.Date()+1,
-#               modif_start_date = NULL,
-#               reprocess = TRUE)
+calculate_flux(start_date = "2025-10-01", 
+               end_date = Sys.Date()+1,
+               modif_start_date = NULL,
+               reprocess = TRUE)
