@@ -46,7 +46,7 @@ calculate_flux <- function(start_date = NULL,
                "GENX_INSTRUMENT_FLUX_COMB_20240403020045.dat",
                "GENX_INSTRUMENT_FLUX_COMB_20240501020048.dat",
                "GENX_LGR_04142021_20210505020005.dat"
-               )
+  )
   files <- files[!grepl(paste0(exclude, collapse = "|"), files)]
   message(paste0("Calculating fluxes for ", length(files), " files"))
   
@@ -278,7 +278,4 @@ calculate_flux <- function(start_date = NULL,
 }
 
 
-#calculate_flux(start_date = "2024-10-01", 
-#               end_date = Sys.Date()+1,
-#               modif_start_date = NULL,
-#               reprocess = TRUE)
+calculate_flux(reprocess = T)
