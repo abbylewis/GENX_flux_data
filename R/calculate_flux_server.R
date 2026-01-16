@@ -1,8 +1,7 @@
-
-source(here::here("R","load_data.R"))
-source(here::here("R","filter_old_data.R"))
-source(here::here("R","group_fun.R"))
-
+source(here::here("GenX-Flux-Data","R","load_data.R"))
+source(here::here("GenX-Flux-Data","R","filter_old_data.R"))
+source(here::here("GenX-Flux-Data","R","group_fun.R"))
+library(tidyverse)
 #' calculate_flux
 #'
 #' @description
@@ -18,11 +17,11 @@ calculate_flux_server <- function(start_date = NULL,
                            end_date = NULL,
                            reprocess = F){
   ### Load files ###
-  files <- list.files(here::here("Raw_data","dropbox_downloads"), full.names = T)
-  
-  #By default, only calculate slopes for files that have been modified/created since the last time we ran the script
+  files <- list.files(here::here("C:/Campbellsci/LoggerNet/GCREW_Rawdata_Archive"), pattern = "GENX_INSTRUMENT_FLUX_COMB|GENX_FLUX|GENX_LGR_" ,full.names = T)
+
+#By default, only calculate slopes for files that have been modified/created since the last time we ran the script
   if(!reprocess){
-    modif_start_date = file.info(here::here("processed_data","L0.csv"))$mtime
+    modif_start_date = file.info(here::here("GenX-Flux-Data","processed_data","L0.csv"))$mtime
     files <- files[file.info(files)$mtime > modif_start_date]
   }
   
@@ -37,7 +36,10 @@ calculate_flux_server <- function(start_date = NULL,
   } else if (!is.null(start_date) | !is.null(end_date)){
     stop("If you provide a start or end date, you must provide both")
   } 
-  
+   
+  files_new <- list.files(here::here("C:/Campbellsci/LoggerNet/GCREW_Loggerfiles"), pattern = "GENX_INSTRUMENT_FLUX_COMB|GENX_FLUX|GENX_LGR_" ,full.names = T)
+  files<- c(files,files_new)
+
   #Exclude a few problematic files
   exclude <- c("GENX_INSTRUMENT_FLUX_COMB_20240417020046.dat",
                "GENX_INSTRUMENT_FLUX_COMB_20240403020045.dat",
@@ -49,10 +51,10 @@ calculate_flux_server <- function(start_date = NULL,
   #If there aren't any files to process, stop now
   if(length(files) == 0){
     message("No files to process")
-    return(read_csv(here::here("processed_data","L0.csv"), show_col_types = F))
+    return(read_csv(here::here("GenX-Flux-Data","processed_data","L0.csv"), show_col_types = F))
   }
   
-  
+  print(files)
   #Load data
   data_small <- files %>%
     map(load_data) %>% #custom data loading function that deals with multiple file formats
@@ -65,18 +67,21 @@ calculate_flux_server <- function(start_date = NULL,
   
   #Format data
   data_numeric <- data_small %>%
-    mutate(across(c("CH4d_ppm", "CO2d_ppm", "N2Od_ppb", "Manifold_Timer", "MIU_VALVE"), as.numeric)) %>%
-    mutate(N2Od_ppb = ifelse(N2Od_ppb <=0, NA, N2Od_ppb),
+    mutate(Flag = "No issues",
+           across(c("CH4d_ppm", "CO2d_ppm", "N2Od_ppb", "Manifold_Timer", "MIU_VALVE"), as.numeric),
+           Flag = ifelse(N2Od_ppb <=0 | CH4d_ppm <=0 | CO2d_ppm <=0,
+                         "Negative gas measurement",
+                         Flag),
+           N2Od_ppb = ifelse(N2Od_ppb <=0, NA, N2Od_ppb),
            CH4d_ppm = ifelse(CH4d_ppm <=0, NA, CH4d_ppm),
            CO2d_ppm = ifelse(CO2d_ppm <=0, NA, CO2d_ppm)) %>%
     filter(!is.na(MIU_VALVE),
-           MIU_VALVE %in% 1:12) %>%
-    mutate(Flag = "No issues")
+           MIU_VALVE %in% 1:12) 
   
   #Remove data as specified in maintenance log
   googlesheets4::gs4_deauth() # No authentication needed
   today <- Sys.time()
-  maint_log <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1-fcWU3TK936cR0kPvLTy6CUF_GTvHTwGbiAKDCIE05s/edit?gid=0#gid=0",
+  maint_log <- googlesheets4::read_sheet("http://docs.google.com/spreadsheets/d/1_uk8-335NDJOdVU6OjLcxWx4MamNJeVEbVkSmdb9oRs/edit?gid=0#gid=0",
                                          col_types = "c") %>%
     mutate(Start_time = as_datetime(Start_time, tz = "America/New_York"),
            End_time = as_datetime(End_time, tz = "America/New_York"),
@@ -92,18 +97,21 @@ calculate_flux_server <- function(start_date = NULL,
              CH4d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                CH4d_ppm),
              CO2d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                CO2d_ppm),
              N2Od_ppb = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("N2O", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                N2Od_ppb))
@@ -111,7 +119,6 @@ calculate_flux_server <- function(start_date = NULL,
   
   #Group flux intervals, prep for slopes
   grouped_data <- data_numeric %>%
-    mutate(date = as.Date(TIMESTAMP, tz = "America/New_York")) %>%
     #Group flux intervals
     arrange(TIMESTAMP) %>%
     mutate(group = group_fun(MIU_VALVE)) %>%
@@ -119,6 +126,7 @@ calculate_flux_server <- function(start_date = NULL,
     #Record the amount of time from when chamber closed
     mutate(start = min(TIMESTAMP),
            end = max(TIMESTAMP),
+           date = as.Date(start, tz = "America/New_York"),
            change = as.numeric(difftime(TIMESTAMP, start, units = "days")),
            change_s = as.numeric(difftime(TIMESTAMP, start, units = "secs")),
            max_s = ifelse(sum(!is.na(CH4d_ppm) > 0),
@@ -210,7 +218,7 @@ calculate_flux_server <- function(start_date = NULL,
   
   if(!reprocess){
     #Load previously calculated slopes
-    old_slopes <- read_csv(here::here("processed_data","L0.csv"), 
+    old_slopes <- read_csv(here::here("GenX-Flux-Data","processed_data","L0.csv"), 
                            col_types = "nnDcccnnnnnnnnnnnnnnnnnnnnnnncccc",
                            show_col_types = F) %>%
       mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "EST"),
@@ -224,26 +232,23 @@ calculate_flux_server <- function(start_date = NULL,
     round_comb <- function(x){round(as.numeric(x), 2)}
     write.csv(data_small %>%
                 mutate(across(c(CO2d_ppm), round_comb)),
-              here::here("processed_data","raw_small.csv"), row.names = FALSE)
+              here::here("GenX-Flux-Data","processed_data","raw_small.csv"), row.names = FALSE)
     write_csv(filtered_data, 
-              here::here("processed_data","processed_GENX_LGR_data.csv"))
+              here::here("GenX-Flux-Data","processed_data","processed_GENX_LGR_data.csv"))
   }
   
   #Output
   write.csv(slopes_comb %>% select(-max_s), 
-            here::here("processed_data","L0.csv"), 
+            here::here("GenX-Flux-Data","processed_data","L0.csv"), 
             row.names = FALSE)
   
   write.csv(slopes_comb %>% 
               select(-max_s) %>%
               filter(TIMESTAMP > as.Date("2025-03-18")), 
-            here::here("processed_data","L0_for_dashboard.csv"), 
+            here::here("GenX-Flux-Data","processed_data","L0_for_dashboard.csv"), 
             row.names = FALSE)
   
   return(slopes_comb)
 }
 
-#calculate_flux(start_date = "2024-10-01", 
-#               end_date = Sys.Date()+1,
-#               modif_start_date = NULL,
-#               reprocess = TRUE)
+calculate_flux_server(reprocess = FALSE)
