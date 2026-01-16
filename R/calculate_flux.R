@@ -218,17 +218,17 @@ calculate_flux <- function(start_date = NULL,
       mutate(TIMESTAMP = as_datetime(TIMESTAMP, tz = "EST"),
              flux_start = as_datetime(flux_start, tz = "EST"),
              flux_end = as_datetime(flux_end, tz = "EST")) %>%
-      filter(!TIMESTAMP %in% slopes$TIMESTAMP)
+      filter(TIMESTAMP < min(slopes$TIMESTAMP) | 
+               TIMESTAMP > max(slopes$TIMESTAMP))
     slopes_comb <- bind_rows(old_slopes, slopes)
   } else {
     slopes_comb <- slopes
     #Whenever we reprocess everything, save the raw output for QAQC efforts
-    round_comb <- function(x){round(as.numeric(x), 2)}
-    write.csv(data_small %>%
-                mutate(across(c(CO2d_ppm), round_comb)),
-              here::here("processed_data","raw_small.csv"), row.names = FALSE)
-    write_csv(filtered_data, 
-              here::here("processed_data","processed_GENX_LGR_data.csv"))
+    #Update: this file is insanely big and I don't want it any more
+    #round_comb <- function(x){round(as.numeric(x), 2)}
+    #write.csv(data_small %>%
+    #            mutate(across(c(CO2d_ppm), round_comb)),
+    #          here::here("processed_data","raw_small.csv"), row.names = FALSE)
   }
   
   #Output
