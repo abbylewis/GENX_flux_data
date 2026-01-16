@@ -46,7 +46,7 @@ calculate_flux <- function(start_date = NULL,
                "GENX_INSTRUMENT_FLUX_COMB_20240403020045.dat",
                "GENX_INSTRUMENT_FLUX_COMB_20240501020048.dat",
                "GENX_LGR_04142021_20210505020005.dat"
-               )
+  )
   files <- files[!grepl(paste0(exclude, collapse = "|"), files)]
   message(paste0("Calculating fluxes for ", length(files), " files"))
   
@@ -62,20 +62,15 @@ calculate_flux <- function(start_date = NULL,
   
   #Format data
   data_numeric <- data_small %>%
-    mutate(across(c("CH4d_ppm", "CO2d_ppm", "N2Od_ppb", "Manifold_Timer", "MIU_VALVE"), as.numeric)) %>%
-    mutate(N2Od_ppb = ifelse(N2Od_ppb <=0, NA, N2Od_ppb),
+    mutate(across(c("CH4d_ppm", "CO2d_ppm", "N2Od_ppb", "Manifold_Timer", "MIU_VALVE"), as.numeric),
+           N2Od_ppb = ifelse(N2Od_ppb <=0, NA, N2Od_ppb),
            CH4d_ppm = ifelse(CH4d_ppm <=0, NA, CH4d_ppm),
-           CO2d_ppm = ifelse(CO2d_ppm <=0, NA, CO2d_ppm)) %>%
+           CO2d_ppm = ifelse(CO2d_ppm <=0, NA, CO2d_ppm),
+           N2Od_ppm = N2Od_ppb / 1000) %>%
+    select(-N2Od_ppb) %>%
     filter(!is.na(MIU_VALVE),
            MIU_VALVE %in% 1:12) %>%
     mutate(Flag = "No issues")
-  
-  data_numeric %>%
-    filter(as.Date(TIMESTAMP) == as.Date("2025-03-30")) %>%
-    ggplot(aes(x = TIMESTAMP, y = N2Od_ppb, color = Manifold_Timer>200)) +
-    geom_point(size = 0.5)+
-    ylim(c(340, 365))+
-    ggtitle("genx")
   
   #Remove data as specified in maintenance log
   googlesheets4::gs4_deauth() # No authentication needed
@@ -96,21 +91,24 @@ calculate_flux <- function(start_date = NULL,
              CH4d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                CH4d_ppm),
              CO2d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
                                CO2d_ppm),
-             N2Od_ppb = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
+             N2Od_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] & 
                                  TIMESTAMP >= maint_log$Start_time[i] &
                                  maint_log$Remove[i] == "y" &
+                                 maint_log$Analyzer[i] %in% c("N2O", "all") &
                                  MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
                                NA,
-                               N2Od_ppb))
+                               N2Od_ppm))
   }
   
   #Group flux intervals, prep for slopes
@@ -168,7 +166,7 @@ calculate_flux <- function(start_date = NULL,
     group_by(group, MIU_VALVE, date) %>%
     summarize(Flag_CO2_slope = ifelse(sum(!is.na(CO2d_ppm)) > 5, 
                                       "No issues", "Insufficient data"),
-              Flag_N2O_slope = ifelse(sum(!is.na(N2Od_ppb)) > 5, 
+              Flag_N2O_slope = ifelse(sum(!is.na(N2Od_ppm)) > 5, 
                                       "No issues", "Insufficient data"),
               Flag_CH4_slope = ifelse(sum(!is.na(CH4d_ppm)) > 5, 
                                       "No issues", "Insufficient data"),
@@ -178,7 +176,7 @@ calculate_flux <- function(start_date = NULL,
   
   #Run lm
   slopes <- filtered_data %>%
-    pivot_longer(c(CH4d_ppm, CO2d_ppm, N2Od_ppb), names_to = "gas", values_to = "conc") %>%
+    pivot_longer(c(CH4d_ppm, CO2d_ppm, N2Od_ppm), names_to = "gas", values_to = "conc") %>%
     group_by(gas, group, MIU_VALVE, date) %>%
     mutate(n = sum(!is.na(conc))) %>%
     filter(!is.na(conc),
@@ -202,7 +200,7 @@ calculate_flux <- function(start_date = NULL,
     mutate(gas = case_match(gas,
                             "CH4d_ppm" ~ "CH4",
                             "CO2d_ppm" ~ "CO2",
-                            "N2Od_ppb" ~ "N2O")) %>%
+                            "N2Od_ppm" ~ "N2O")) %>%
     pivot_wider(names_from = gas, 
                 values_from = c(slope_ppm_per_day, R2, p, rmse, init, max, min),
                 names_glue = "{gas}_{.value}") %>%
@@ -244,6 +242,14 @@ calculate_flux <- function(start_date = NULL,
             here::here("processed_data","L0_for_dashboard.csv"), 
             row.names = FALSE)
   
+  recent_raw <- grouped_data %>%
+    filter(date >= Sys.Date()-days(7)) %>%
+    select(TIMESTAMP, Manifold_Timer, change, MIU_VALVE, group, CH4d_ppm, CO2d_ppm, N2Od_ppm)
+  
+  write.csv(recent_raw, 
+            here::here("processed_data","raw_for_dashboard.csv"), 
+            row.names = FALSE)
+  
   if(plot){
     for(year_i in unique(year(slopes$TIMESTAMP))){
       p <- slopes %>%
@@ -272,7 +278,4 @@ calculate_flux <- function(start_date = NULL,
 }
 
 
-calculate_flux(start_date = "2025-10-01", 
-               end_date = Sys.Date()+1,
-               modif_start_date = NULL,
-               reprocess = TRUE)
+calculate_flux(reprocess = T)
