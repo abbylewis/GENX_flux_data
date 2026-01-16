@@ -174,7 +174,7 @@ ul.task-list li input[type="checkbox"] {
 </div>
 </div>
 <div class="cell-output-display">
-<div class="plotly html-widget html-widget-output shiny-report-size shiny-report-theme html-fill-item" id="plot_time" style="width:100%;height:420px;"></div>
+<div class="plotly html-widget html-widget-output shiny-report-size shiny-report-theme html-fill-item" id="plot_time" style="width:100%;height:480px;"></div>
 </div>
 </div>
 </div>
@@ -215,7 +215,7 @@ ul.task-list li input[type="checkbox"] {
 </div>
 </div>
 <div class="cell-output-display">
-<div class="plotly html-widget html-widget-output shiny-report-size shiny-report-theme html-fill-item" id="plot_raw" style="width:100%;height:420px;"></div>
+<div class="plotly html-widget html-widget-output shiny-report-size shiny-report-theme html-fill-item" id="plot_raw" style="width:100%;height:480px;"></div>
 </div>
 </div>
 </div>
@@ -299,7 +299,7 @@ output$plot_time <- renderPlotly({
                 data = . %>% filter(used == "yes",
                                     retained == "yes"), 
                 linewidth = 0.5) +
-    scale_alpha_manual(values = c(1,0.1),
+    scale_alpha_manual(values = c(1,0.2),
                        breaks = c("yes", "no"))+
     scale_color_manual(values = color.gradient,
                        breaks = chamber_levels)+
@@ -309,7 +309,7 @@ output$plot_time <- renderPlotly({
     xlab("Seconds since start time") +
     facet_wrap(~gas, scales = "free_y", ncol = 1) +
     theme_bw()+
-    theme(axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+    theme(#axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
           legend.position = "none",
           strip.background = element_rect(fill = "grey95", color = "grey"))+
     ggtitle(input$time_date)

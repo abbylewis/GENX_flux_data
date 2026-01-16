@@ -139,7 +139,7 @@ splitLayout(
               min = 0, max = 24,
               value = 11)
 )
-plotlyOutput('plot_time', height = 420)
+plotlyOutput('plot_time', height = 480)
 
 ```
 
@@ -158,7 +158,7 @@ splitLayout(
   selectInput("raw_chamber", "Chamber",
               choices = chamber_levels)
 )
-plotlyOutput('plot_raw', height = 420)
+plotlyOutput('plot_raw', height = 480)
 
 ```
 
@@ -218,7 +218,7 @@ output$plot_time <- renderPlotly({
                 data = . %>% filter(used == "yes",
                                     retained == "yes"), 
                 linewidth = 0.5) +
-    scale_alpha_manual(values = c(1,0.1),
+    scale_alpha_manual(values = c(1,0.2),
                        breaks = c("yes", "no"))+
     scale_color_manual(values = color.gradient,
                        breaks = chamber_levels)+
@@ -228,26 +228,11 @@ output$plot_time <- renderPlotly({
     xlab("Seconds since start time") +
     facet_wrap(~gas, scales = "free_y", ncol = 1) +
     theme_bw()+
-    theme(axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+    theme(#axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
           legend.position = "none",
           strip.background = element_rect(fill = "grey95", color = "grey"))+
     ggtitle(input$time_date)
   
   plotly::ggplotly(p1, tooltip=c("TIMESTEP", "value", "Chamber"))
 })
-
-data <- data_small[409:443, ]
-
-data %>%
-  mutate(date_time = strptime(TIMESTAMP,format='%F %T'),
-         fDOY = as.numeric(julian(date_time,'2021-01-01')),
-         CH4d_ppm = as.numeric(CH4d_ppm)) %>%
-  ggplot(aes(x = fDOY, y = CH4d_ppm))+
-  geom_point()+
-  geom_smooth(method = "lm", data = .[-(1:10)])+
-  geom_abline(intercept = -436.7266, slope = 3.5226514)
-
-seq_along(data$TIMESTAMP)
-
-gln_cutoffs[3,2]
 ```

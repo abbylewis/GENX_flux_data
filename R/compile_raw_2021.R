@@ -1,14 +1,13 @@
-
+library(tidyverse)
 source(here::here("R","load_data.R"))
-source(here::here("R","filter_old_data.R"))
+source(here::here("R","filter_old_data_20250115.R"))
 source(here::here("R","group_fun.R"))
 
 files <- list.files(here::here("Raw_data","dropbox_downloads"), full.names = T)
 
 files_2021 <- files[grepl("2021", files)|grepl("20220112", files)]
 
-exclude <- c("GENX_LGR_04142021_20210505020005.dat"
-)
+exclude <- c("GENX_LGR_04142021_20210505020005.dat")
 files_2021 <- files_2021[!grepl(paste0(exclude, collapse = "|"), files_2021)]
 message(paste0("Calculating fluxes for ", length(files_2021), " files"))
 
@@ -75,22 +74,16 @@ for(i in 1:nrow(maint_log)){
 
 #Group flux intervals, prep for slopes
 grouped_data <- data_numeric %>%
-  mutate(date = as.Date(TIMESTAMP, tz = "America/New_York")) %>%
   #Group flux intervals
   arrange(TIMESTAMP) %>%
   mutate(group = group_fun(MIU_VALVE)) %>%
-  group_by(group, MIU_VALVE)  %>%
+  group_by(group, MIU_VALVE) %>%
   #Record the amount of time from when chamber closed
   mutate(start = min(TIMESTAMP),
          end = max(TIMESTAMP),
+         date = as.Date(start, tz = "America/New_York"),
          change = as.numeric(difftime(TIMESTAMP, start, units = "days")),
-         change_s = as.numeric(difftime(TIMESTAMP, start, units = "secs")),
-         max_s = ifelse(sum(!is.na(CH4d_ppm) > 0),
-                        change_s[which.max(CH4d_ppm)],
-                        NA),
-         min_s = ifelse(sum(!is.na(CH4d_ppm) > 0),
-                        change_s[which.min(CH4d_ppm)],
-                        NA),)
+         change_s = as.numeric(difftime(TIMESTAMP, start, units = "secs")))
 
 raw_2021 <- grouped_data %>%
   ungroup() %>%
@@ -99,4 +92,93 @@ raw_2021 <- grouped_data %>%
 
 write.csv(raw_2021, 
           here::here("processed_data","raw_2021.csv"), 
+          row.names = FALSE)
+
+
+### SLOPES
+#Save flags for data that will be removed in the next step
+flags <- grouped_data %>%
+  ungroup() %>%
+  select(start, MIU_VALVE, Flag, date, group) %>%
+  distinct() %>%
+  group_by(MIU_VALVE, start, date, group) %>%
+  filter(n() == 1 | !Flag == "No issues")
+
+#Process using old methods
+filtered_data <- filter_old_data_2021(grouped_data)
+
+#Data flags
+data_flags <- filtered_data %>%
+  group_by(group, MIU_VALVE, date) %>%
+  summarize(Flag_CO2_slope = ifelse(sum(!is.na(CO2d_ppm)) > 5, 
+                                    "No issues", "Insufficient data"),
+            Flag_N2O_slope = ifelse(sum(!is.na(N2Od_ppm)) > 5, 
+                                    "No issues", "Insufficient data"),
+            Flag_CH4_slope = ifelse(sum(!is.na(CH4d_ppm)) > 5, 
+                                    "No issues", "Insufficient data"),
+            cutoff_removed = unique(cutoff),
+            n_removed = unique(n),
+            .groups = "drop") 
+
+#Run lm
+slopes <- filtered_data %>%
+  pivot_longer(c(CH4d_ppm, CO2d_ppm, N2Od_ppm), names_to = "gas", values_to = "conc") %>%
+  group_by(gas, group, MIU_VALVE, date) %>%
+  mutate(n = sum(!is.na(conc))) %>%
+  filter(!is.na(conc),
+         n > 5) %>%
+  summarize(model = list(lm(conc ~ change)),
+            slope_ppm_per_day = model[[1]]$coefficients[[2]],
+            R2 = summary(model[[1]])$r.squared,
+            p = summary(model[[1]])$coefficients[,4][2],
+            rmse = sqrt(mean(model[[1]]$residuals^2)),
+            max = max(conc),
+            min = min(conc),
+            init = first(conc),
+            flux_start = min(TIMESTAMP),
+            flux_end = max(TIMESTAMP),
+            TIMESTAMP = unique(start),
+            n = sum(!is.na(conc)),
+            cutoff = unique(cutoff),
+            .groups = "drop") %>%
+  select(-model) %>%
+  mutate(gas = case_match(gas,
+                          "CH4d_ppm" ~ "CH4",
+                          "CO2d_ppm" ~ "CO2",
+                          "N2Od_ppm" ~ "N2O")) %>%
+  pivot_wider(names_from = gas, 
+              values_from = c(slope_ppm_per_day, R2, p, rmse, init, max, min),
+              names_glue = "{gas}_{.value}") %>%
+  #full_join(flags, by = c("TIMESTAMP" = "start", "MIU_VALVE", "date", "group")) %>%
+  full_join(data_flags, by = c("group", "MIU_VALVE", "date")) %>%
+  mutate(cutoff = ifelse(is.na(cutoff), cutoff_removed, cutoff),
+         n = ifelse(is.na(n), n_removed, n)) %>%
+  select(-cutoff_removed, -n_removed)
+
+slopes %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4_slope_ppm_per_day))+
+  geom_line()+
+  facet_wrap(~MIU_VALVE)
+
+slopes %>%
+  filter((CH4_max - CH4_min) < 0.2) %>%
+  ggplot(aes(y = CH4_max-CH4_min, x = CH4_R2))+
+  geom_point(alpha= 0.03)
+
+p <- slopes %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4_slope_ppm_per_day, 
+             color = as.factor(MIU_VALVE)))+
+  geom_line()
+
+plotly::ggplotly(p)
+
+p <- slopes %>%
+  ggplot(aes(x = TIMESTAMP, y = CO2_slope_ppm_per_day, 
+             color = as.factor(MIU_VALVE)))+
+  geom_line()
+
+plotly::ggplotly(p)
+
+write.csv(slopes, 
+          here::here("processed_data","L0_2021.csv"), 
           row.names = FALSE)

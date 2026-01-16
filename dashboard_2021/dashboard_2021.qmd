@@ -80,7 +80,7 @@ checkboxGroupInput('years', 'Years to plot',
 ```{r}
 #| context: server
 
-slopes_l0 <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0.csv", show_col_types = F) %>%
+slopes_l0 <- read_csv(here::here("processed_data","L0_2021.csv"), show_col_types = F) %>%
   mutate(year = year(TIMESTAMP),
          yday = yday(TIMESTAMP))
 

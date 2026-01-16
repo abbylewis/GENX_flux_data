@@ -5,7 +5,7 @@ asl_2021 <- read_csv(here::here("processed_data","L0.csv")) %>%
   rename(chamber = MIU_VALVE) %>%
   mutate(TIMESTAMP = round_date(TIMESTAMP, "minute"))
 gln_2021 <- read_csv(here::here("Raw_data","2021-05-05_2021-12-31_CH4_CO2_fluxes.csv"))
-gln_cutoffs <- read_csv(here::here("processed_data","chamber_lags_20220627.csv"))
+gln_cutoffs <- read_csv(here::here("processed_data","chamber_lags_new.csv"))
 
 gln_retained <- gln_2021 %>%
   filter(!is.na(CH4_slope_umol_per_day)) %>%
@@ -45,6 +45,10 @@ raw_gln <- raw %>%
                                  "TS_match" = "TIMESTAMP")) %>%
   group_by(group) %>%
   fill(retained)
+
+chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
+                   "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
+                   "c_10_e4.5", "c_11_e5.25", "c_12_e6.0")
 
 raw_comb <- raw_asl %>% 
   bind_rows(raw_gln)  %>% 

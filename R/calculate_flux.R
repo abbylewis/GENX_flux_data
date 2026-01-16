@@ -113,7 +113,6 @@ calculate_flux <- function(start_date = NULL,
   
   #Group flux intervals, prep for slopes
   grouped_data <- data_numeric %>%
-    mutate(date = as.Date(TIMESTAMP, tz = "America/New_York")) %>%
     #Group flux intervals
     arrange(TIMESTAMP) %>%
     mutate(group = group_fun(MIU_VALVE)) %>%
@@ -121,6 +120,7 @@ calculate_flux <- function(start_date = NULL,
     #Record the amount of time from when chamber closed
     mutate(start = min(TIMESTAMP),
            end = max(TIMESTAMP),
+           date = as.Date(start, tz = "America/New_York"),
            change = as.numeric(difftime(TIMESTAMP, start, units = "days")),
            change_s = as.numeric(difftime(TIMESTAMP, start, units = "secs")),
            max_s = ifelse(sum(!is.na(CH4d_ppm) > 0),
