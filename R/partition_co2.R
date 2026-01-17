@@ -9,7 +9,7 @@ source("R/download_gcrew_met.R")
 source("R/download_water_level.R")
 
 # Load slopes
-df <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/main/processed_data/L0_for_dashboard.csv", show_col_types = F)
+df <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
 # Update met
 download_gcrew_met()
 # Update water level (not used in this script, but part of daily update)

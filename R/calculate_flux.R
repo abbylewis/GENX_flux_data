@@ -278,4 +278,4 @@ calculate_flux <- function(start_date = NULL,
 }
 
 
-calculate_flux(reprocess = T)
+#calculate_flux(reprocess = F)

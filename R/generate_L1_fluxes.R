@@ -20,7 +20,6 @@ generate_target <- function(reprocess = F, temp = T){
   
   if(temp){
     temp <- download_chamber_temp(chamber_temp_folder = here::here("Raw_data", "dropbox_chamber_temp"))
-    ### Water level subtract 76 ###
     }
   
   #Second- calculate fluxes for new data, generating the L0 file
