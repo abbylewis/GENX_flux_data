@@ -1,6 +1,6 @@
 library(tidyverse)
 source(here::here("R","load_data.R"))
-source(here::here("R","filter_old_data_20250115.R"))
+source(here::here("R","filter_old_data_20250120.R"))
 source(here::here("R","group_fun.R"))
 
 files <- list.files(here::here("Raw_data","dropbox_downloads"), full.names = T)
@@ -105,7 +105,10 @@ flags <- grouped_data %>%
   filter(n() == 1 | !Flag == "No issues")
 
 #Process using old methods
-filtered_data <- filter_old_data_2021(grouped_data)
+filtered_data <- filter_old_data_2021(
+  grouped_data %>%
+    filter(month(TIMESTAMP) == 7)
+  )
 
 #Data flags
 data_flags <- filtered_data %>%
@@ -116,12 +119,11 @@ data_flags <- filtered_data %>%
                                     "No issues", "Insufficient data"),
             Flag_CH4_slope = ifelse(sum(!is.na(CH4d_ppm)) > 5, 
                                     "No issues", "Insufficient data"),
-            cutoff_removed = unique(cutoff),
-            n_removed = unique(n),
             .groups = "drop") 
 
 #Run lm
 slopes <- filtered_data %>%
+  filter(keep) %>%
   pivot_longer(c(CH4d_ppm, CO2d_ppm, N2Od_ppm), names_to = "gas", values_to = "conc") %>%
   group_by(gas, group, MIU_VALVE, date) %>%
   mutate(n = sum(!is.na(conc))) %>%
@@ -139,7 +141,6 @@ slopes <- filtered_data %>%
             flux_end = max(TIMESTAMP),
             TIMESTAMP = unique(start),
             n = sum(!is.na(conc)),
-            cutoff = unique(cutoff),
             .groups = "drop") %>%
   select(-model) %>%
   mutate(gas = case_match(gas,
@@ -149,28 +150,7 @@ slopes <- filtered_data %>%
   pivot_wider(names_from = gas, 
               values_from = c(slope_ppm_per_day, R2, p, rmse, init, max, min),
               names_glue = "{gas}_{.value}") %>%
-  #full_join(flags, by = c("TIMESTAMP" = "start", "MIU_VALVE", "date", "group")) %>%
-  full_join(data_flags, by = c("group", "MIU_VALVE", "date")) %>%
-  mutate(cutoff = ifelse(is.na(cutoff), cutoff_removed, cutoff),
-         n = ifelse(is.na(n), n_removed, n)) %>%
-  select(-cutoff_removed, -n_removed)
-
-slopes %>%
-  ggplot(aes(x = TIMESTAMP, y = CH4_slope_ppm_per_day))+
-  geom_line()+
-  facet_wrap(~MIU_VALVE)
-
-slopes %>%
-  filter((CH4_max - CH4_min) < 0.2) %>%
-  ggplot(aes(y = CH4_max-CH4_min, x = CH4_R2))+
-  geom_point(alpha= 0.03)
-
-p <- slopes %>%
-  ggplot(aes(x = TIMESTAMP, y = CH4_slope_ppm_per_day, 
-             color = as.factor(MIU_VALVE)))+
-  geom_line()
-
-plotly::ggplotly(p)
+  full_join(data_flags, by = c("group", "MIU_VALVE", "date"))
 
 p <- slopes %>%
   ggplot(aes(x = TIMESTAMP, y = CO2_slope_ppm_per_day, 

@@ -121,7 +121,7 @@ filter_old_data_2021 <- function(grouped_data){
     facet_wrap(~MIU_VALVE)
   
   look <- correct_duration  %>%
-    filter(MIU_VALVE == 2, date %in% c("2021-08-25"))
+    filter(MIU_VALVE == 12, date %in% c("2021-07-03"))
   
   look %>%
     left_join(cutoff_filled) %>%

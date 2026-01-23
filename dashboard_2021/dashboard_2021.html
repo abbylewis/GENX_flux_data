@@ -301,7 +301,7 @@ output$plot1 <- renderPlotly({
     theme(axis.title.x = element_blank(),
           axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0))
   
-  plotly::ggplotly(p1, tooltip=c("chamber", "R2", "TIMESTAMP"))
+  plotly::ggplotly(p1, tooltip=c("chamber", "R2", "TIMESTAMP", "slope"))
 })
 </script>
  

@@ -1,0 +1,81 @@
+---
+title: "HM_figures"
+author: "Abby Lewis"
+date: "2026-01-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+fluxes_2021 <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
+part <- read_csv(here::here("processed_data", "partitioned_co2.csv"))
+chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
+                   "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
+                   "c_10_e4.5", "c_11_e5.25", "c_12_e6.0")
+
+color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
+                 'mediumseagreen','limegreen','yellowgreen','yellow2',
+                 'darkgoldenrod2','darkorange2','orangered1','red2')
+```
+
+```{r}
+library(ggridges)
+part %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels)) %>%
+  ggplot(aes(x = CH4, y = MIU_VALVE, fill = MIU_VALVE))+
+  geom_vline(xintercept = 0, color = "grey50")+
+  stat_density_ridges(
+    geom = "density_ridges",
+    quantiles = 2,
+    quantile_lines = TRUE,
+    n = 2048,
+    rel_min_height = 0.005,
+    scale = 0.9
+  ) +
+  xlab(expression(CH[4]~"(µmol"~m^-2~s^-1*")"))+
+  scale_fill_manual(values = color.gradient)+
+  coord_cartesian(xlim = c(-0.003,0.04))+
+  egg::theme_article()+
+  theme(legend.position = "none",
+        axis.title.y = element_blank())
+
+quants <- part %>%
+  filter(!is.na(CH4)) %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels),
+         Date = as.Date(DateTime),
+         Temp_C = sub("c_[0-9]+_[e|a]", "", MIU_VALVE),
+         Temp_C = as.numeric(sub("mb", "0", Temp_C))) %>%
+  group_by(Date)  %>%
+  filter(length(unique(MIU_VALVE)) == 12) %>%
+  group_by(MIU_VALVE, Temp_C) %>%
+  summarize(q_50 = quantile(CH4, .50),
+            #q_5 = quantile(CH4, .05),
+            q_95 = quantile(CH4, .95),
+            q_99 = quantile(CH4, .99)) %>%
+  pivot_longer(q_50:q_99) %>%
+  group_by(name) %>%
+  mutate(ref = mean(value[Temp_C == 0]),
+         name = as.numeric(sub("q_", "", name)),
+         name_txt = paste0(name, "th quantile"),
+         name_txt = fct_reorder(name_txt, name)) %>%
+  ggplot(aes(x = Temp_C, y = value/ref * 100))+
+  geom_hline(yintercept = 100, color = "grey50")+
+  geom_smooth(color = "black", fill = "grey70")+
+  geom_point(aes(fill = MIU_VALVE), color = "black", 
+             shape = 21, size = 2, stroke = 0.5)+
+  scale_fill_manual(values = color.gradient, name = "Chamber")+
+  ylab(expression(atop(CH[4]~"flux quantile value", "(% of ambient; µmol"~m^-2~s^-1*")")))+
+  xlab("Temperature treatment (ºC above ambient)")+
+  facet_wrap(~name_txt)+
+  egg::theme_article()+
+  theme(panel.grid.major = element_line(color = "grey95"))
+
+ggsave("../figures/quantiles.jpg", width = 6, height = 3)
+```
+

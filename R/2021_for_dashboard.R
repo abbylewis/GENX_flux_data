@@ -1,7 +1,7 @@
 raw <- read_csv(here::here("processed_data","raw_2021.csv"))
 slopes <- read_csv(here::here("processed_data","L0.csv")) %>%
   select(group, MIU_VALVE, TIMESTAMP, cutoff) 
-asl_2021 <- read_csv(here::here("processed_data","L0.csv")) %>%
+asl_2021 <- read_csv(here::here("processed_data","L0_2021.csv")) %>%
   rename(chamber = MIU_VALVE) %>%
   mutate(TIMESTAMP = round_date(TIMESTAMP, "minute"))
 gln_2021 <- read_csv(here::here("Raw_data","2021-05-05_2021-12-31_CH4_CO2_fluxes.csv"))
