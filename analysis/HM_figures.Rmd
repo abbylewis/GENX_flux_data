@@ -5,13 +5,13 @@ date: "2026-01-20"
 output: html_document
 ---
 
+Load data and packages
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-```
+library(ggridges)
 
-```{r}
-fluxes_2021 <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
 part <- read_csv(here::here("processed_data", "partitioned_co2.csv"))
 chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
                    "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
@@ -23,7 +23,6 @@ color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
 ```
 
 ```{r}
-library(ggridges)
 part %>%
   mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
                             labels = chamber_levels)) %>%
@@ -70,12 +69,86 @@ quants <- part %>%
   geom_point(aes(fill = MIU_VALVE), color = "black", 
              shape = 21, size = 2, stroke = 0.5)+
   scale_fill_manual(values = color.gradient, name = "Chamber")+
-  ylab(expression(atop(CH[4]~"flux quantile value", "(% of ambient; µmol"~m^-2~s^-1*")")))+
+  ylab(expression(atop(CH[4]~"flux quantile value", "(% of ambient; ppm"~m^-2~s^-1*")")))+
   xlab("Temperature treatment (ºC above ambient)")+
   facet_wrap(~name_txt)+
   egg::theme_article()+
   theme(panel.grid.major = element_line(color = "grey95"))
 
+quants
+
 ggsave("../figures/quantiles.jpg", width = 6, height = 3)
 ```
 
+Repeating with 2021
+
+```{r}
+fluxes_2021 <- read_csv(here::here("processed_data", "L0_2021_best_fits.csv"))
+fluxes_2025 <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
+
+comb <- bind_rows(fluxes_2021, fluxes_2025) %>%
+  mutate(Year = year(TIMESTAMP)) %>%
+  filter(CO2_slope_ppm_per_day > 0 |
+           (hour(TIMESTAMP) > 6 & hour(TIMESTAMP) < 20)) %>%
+  filter(!Year==2021|!MIU_VALVE%in%c(1,8,5),
+         !Year == 2026,
+         month(TIMESTAMP) %in% c(6,7))
+
+comb %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels)) %>%
+  ggplot(aes(x = CH4_slope_ppm_per_day, y = MIU_VALVE, fill = MIU_VALVE))+
+  geom_vline(xintercept = 0, color = "grey50")+
+  stat_density_ridges(
+    geom = "density_ridges",
+    quantiles = 2,
+    quantile_lines = TRUE,
+    n = 2048,
+    rel_min_height = 0.005,
+    scale = 0.9
+  ) +
+  xlab(expression(CH[4]~"(ppm"~m^-2~s^-1*")"))+
+  scale_fill_manual(values = color.gradient)+
+  coord_cartesian(xlim = c(-2,20))+
+  egg::theme_article()+
+  facet_wrap(~Year)+
+  theme(legend.position = "none",
+        axis.title.y = element_blank())
+
+quants <- comb %>%
+  filter(!is.na(CH4_slope_ppm_per_day)) %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels),
+         Date = as.Date(TIMESTAMP),
+         Temp_C = sub("c_[0-9]+_[e|a]", "", MIU_VALVE),
+         Temp_C = as.numeric(sub("mb", "0", Temp_C))) %>%
+  group_by(Date, Year)  %>%
+  filter(length(unique(MIU_VALVE)) == 12 & Year == 2025 |
+           length(unique(MIU_VALVE)) == 9 & Year == 2021) %>%
+  group_by(MIU_VALVE, Temp_C, Year) %>%
+  summarize(q_50 = quantile(CH4_slope_ppm_per_day, .50),
+            #q_5 = quantile(CH4, .05),
+            q_95 = quantile(CH4_slope_ppm_per_day, .95),
+            q_99 = quantile(CH4_slope_ppm_per_day, .99)) %>%
+  pivot_longer(q_50:q_99) %>%
+  group_by(name, Year) %>%
+  mutate(ref = mean(value[Temp_C == 0]),
+         name = as.numeric(sub("q_", "", name)),
+         name_txt = paste0(name, "th quantile"),
+         name_txt = fct_reorder(name_txt, name)) %>%
+  ggplot(aes(x = Temp_C, y = value/ref * 100))+
+  geom_hline(yintercept = 100, color = "grey50")+
+  geom_smooth(color = "black", fill = "grey70")+
+  geom_point(aes(fill = MIU_VALVE), color = "black", 
+             shape = 21, size = 2, stroke = 0.5)+
+  scale_fill_manual(values = color.gradient, name = "Chamber")+
+  ylab(expression(atop(CH[4]~"flux quantile value", "(% of ambient; µmol"~m^-2~s^-1*")")))+
+  xlab("Temperature treatment (ºC above ambient)")+
+  facet_grid(Year~name_txt)+
+  egg::theme_article()+
+  theme(panel.grid.major = element_line(color = "grey95"))
+
+quants
+
+ggsave("../figures/quantiles_2021.jpg", width = 6, height = 3)
+```

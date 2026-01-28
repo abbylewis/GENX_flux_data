@@ -243,11 +243,11 @@ input$time <- "Remove negative CO2 @ night"
 </script>
  
 <script type="application/shiny-prerendered" data-context="server">
-slopes_2021 <- read_csv(here::here("processed_data","L0_2021_best_fits.csv"), show_col_types = F) %>%
+slopes_2021 <- read_csv("data/L0_2021_best_fits.csv", show_col_types = F) %>%
   mutate(year = year(TIMESTAMP),
          yday = yday(TIMESTAMP))
 
-slopes_2025 <- read_csv(here::here("processed_data","L0_for_dashboard.csv"), show_col_types = F) %>%
+slopes_2025 <- read_csv("data/L0_2021_best_fits.csv", show_col_types = F) %>%
   mutate(year = year(TIMESTAMP),
          yday = yday(TIMESTAMP))
 
