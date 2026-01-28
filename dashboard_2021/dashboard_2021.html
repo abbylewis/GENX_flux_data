@@ -101,7 +101,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2025-12-31" data-initial-date="2025-09-01" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2025-12-31" data-initial-date="2025-07-14" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div class="cell-output-display">
@@ -110,7 +110,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div class="form-group shiny-input-container">
 <label class="control-label" id="days_to_plot-label" for="days_to_plot">Days of historical data to plot</label>
-<input class="js-range-slider" id="days_to_plot" data-skin="shiny" data-min="0" data-max="365" data-from="150" data-step="1" data-grid="true" data-grid-num="9.86486486486486" data-grid-snap="false" data-prettify-separator="," data-prettify-enabled="true" data-keyboard="true" data-data-type="number">
+<input class="js-range-slider" id="days_to_plot" data-skin="shiny" data-min="0" data-max="365" data-from="14" data-step="1" data-grid="true" data-grid-num="9.86486486486486" data-grid-snap="false" data-prettify-separator="," data-prettify-enabled="true" data-keyboard="true" data-data-type="number">
 </div>
 </div>
 <div class="cell-output-display">
@@ -162,24 +162,18 @@ ul.task-list li input[type="checkbox"] {
 </div>
 <div class="cell-output-display">
 <div id="time" class="form-group shiny-input-radiogroup shiny-input-container" role="radiogroup" aria-labelledby="time-label">
-<label class="control-label" id="time-label" for="time">Time of day</label>
+<label class="control-label" id="time-label" for="time">QAQC</label>
 <div class="shiny-options-group">
 <div class="radio">
 <label>
-<input type="radio" name="time" value="Night">
-<span>Night</span>
+<input type="radio" name="time" value="Remove negative CO2 @ night">
+<span>Remove negative CO2 @ night</span>
 </label>
 </div>
 <div class="radio">
 <label>
-<input type="radio" name="time" value="Day">
-<span>Day</span>
-</label>
-</div>
-<div class="radio">
-<label>
-<input type="radio" name="time" value="All" checked="checked">
-<span>All</span>
+<input type="radio" name="time" value="None" checked="checked">
+<span>None</span>
 </label>
 </div>
 </div>
@@ -239,12 +233,26 @@ chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
 color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
                  'mediumseagreen','limegreen','yellowgreen','yellow2',
                  'darkgoldenrod2','darkorange2','orangered1','red2')
+
+input <- list()
+input$today <- "2021-07-14"
+input$days_to_plot <- 14
+input$years <- c(2021, 2025)
+input$gases <- c("CO2", "CH4")
+input$time <- "Remove negative CO2 @ night"
 </script>
  
 <script type="application/shiny-prerendered" data-context="server">
-slopes_l0 <- read_csv(here::here("processed_data","L0_2021.csv"), show_col_types = F) %>%
+slopes_2021 <- read_csv(here::here("processed_data","L0_2021_best_fits.csv"), show_col_types = F) %>%
   mutate(year = year(TIMESTAMP),
          yday = yday(TIMESTAMP))
+
+slopes_2025 <- read_csv(here::here("processed_data","L0_for_dashboard.csv"), show_col_types = F) %>%
+  mutate(year = year(TIMESTAMP),
+         yday = yday(TIMESTAMP))
+
+slopes_l0 <- slopes_2021 %>%
+  bind_rows(slopes_2025)
 
 #Code for plots
 output$plot1 <- renderPlotly({
@@ -254,29 +262,23 @@ output$plot1 <- renderPlotly({
            year %in% as.numeric(input$years)) 
   year(slopes$TIMESTAMP) <- 2025
   
-  slopes_recent <- slopes %>% 
+  if(input$time == "Remove negative CO2 @ night"){
+    slopes2 <- slopes %>%
+      filter(CO2_slope_ppm_per_day > 0 |
+             (hour(TIMESTAMP) > 6 & hour(TIMESTAMP) < 20)) 
+    } else {
+        slopes2 <- slopes
+      }
+  
+  slopes_recent <- slopes2 %>% 
     rename(chamber = MIU_VALVE) %>%
-    #mutate(CH4_slope_ppm_per_day = ifelse(CH4_slope_ppm_per_day > 20 & 
-    #                                        CH4_R2 < 0.9,
-    #                                      NA, 
-    #                                      CH4_slope_ppm_per_day)) %>%
     pivot_longer(matches("CH4_|N2O_|CO2_"), 
                  names_to = c("gas", ".value"), 
                  names_sep="_" ) %>%
     filter(!gas == "Flag")
   
-  if(input$time == "Night"){
-    slopes_recent2 <- slopes_recent %>%
-      filter(hour(TIMESTAMP) > 22 | hour(TIMESTAMP) < 4) 
-    } else if (input$time == "Day") {
-      slopes_recent2 <- slopes_recent %>%
-        filter(hour(TIMESTAMP) > 9 & hour(TIMESTAMP) < 16) 
-    } else {
-        slopes_recent2 <- slopes_recent
-      }
-  
   if(input$daily == "Daily mean"){
-    slopes_recent3 <- slopes_recent2 %>%
+    slopes_recent2 <- slopes_recent %>%
       mutate(TIMESTAMP = as.Date(TIMESTAMP),
              TIMESTAMP = as.POSIXct(TIMESTAMP)) %>%
       group_by(TIMESTAMP, chamber, gas, year) %>%
@@ -284,10 +286,10 @@ output$plot1 <- renderPlotly({
                 R2 = mean(R2, na.rm = T),
                 .groups = "drop")
   } else {
-    slopes_recent3 <- slopes_recent2
+    slopes_recent2 <- slopes_recent
   }
   
-  p1 <- slopes_recent3 %>%
+  p1 <- slopes_recent2 %>%
     mutate(chamber = factor(chamber, labels = chamber_levels),
            R2 = round(R2, 2)) %>%
     filter(gas %in% input$gases) %>%
