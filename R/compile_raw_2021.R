@@ -104,10 +104,21 @@ flags <- grouped_data %>%
   group_by(MIU_VALVE, start, date, group) %>%
   filter(n() == 1 | !Flag == "No issues")
 
+library(furrr)
+library(progressr)
+plan(multisession)
+handlers(global = TRUE)
+
+# For testing
+grouped_data <- grouped_data %>%
+  filter(as.Date(TIMESTAMP) >= "2021-06-01",
+         as.Date(TIMESTAMP) <= "2021-08-01")
+
 #Process using old methods
 filtered_data <- filter_old_data_2021(
-  grouped_data %>%
-    filter(month(TIMESTAMP) == 7)
+  grouped_data #%>%
+    #filter(as.Date(TIMESTAMP) >= "2021-06-15",
+    #       as.Date(TIMESTAMP) <= "2021-07-15")
   )
 
 #Data flags
@@ -153,12 +164,32 @@ slopes <- filtered_data %>%
   full_join(data_flags, by = c("group", "MIU_VALVE", "date"))
 
 p <- slopes %>%
-  ggplot(aes(x = TIMESTAMP, y = CO2_slope_ppm_per_day, 
+  #filter(hour(TIMESTAMP) > 10, hour(TIMESTAMP) < 15) %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4_slope_ppm_per_day, 
              color = as.factor(MIU_VALVE)))+
-  geom_line()
+  geom_line()+
+  scale_color_manual(values = c('blue4','blue3','turquoise4','lightseagreen',
+                                'mediumseagreen','limegreen','yellowgreen','yellow2',
+                                'darkgoldenrod2','darkorange2','orangered1','red2'))
+
+plotly::ggplotly(p)
+
+slopes %>%
+  ggplot(aes(x = CH4_slope_ppm_per_day, y = CH4_rmse))+
+  geom_point(shape = 21)+
+  facet_wrap(~MIU_VALVE)
+
+p <- slopes %>%
+  filter(CO2_slope_ppm_per_day > 0 | (hour(TIMESTAMP) > 8 & hour(TIMESTAMP) < 19)) %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4_slope_ppm_per_day, 
+             color = as.factor(MIU_VALVE)))+
+  geom_line()+
+  scale_color_manual(values = c('blue4','blue3','turquoise4','lightseagreen',
+                                'mediumseagreen','limegreen','yellowgreen','yellow2',
+                                'darkgoldenrod2','darkorange2','orangered1','red2'))
 
 plotly::ggplotly(p)
 
 write.csv(slopes, 
-          here::here("processed_data","L0_2021.csv"), 
+          here::here("processed_data","L0_2021_best_fits.csv"), 
           row.names = FALSE)
