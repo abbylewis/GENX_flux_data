@@ -121,15 +121,18 @@ quants <- comb %>%
                             labels = chamber_levels),
          Date = as.Date(TIMESTAMP),
          Temp_C = sub("c_[0-9]+_[e|a]", "", MIU_VALVE),
-         Temp_C = as.numeric(sub("mb", "0", Temp_C))) %>%
-  group_by(Date, Year)  %>%
-  filter(length(unique(MIU_VALVE)) == 12 & Year == 2025 |
-           length(unique(MIU_VALVE)) == 9 & Year == 2021) %>%
+         Temp_C = as.numeric(sub("mb", "0", Temp_C)),
+         yday = yday(Date)) %>%
+  group_by(yday)  %>%
+  filter(length(unique(MIU_VALVE[Year == 2025])) == 12 &
+           length(unique(MIU_VALVE[Year == 2021])) == 9) %>%
   group_by(MIU_VALVE, Temp_C, Year) %>%
   summarize(q_50 = quantile(CH4_slope_ppm_per_day, .50),
             #q_5 = quantile(CH4, .05),
             q_95 = quantile(CH4_slope_ppm_per_day, .95),
-            q_99 = quantile(CH4_slope_ppm_per_day, .99)) %>%
+            q_99 = quantile(CH4_slope_ppm_per_day, .99),
+            n = n(),
+            dates = length(unique(Date))) %>%
   pivot_longer(q_50:q_99) %>%
   group_by(name, Year) %>%
   mutate(ref = mean(value[Temp_C == 0]),
@@ -152,3 +155,53 @@ quants
 
 ggsave("../figures/quantiles_2021.jpg", width = 6, height = 3)
 ```
+
+```{r}
+chambers <- c(2:4, 6:7,9:12)
+quants_rel <- comb %>%
+  filter(!is.na(CH4_slope_ppm_per_day),
+         MIU_VALVE %in% chambers) %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, levels = chambers, 
+                            labels = chamber_levels[chambers]),
+         Date = as.Date(TIMESTAMP),
+         Temp_C = sub("c_[0-9]+_[e|a]", "", MIU_VALVE),
+         Temp_C = as.numeric(sub("mb", "0", Temp_C)),
+         yday = yday(Date)) %>%
+  group_by(yday)  %>%
+  filter(length(unique(MIU_VALVE[Year == 2025])) == 9 &
+           length(unique(MIU_VALVE[Year == 2021])) == 9) %>%
+  group_by(MIU_VALVE, Temp_C, Year) %>%
+  summarize(q_50 = quantile(CH4_slope_ppm_per_day, .50),
+            #q_5 = quantile(CH4, .05),
+            q_95 = quantile(CH4_slope_ppm_per_day, .95),
+            q_99 = quantile(CH4_slope_ppm_per_day, .99),
+            n = n(),
+            dates = length(unique(Date))) %>%
+  pivot_longer(q_50:q_99) %>%
+  group_by(name, MIU_VALVE) %>%
+  mutate(ref_year = mean(value[Year == 2021]),
+         rel_value = value/ref_year) %>%
+  filter(Year == 2025) %>%
+  group_by(name) %>%
+  mutate(ref = mean(rel_value[Temp_C == 0], na.rm = T),
+         name = as.numeric(sub("q_", "", name)),
+         name_txt = paste0(name, "th quantile"),
+         name_txt = fct_reorder(name_txt, name)) %>%
+  ggplot(aes(x = Temp_C, y = rel_value/ref * 100))+
+  geom_hline(yintercept = 100, color = "grey50")+
+  geom_smooth(color = "black", fill = "grey70",
+              method = "gam", formula = y ~ s(x, bs = "cs", k = 3))+
+  geom_point(aes(fill = MIU_VALVE), color = "black", 
+             shape = 21, size = 2, stroke = 0.5)+
+  scale_fill_manual(values = color.gradient, name = "Chamber")+
+  ylab(expression(atop(CH[4]~"flux quantile value relative to 2021", "(% of ambient; ppm"~m^-2~d^-1*")")))+
+  xlab("Temperature treatment (ºC above ambient)")+
+  facet_wrap(~name_txt, nrow = 1)+
+  egg::theme_article()+
+  theme(panel.grid.major = element_line(color = "grey95"))
+
+quants_rel
+
+ggsave("../figures/quantiles_2021_rel.jpg", width = 6, height = 3)
+```
+
