@@ -174,6 +174,20 @@ calculate_flux <- function(start_date = NULL,
               n_removed = unique(n),
               .groups = "drop") 
   
+  hour <- 11
+  day = 10
+  grouped_data %>%
+    mutate(Year = year(TIMESTAMP),
+           MIU_VALVE = factor(MIU_VALVE,
+                              levels = 1:12,
+                              labels = chamber_levels)) %>%
+    filter(day(TIMESTAMP) == day,
+      hour(TIMESTAMP) == hour) %>%
+    ggplot(aes(x = TIMESTAMP, y = CH4d_ppm, color = MIU_VALVE))+
+    geom_point()+
+    facet_wrap(~Year, scales = "free_x")+
+    ggtitle(paste0("July ",day,", ", hour,":00"))
+  
   #Run lm
   slopes <- filtered_data %>%
     pivot_longer(c(CH4d_ppm, CO2d_ppm, N2Od_ppm), names_to = "gas", values_to = "conc") %>%

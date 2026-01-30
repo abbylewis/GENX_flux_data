@@ -5,9 +5,13 @@ source(here::here("R","group_fun.R"))
 
 files <- list.files(here::here("Raw_data","dropbox_downloads"), full.names = T)
 
-files_2021 <- files[grepl("2021", files)|grepl("20220112", files)]
+files_2021 <- files#[grepl("2021", files)|grepl("20220112", files)]
 
-exclude <- c("GENX_LGR_04142021_20210505020005.dat")
+exclude <- c("GENX_INSTRUMENT_FLUX_COMB_20240417020046.dat",
+             "GENX_INSTRUMENT_FLUX_COMB_20240403020045.dat",
+             "GENX_INSTRUMENT_FLUX_COMB_20240501020048.dat",
+             "GENX_LGR_04142021_20210505020005.dat"
+)
 files_2021 <- files_2021[!grepl(paste0(exclude, collapse = "|"), files_2021)]
 message(paste0("Calculating fluxes for ", length(files_2021), " files"))
 
@@ -111,8 +115,8 @@ handlers(global = TRUE)
 
 # For testing
 grouped_data <- grouped_data %>%
-  filter(as.Date(TIMESTAMP) >= "2021-06-01",
-         as.Date(TIMESTAMP) <= "2021-08-01")
+  filter((month(TIMESTAMP) == 6 & day(TIMESTAMP) >= 15) |
+           (month(TIMESTAMP) == 7 & day(TIMESTAMP) <= 15))
 
 #Process using old methods
 filtered_data <- filter_old_data_2021(
@@ -191,5 +195,5 @@ p <- slopes %>%
 plotly::ggplotly(p)
 
 write.csv(slopes, 
-          here::here("processed_data","L0_2021_best_fits.csv"), 
+          here::here("processed_data","L0_JuneJuly_best_fits.csv"), 
           row.names = FALSE)

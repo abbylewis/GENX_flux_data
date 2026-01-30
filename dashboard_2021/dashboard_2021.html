@@ -194,19 +194,19 @@ ul.task-list li input[type="checkbox"] {
 </div>
 <div class="checkbox">
 <label>
-<input type="checkbox" name="years" value="2022">
+<input type="checkbox" name="years" value="2022" checked="checked">
 <span>2022</span>
 </label>
 </div>
 <div class="checkbox">
 <label>
-<input type="checkbox" name="years" value="2023">
+<input type="checkbox" name="years" value="2023" checked="checked">
 <span>2023</span>
 </label>
 </div>
 <div class="checkbox">
 <label>
-<input type="checkbox" name="years" value="2024">
+<input type="checkbox" name="years" value="2024" checked="checked">
 <span>2024</span>
 </label>
 </div>
@@ -243,16 +243,20 @@ input$time <- "Remove negative CO2 @ night"
 </script>
  
 <script type="application/shiny-prerendered" data-context="server">
-slopes_2021 <- read_csv("data/L0_2021_best_fits.csv", show_col_types = F) %>%
+#slopes_2021 <- read_csv("data/L0_2021_best_fits.csv", show_col_types = F) %>%
+#  mutate(year = year(TIMESTAMP),
+#         yday = yday(TIMESTAMP))
+#
+#slopes_2025 <- read_csv("data/L0_for_dashboard.csv", show_col_types = F) %>%
+#  mutate(year = year(TIMESTAMP),
+#         yday = yday(TIMESTAMP))
+#
+#slopes_l0 <- slopes_2021 %>%
+#  bind_rows(slopes_2025)
+
+slopes_l0 <- read_csv("data/L0_JuneJuly_best_fits.csv", show_col_types = F) %>%
   mutate(year = year(TIMESTAMP),
          yday = yday(TIMESTAMP))
-
-slopes_2025 <- read_csv("data/L0_2021_best_fits.csv", show_col_types = F) %>%
-  mutate(year = year(TIMESTAMP),
-         yday = yday(TIMESTAMP))
-
-slopes_l0 <- slopes_2021 %>%
-  bind_rows(slopes_2025)
 
 #Code for plots
 output$plot1 <- renderPlotly({

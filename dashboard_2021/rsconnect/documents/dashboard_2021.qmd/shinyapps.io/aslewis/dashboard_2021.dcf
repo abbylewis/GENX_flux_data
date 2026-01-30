@@ -5,11 +5,11 @@ account: aslewis
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 14939595
-bundleId: 11507050
+bundleId: 11515461
 url: https://aslewis.shinyapps.io/dashboard_2021/
 version: 1
 quarto_version: 1.7.32
 quarto_engines: knitr
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: dashboard_2021_gln
+ignoredFiles: data/L0_2021_best_fits.csv|data/L0_for_dashboard.csv|dashboard_2021_gln

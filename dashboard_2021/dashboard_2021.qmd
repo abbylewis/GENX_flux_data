@@ -81,22 +81,26 @@ radioButtons("time", label = "QAQC",
 br()
 checkboxGroupInput('years', 'Years to plot', 
             choices = c("2021", "2022", "2023", "2024", "2025"),
-            selected = c("2021", "2025"))
+            selected = c("2021", "2022", "2023", "2024", "2025"))
 ```
 
 ```{r}
 #| context: server
 
-slopes_2021 <- read_csv("data/L0_2021_best_fits.csv", show_col_types = F) %>%
+#slopes_2021 <- read_csv("data/L0_2021_best_fits.csv", show_col_types = F) %>%
+#  mutate(year = year(TIMESTAMP),
+#         yday = yday(TIMESTAMP))
+#
+#slopes_2025 <- read_csv("data/L0_for_dashboard.csv", show_col_types = F) %>%
+#  mutate(year = year(TIMESTAMP),
+#         yday = yday(TIMESTAMP))
+#
+#slopes_l0 <- slopes_2021 %>%
+#  bind_rows(slopes_2025)
+
+slopes_l0 <- read_csv("data/L0_JuneJuly_best_fits.csv", show_col_types = F) %>%
   mutate(year = year(TIMESTAMP),
          yday = yday(TIMESTAMP))
-
-slopes_2025 <- read_csv("data/L0_2021_best_fits.csv", show_col_types = F) %>%
-  mutate(year = year(TIMESTAMP),
-         yday = yday(TIMESTAMP))
-
-slopes_l0 <- slopes_2021 %>%
-  bind_rows(slopes_2025)
 
 #Code for plots
 output$plot1 <- renderPlotly({

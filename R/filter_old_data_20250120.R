@@ -25,6 +25,7 @@ filter_old_data_2021 <- function(grouped_data){
              CO2_z = as.numeric(scale(CO2d_ppm))) %>%
       arrange(change_s) %>%
       mutate(index = row_number()) %>%
+      group_by(MIU_VALVE, date, group, end, start) %>%
       nest()
     
     p <- progressor(along = seq_len(nrow(nested)))
@@ -39,7 +40,7 @@ filter_old_data_2021 <- function(grouped_data){
             df$CH4_z,
             df$CO2_z,
             min_n = 9,
-            max_n = 12 #Two minutes. Could adjust this. In reality, this algorithm never picks >12 regardless
+            max_n = 9 #In reality, this algorithm never picks >12 regardless
           )
           df$index >= w$start & df$index <= w$end
         })
@@ -49,13 +50,13 @@ filter_old_data_2021 <- function(grouped_data){
   filtered_data <- labeled_data %>%
     unnest(c(data, keep))
   
-  #filtered_data %>%
-  #  filter(TIMESTAMP > as_datetime("2021-06-29 19:00:00"),
-  #         TIMESTAMP > as_datetime("2021-06-30 1:00:00"),
-  #         MIU_VALVE == 7) %>%
-  #  ggplot(aes(x = TIMESTAMP, y = CH4d_ppm, color = keep))+
-  #  geom_point()+
-  #  facet_wrap(~start, scales = "free_x")
+  filtered_data %>%
+    filter(TIMESTAMP > as_datetime("2021-06-29 19:00:00"),
+           TIMESTAMP > as_datetime("2021-06-30 1:00:00"),
+           MIU_VALVE == 7) %>%
+    ggplot(aes(x = TIMESTAMP, y = CH4d_ppm, color = keep))+
+    geom_point()+
+    facet_wrap(~start, scales = "free_x")
   
   return(filtered_data)
 }
