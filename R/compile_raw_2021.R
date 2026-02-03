@@ -114,15 +114,13 @@ plan(multisession)
 handlers(global = TRUE)
 
 # For testing
-grouped_data <- grouped_data %>%
-  filter((month(TIMESTAMP) == 6 & day(TIMESTAMP) >= 15) |
-           (month(TIMESTAMP) == 7 & day(TIMESTAMP) <= 15))
+#grouped_data <- grouped_data %>%
+#  filter((month(TIMESTAMP) == 8) |
+#           (month(TIMESTAMP) == 7 & day(TIMESTAMP) > 15))
 
 #Process using old methods
 filtered_data <- filter_old_data_2021(
-  grouped_data #%>%
-    #filter(as.Date(TIMESTAMP) >= "2021-06-15",
-    #       as.Date(TIMESTAMP) <= "2021-07-15")
+  grouped_data
   )
 
 #Data flags
@@ -138,7 +136,7 @@ data_flags <- filtered_data %>%
 
 #Run lm
 slopes <- filtered_data %>%
-  filter(keep) %>%
+  #filter(keep) %>%
   pivot_longer(c(CH4d_ppm, CO2d_ppm, N2Od_ppm), names_to = "gas", values_to = "conc") %>%
   group_by(gas, group, MIU_VALVE, date) %>%
   mutate(n = sum(!is.na(conc))) %>%
@@ -195,5 +193,5 @@ p <- slopes %>%
 plotly::ggplotly(p)
 
 write.csv(slopes, 
-          here::here("processed_data","L0_JuneJuly_best_fits.csv"), 
+          here::here("processed_data","L0_bestfits_all.csv"), 
           row.names = FALSE)

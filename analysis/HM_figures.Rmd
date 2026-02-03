@@ -86,14 +86,15 @@ Repeating with 2021
 #fluxes_2021 <- read_csv(here::here("processed_data", "L0_2021_best_fits.csv"))
 #fluxes_2025 <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
 
-comb <- read_csv(here::here("processed_data", "L0_JuneJuly_best_fits.csv")) %>%
+comb <- read_csv(here::here("processed_data", "L0_bestfits_all.csv")) %>%
   mutate(Year = year(TIMESTAMP)) %>%
   filter(CO2_slope_ppm_per_day > 0 |
            (hour(TIMESTAMP) > 6 & hour(TIMESTAMP) < 20)) %>%
   filter(!Year==2021|!MIU_VALVE%in%c(1,8,5),
          !Year==2023|!MIU_VALVE%in%c(10,8,2),
-         Year %in% c(2023, 2021, 2025),
-         month(TIMESTAMP) %in% c(6,7))
+         #Year %in% c(2023, 2021, 2025)#,
+         #month(TIMESTAMP) %in% c(6,7)
+         )
 
 comb %>%
   mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
@@ -212,7 +213,7 @@ met <- read_csv(here::here("processed_data","met_all.csv"))
 met %>%
   mutate(yday = yday(TIMESTAMP),
          Year = as.factor(year(TIMESTAMP))) %>%
-  filter(Year %in% c(2021,2025)) %>%
+  filter(Year %in% c(2021,2023, 2025)) %>%
   group_by(yday, Year) %>%
   summarize(AirTC_Avg = mean(AirTC_Avg)) %>%
   ggplot(aes(x = yday, y = AirTC_Avg, color = Year))+
@@ -221,11 +222,11 @@ met %>%
 ```
 
 ```{r}
-comb2 <- bind_rows(fluxes_2021, fluxes_2025) %>%
+comb2 <- comb %>%
   mutate(Year = year(TIMESTAMP)) %>%
   filter(CO2_slope_ppm_per_day > 0 |
-           (hour(TIMESTAMP) > 6 & hour(TIMESTAMP) < 20)) %>%
-  filter(!Year==2021|!MIU_VALVE%in%c(1,8,5))
+           (hour(TIMESTAMP) > 6 & hour(TIMESTAMP) < 20)) #%>%
+  #filter(!Year==2021|!MIU_VALVE%in%c(1,8,5))
 
 with_temp <- comb2 %>%
   mutate(time_join = round_date(flux_start, unit = "15 minute")) %>%
@@ -234,12 +235,12 @@ with_temp <- comb2 %>%
               group_by(time_join) %>%
               summarize(Ta = mean(AirTC_Avg, na.rm = T))) %>%
   filter(!is.na(Ta)) %>%
-  mutate(CH4_slope_umol_per_day = CH4_slope_ppm_per_day * #CONVERT TO umolCH4/m2/s
+  mutate(CH4_slope_umol_per_day = CH4_slope_ppm_per_day * #CONVERT TO umolCH4/m2/d
            265.8 / (0.08206*(Ta + 273.15)) / 0.196)
 
 smartx <- read_csv(here::here("Raw_data", "SMARTX CH4 and CO2 fluxes_2016-2025.csv"))
 
-p <- with_temp %>%
+with_temp %>%
   mutate(Date = as.Date(time_join)) %>%
   left_join(smartx %>%
               mutate(Date = as.Date(Date, format = "%m/%d/%Y"))) %>%
@@ -249,10 +250,19 @@ p <- with_temp %>%
   na.omit() %>%
   pivot_longer(c(CH4_slope_GENX, CH4_slope_SMARTX)) %>%
   group_by(Date, name) %>%
-  summarize(u = mean(value),
-            sd = sd(value)) %>%
-  pivot_wider(names_from = name, values_from = c(sd, u))
-  geom_point(aes(x = ))
+  summarize(med = median(value),
+            q25 = quantile(value, 0.25),
+            q75 = quantile(value, 0.75)) %>%
+  pivot_wider(names_from = name, values_from = c(med, q25, q75)) %>%
+  mutate(Year = as.factor(year(Date))) %>%
+  ggplot(aes(x = med_CH4_slope_GENX, y = med_CH4_slope_SMARTX,
+             color = Year))+
+  geom_errorbar(aes(xmin = q25_CH4_slope_GENX,
+                    xmax = q75_CH4_slope_GENX))+
+  geom_errorbar(aes(ymin = q25_CH4_slope_SMARTX,
+                    ymax = q75_CH4_slope_SMARTX))+
+  geom_point(shape = 21, color = "black", aes(fill = Year))+
+  geom_abline()
 ```
 
 

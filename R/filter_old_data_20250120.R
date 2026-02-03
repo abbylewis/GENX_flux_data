@@ -15,54 +15,46 @@ filter_old_data_2021 <- function(grouped_data){
     filter(max(change_s) < 1000, #After ~15 min there is probably a problem
            change_s > 90) #All chambers need to remove first 90 seconds
   
-  labeled_data <- with_progress({
-    nested <- correct_duration %>%
-      filter(!is.na(CH4d_ppm),
-             !is.na(CO2d_ppm)) %>%
-      group_by(MIU_VALVE, date, group, end, start) %>%
-      filter(n() >= 10) %>%
-      mutate(CH4_z = as.numeric(scale(CH4d_ppm)),
-             CO2_z = as.numeric(scale(CO2d_ppm))) %>%
-      arrange(change_s) %>%
-      mutate(index = row_number()) %>%
-      group_by(MIU_VALVE, date, group, end, start) %>%
-      nest()
-    
-    p <- progressor(along = seq_len(nrow(nested)))
-    
-    nested %>%
-      mutate(
-        keep = future_map(data, ~ {
-          p()
-          df <- .
-          w <- find_best_linear_window_fast(
-            df$change_s,
-            df$CH4_z,
-            df$CO2_z,
-            min_n = 9,
-            max_n = 9 #In reality, this algorithm never picks >12 regardless
-          )
-          df$index >= w$start & df$index <= w$end
-        })
-      )
-  })
+  nested <- correct_duration %>%
+    filter(!is.na(CH4d_ppm),
+           !is.na(CO2d_ppm)) %>%
+    group_by(MIU_VALVE, date, group, end, start) %>%
+    filter(n() >= 10) %>%
+    mutate(CH4_z = as.numeric(scale(CH4d_ppm)),
+           CO2_z = as.numeric(scale(CO2d_ppm))) %>%
+    arrange(change_s) %>%
+    mutate(index = row_number()) %>%
+    group_by(MIU_VALVE, date, group, end, start) %>%
+    nest()
   
-  filtered_data <- labeled_data %>%
-    unnest(c(data, keep))
+  n <- nrow(nested)
+  results <- vector("list", n)
   
-  filtered_data %>%
-    filter(TIMESTAMP > as_datetime("2021-06-29 19:00:00"),
-           TIMESTAMP > as_datetime("2021-06-30 1:00:00"),
-           MIU_VALVE == 7) %>%
-    ggplot(aes(x = TIMESTAMP, y = CH4d_ppm, color = keep))+
-    geom_point()+
-    facet_wrap(~start, scales = "free_x")
+  for (i in seq_len(n)) {
+    results[[i]] <- find_best_linear_window_fast(
+      nested$data[[i]]$change_s,
+      nested$data[[i]]$CH4_z,
+      nested$data[[i]]$CO2_z,
+      nested$group[[i]],
+      min_n = 9,
+      max_n = 9
+    )
+  }
+  
+  final <- dplyr::bind_rows(results)
+  
+  filtered_data <- correct_duration %>%
+    left_join(final) %>%
+    filter(change_s >= start_i,
+           change_s <= end_i)
   
   return(filtered_data)
 }
 
-#Functionally doing linear regressions, but without using lm. Hopefully a bit faster
-find_best_linear_window_fast <- function(time, ch4_z, co2_z, min_n = 10, max_n = 18) {
+#Functionally doing linear regressions, but without using lm. 
+#Hopefully a bit faster than lm
+find_best_linear_window_fast <- function(time, ch4_z, co2_z, group, 
+                                         min_n = 10, max_n = 18) {
   
   n <- length(time)
   
@@ -83,7 +75,8 @@ find_best_linear_window_fast <- function(time, ch4_z, co2_z, min_n = 10, max_n =
   best_end   <- NA_integer_
   
   for (s in 1:(n - min_n + 1)) {
-    for (e in (s + min_n - 1):min(n, s + max_n - 1)) {
+    #for (e in (s + min_n - 1):min(n, s + max_n - 1)) {
+      e <- s + min_n - 1
       
       k <- e - s + 1
       
@@ -109,13 +102,13 @@ find_best_linear_window_fast <- function(time, ch4_z, co2_z, min_n = 10, max_n =
       
       error <- sqrt(rss1 / k) + sqrt(rss2 / k)
       
-      if (error < best_error) {
+      if (!is.na(error) & error < best_error) {
         best_error <- error
         best_start <- s
         best_end   <- e
       }
-    }
+    #}
   }
   
-  list(start = best_start, end = best_end)
+  data.frame(start_i = time[best_start], end_i = time[best_end], group = group)
 }

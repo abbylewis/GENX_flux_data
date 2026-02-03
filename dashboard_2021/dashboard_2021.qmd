@@ -98,7 +98,7 @@ checkboxGroupInput('years', 'Years to plot',
 #slopes_l0 <- slopes_2021 %>%
 #  bind_rows(slopes_2025)
 
-slopes_l0 <- read_csv("data/L0_JuneJuly_best_fits.csv", show_col_types = F) %>%
+slopes_l0 <- read_csv("data/L0_bestfits_all.csv", show_col_types = F) %>%
   mutate(year = year(TIMESTAMP),
          yday = yday(TIMESTAMP))
 
