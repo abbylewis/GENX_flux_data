@@ -89,16 +89,6 @@ grouped_data <- data_numeric %>%
          change = as.numeric(difftime(TIMESTAMP, start, units = "days")),
          change_s = as.numeric(difftime(TIMESTAMP, start, units = "secs")))
 
-raw_2021 <- grouped_data %>%
-  ungroup() %>%
-  filter(year(date) == 2021) %>%
-  select(TIMESTAMP, change, MIU_VALVE, CH4d_ppm, CO2d_ppm)
-
-write.csv(raw_2021, 
-          here::here("processed_data","raw_2021.csv"), 
-          row.names = FALSE)
-
-
 ### SLOPES
 #Save flags for data that will be removed in the next step
 flags <- grouped_data %>%
@@ -108,17 +98,7 @@ flags <- grouped_data %>%
   group_by(MIU_VALVE, start, date, group) %>%
   filter(n() == 1 | !Flag == "No issues")
 
-library(furrr)
-library(progressr)
-plan(multisession)
-handlers(global = TRUE)
-
-# For testing
-#grouped_data <- grouped_data %>%
-#  filter((month(TIMESTAMP) == 8) |
-#           (month(TIMESTAMP) == 7 & day(TIMESTAMP) > 15))
-
-#Process using old methods
+#Process by finding the best linear fit
 filtered_data <- filter_old_data_2021(
   grouped_data
   )
@@ -195,3 +175,33 @@ plotly::ggplotly(p)
 write.csv(slopes, 
           here::here("processed_data","L0_bestfits_all.csv"), 
           row.names = FALSE)
+
+raw_all <- grouped_data %>%
+  ungroup() %>%
+  select(TIMESTAMP, change, MIU_VALVE, CH4d_ppm, CO2d_ppm, group) %>%
+  mutate(used = ifelse(TIMESTAMP %in% filtered_data$TIMESTAMP,
+                       "yes",
+                       "no"))
+
+chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
+                   "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
+                   "c_10_e4.5", "c_11_e5.25", "c_12_e6.0")
+
+raw_comb <- raw_all %>% 
+  rename(Chamber = MIU_VALVE) %>%
+  pivot_longer(matches("CH4d_ppm|CO2d_ppm"), 
+               names_to = "gas") %>%
+  mutate(gas = case_match(gas,
+                          "CH4d_ppm"~"CH₄", 
+                          "CO2d_ppm"~"CO₂",
+                          .default = gas),
+         Chamber = factor(Chamber, 
+                          levels = 1:12,
+                          labels = chamber_levels)) %>%
+  group_by(group) %>%
+  mutate(label = format(min(TIMESTAMP), "%H:%M"),
+         min_TS = min(TIMESTAMP, na.rm = T),
+         change_s = as.numeric(difftime(TIMESTAMP, min_TS, units = "secs"))) %>%
+  select(-change, -min_TS)
+
+write_csv(raw_comb, here::here("processed_data","raw_comb.csv"))

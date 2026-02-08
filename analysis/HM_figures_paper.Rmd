@@ -1,0 +1,287 @@
+---
+title: "HM_figures"
+author: "Abby Lewis"
+date: "2026-01-20"
+output: html_document
+---
+
+TO DO: Interpolate fluxes
+
+Hot moments are important across all chambers (Figure 2)
+The importance of hot moment events increases with median flux (Figure 3)
+Because of hot moments, manual sampling underestimates fluxes (Figure 4)
+Hot moments occur as water level rises (Figure 2, maybe also another)
+However, the magnitude of methane emitted is poorly predicted by the magnitude of change in water level (Figure 5)
+
+Load data and packages
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggridges)
+
+chamber_levels2 = c("Ch. 1 (+0 ºC)", "Ch. 2 (+0 ºC)", "Ch. 3 (+0.75 ºC)", 
+                    "Ch. 4 (+1.5 ºC)", "Ch. 5 (+2.25 ºC)", "Ch. 6 (+2.25 ºC)", 
+                    "Ch. 7 (+3.0 ºC)", "Ch. 8 (+3.75 ºC)", "Ch. 9 (+3.75 ºC)",
+                   "Ch. 10 (+4.5 ºC)", "Ch. 11 (+5.25 ºC)", "Ch. 12 (+6.0 ºC)")
+
+color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
+                 'mediumseagreen','limegreen','yellowgreen','yellow2',
+                 'darkgoldenrod2','darkorange2','orangered1','red2')
+
+part <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
+  filter(is.na(CH4) | CH4 > -0.2) %>%
+  mutate(CH4_umol_m2_h = CH4 * (60 * 60),
+         MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels2),
+         date = as.Date(DateTime))
+
+all <- read_csv("../processed_data/L0_for_dashboard.csv")
+```
+
+Data summary (Figure 2)
+
+```{r}
+wl <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/water_level_dashboard.csv")
+
+annual <- part %>%
+  group_by(date, MIU_VALVE) %>%
+  summarize(CH4_umol_m2_h = mean(CH4_umol_m2_h, na.rm = T)) %>%
+  ggplot(aes(x = date, y = CH4_umol_m2_h, color = MIU_VALVE))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  egg::theme_article()+
+  theme(axis.title.x = element_blank(),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
+  ylab(expression(atop("Daily mean"~CH[4]~"flux","(µmol"~m^-2~h^-1*")")))
+
+start_date <- "2025-07-20"
+end_date <- "2025-07-24"
+
+focal_ch4 <- part %>%
+  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  ggplot(aes(x = DateTime, y = CH4_umol_m2_h, color = MIU_VALVE))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  egg::theme_article()+
+  theme(axis.title.x = element_blank(),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
+  ylab(expression(atop(CH[4]~"flux ", "(µmol"~m^-2~h^-1*")")))
+
+focal_wl <- wl %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  ggplot(aes(x = TIMESTAMP, y = Depth_cm))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  egg::theme_article()+
+  theme(axis.title.x = element_blank(),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
+  ylab(expression(atop("Water level"," (cm)")))
+
+comb <- ggpubr::ggarrange(
+  annual+
+    guides(color = guide_legend(ncol = 4))+
+    theme(legend.position = "bottom",
+          legend.title.position = "top"), 
+  ggpubr::ggarrange(focal_ch4 +
+                      scale_x_datetime(date_breaks = "2 day",
+                                       date_labels = "%d %b"), 
+                    focal_wl +
+                      scale_x_datetime(date_breaks = "2 day",
+                                       date_labels = "%d %b"), 
+                    ncol = 1, align = "hv", legend = "none"), 
+  ncol = 2, widths = c(1.7,1), labels = c("a", "b"), 
+  legend = "bottom", common.legend = T
+)
+comb
+ggsave("../figures/Figure 2 - Data.jpg", dpi = 300, width = 6, height = 3.5)
+```
+
+The importance of hot moment events increases with median flux (Figure 3)
+
+```{r}
+# Tried using R pacakage, but I'm skeptical of this because only a normal 
+# distribution is implemented currently.
+# devtools::install_github("https://github.com/jonathan-walter/hotspomoments")
+#library(hotspomoments)
+#
+#hshmtest(part$CH4_umol_m2_h[!is.na(part$CH4_umol_m2_h)], "skewness")
+#hshm_id <- hshmid(part$CH4_umol_m2_h[!is.na(part$CH4_umol_m2_h)], 
+#                  criteria = "ref.normal", side="upper", thresh=0.95)
+##Plot where in the distribution the HSHM are identified
+#hist(part$CH4_umol_m2_h[!is.na(part$CH4_umol_m2_h)])
+#points(part$CH4_umol_m2_h[!is.na(part$CH4_umol_m2_h)][hshm_id], 
+#       rep(0,sum(hshm_id)), pch=19, col="red")
+#
+##Inspect HSHM observations
+#hshm <- part[!is.na(part$CH4_umol_m2_h),][hshm_id,]
+
+hm_df <- part %>%
+  mutate(month = month(date)) %>%
+  filter(!is.na(CH4_umol_m2_h)) %>%
+  group_by(date) %>%
+  filter(length(unique(MIU_VALVE)) == 12)
+
+hot_moments <- hm_df %>%
+  group_by(MIU_VALVE) %>%
+  mutate(hot_moment_quant = ifelse(CH4_umol_m2_h > 
+                                     quantile(CH4_umol_m2_h, 
+                                              probs = 0.95, na.rm = TRUE),
+                                   "hot", "not")) %>%
+  summarize(median = median(CH4_umol_m2_h, na.rm = T),
+            mean = mean(CH4_umol_m2_h, na.rm = T),
+            sum = sum(CH4_umol_m2_h, na.rm = T),
+            hot_sum = sum(CH4_umol_m2_h[hot_moment_quant == "hot"], na.rm = T),
+            hot_med = median(CH4_umol_m2_h[hot_moment_quant == "hot"], na.rm = T),
+            quant_95 = quantile(CH4_umol_m2_h, probs = 0.95, na.rm = TRUE))
+
+# TO DO: what really belongs on y axis here? This is dependent on n of fluxes
+
+hm <- hot_moments %>%
+  ggplot(aes(x = median, y = hot_sum, fill = MIU_VALVE))+
+  geom_point(color = "black", shape = 21, stroke = 0.5, size = 2)+
+  scale_fill_manual(values = color.gradient, name = "Chamber")+
+  egg::theme_article()+
+  ylab("Sum of hot moment fluxes (top 5%)")+
+  xlab("Median flux")+
+  theme(panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25),
+        legend.position = "bottom",
+        legend.title.position = "top")+
+  guides(fill = guide_legend(ncol = 2))
+
+ggsave("../figures/Figure 3 - HM.jpg", dpi = 300, width = 3.5, height = 4.5)
+```
+
+Because of hot moments, manual sampling underestimates fluxes (Figure 4)
+
+```{r}
+met <- read_csv("../processed_data/met_2025_dashboard.csv") 
+
+reps <-  100
+samples_per_week <- 1
+
+df <- hm_df %>%
+  mutate(week = week(date)) 
+
+calc_mean_flux <- function(ch4_vals, n){
+  vals <- sample(ch4_vals, n)
+  return(mean(vals))
+}
+
+df_out_daytime <- df %>%
+  filter(hour(DateTime) >= 9,
+         hour(DateTime) <= 15) %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>%
+  mutate(time = "daytime")
+
+df_out_fullday <- df %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>% 
+  mutate(time = "full day")
+
+df_out_rain <- df %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  left_join(met %>%
+              arrange(TIMESTAMP) %>%
+              mutate(
+                Rain_cm_roll =
+                  slider::slide_dbl(Rain_cm_Tot,
+                            sum,
+                            .before = 3,
+                            .complete = TRUE)
+              ), 
+            by = c("time_join" = "TIMESTAMP")) %>%
+  filter(Rain_cm_roll == 0) %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>% 
+  mutate(time = "rain")
+
+df_out_growth <- df %>%
+  filter(month(DateTime) %in% 5:9) %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>%
+  mutate(time = "growth")
+
+df_out_wl <- df %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  left_join(wl, by = c("time_join" = "TIMESTAMP")) %>%
+  filter(Depth_cm < 0) %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>%
+  mutate(time = "wl")
+
+df_out <- df_out_daytime  %>%
+  bind_rows(df_out_fullday) %>%
+  #bind_rows(df_out_rain) %>%
+  bind_rows(df_out_growth) %>%
+  bind_rows(df_out_wl)
+
+to_plot <- df_out %>%
+  group_by(MIU_VALVE, rep, time) %>%
+  summarize(mean = mean(flux, na.rm = T)) %>%
+  left_join(hot_moments %>% 
+              rename(tot_real = sum,
+                     mean_real = mean)) %>%
+  group_by(MIU_VALVE, time) %>%
+  summarize(median = median(mean/mean_real * 100 - 100))
+
+sims <- to_plot %>%
+  mutate(time = factor(time, 
+                       levels = c("full day", "wl", "daytime", "growth"),
+                       labels = c("Weekly (all)", "No standing\nwater",
+                                  "Daytime", "Growing\nseason"))) %>%
+  ggplot(aes(x = time, y = median))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(fill = MIU_VALVE),
+              width = 0.2, shape = 21, color = "black")+
+  scale_fill_manual(values = color.gradient,
+                    name = "Chamber")+
+  egg::theme_article()+
+  theme(panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25),
+        axis.title.x = element_blank(),
+        legend.title.position = "top")+
+  ylab("Percent difference in mean flux\nbetween manual and high-frequency\nsampling (median of 100 simulations)")
+sims
+ggsave("../figures/Figure 4 - Simulations.jpg", dpi = 300, width = 6, height = 3)
+```
+
+However, the magnitude of methane emitted is poorly predicted by the magnitude of change in water level (Figure 5)
+
+```{r}
+with_wl <- part %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  left_join(wl, by = c("time_join" = "TIMESTAMP"))
+
+with_wl %>%
+  ggplot(aes(x = Depth_cm, y = CH4_umol_m2_h))+
+  geom_point()
+
+with_wl %>%
+  mutate(Depth_change_cm = Depth_cm - lag(Depth_cm),
+         month = month(date)) %>%
+  ggplot(aes(x = Depth_change_cm, y = CH4_umol_m2_h))+
+  geom_point()+
+  facet_grid(MIU_VALVE~month, scales = "free")
+```
+

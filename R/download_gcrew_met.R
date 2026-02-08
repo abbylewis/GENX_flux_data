@@ -41,7 +41,7 @@ download_gcrew_met <- function(gcrew_met_folder = here::here("Raw_data", "dropbo
   
   write_csv(data %>%
               filter(TIMESTAMP >= as.Date("2025-03-18")) %>%
-              select(all_of(c("TIMESTAMP", "PAR_Den_C_Avg", "AirTC_Avg"))), 
+              select(all_of(c("TIMESTAMP", "PAR_Den_C_Avg", "AirTC_Avg", "Rain_cm_Tot"))), 
             here::here("processed_data", "met_2025_dashboard.csv"))
   
   write_csv(data %>%

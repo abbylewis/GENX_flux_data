@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>2021 raw data dashboard</title>
+<title>Mega raw data dashboard</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -43,7 +43,7 @@ ul.task-list li input[type="checkbox"] {
 <header id="title-block-header" class="quarto-title-block default page-columns page-full">
   <div class="quarto-title-banner page-columns page-full">
     <div class="quarto-title column-page">
-      <h1 class="title">2021 raw data dashboard</h1>
+      <h1 class="title">Mega raw data dashboard</h1>
                       </div>
   </div>
     
@@ -162,7 +162,7 @@ ul.task-list li input[type="checkbox"] {
 <div style="width: 50%;">
 <div id="time_date" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="time_date-label" for="time_date">Date</label>
-<input type="text" class="form-control" aria-labelledby="time_date-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2021-04-14" data-max-date="2021-12-31" data-initial-date="2021-07-01" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="time_date-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2021-04-14" data-max-date="2025-12-31" data-initial-date="2021-07-01" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div style="width: 50%;">
@@ -189,7 +189,7 @@ ul.task-list li input[type="checkbox"] {
 <div style="width: 50%;">
 <div id="raw_date" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="raw_date-label" for="raw_date">Date</label>
-<input type="text" class="form-control" aria-labelledby="raw_date-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2021-04-14" data-max-date="2021-12-31" data-initial-date="2021-07-01" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="raw_date-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2021-04-14" data-max-date="2025-12-31" data-initial-date="2021-07-01" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div style="width: 50%;">
@@ -247,13 +247,19 @@ input$daily <- "Hourly"
 input$smooth <- "Measured"
 input$time_date <- "2021-07-01"
 input$time_hour <- 11
+input$raw_chamber <- "c_4_e1.5"
+input$raw_date <- "2021-05-08"
 </script>
  
 <script type="application/shiny-prerendered" data-context="server">
 #Code for plots
 ################ Raw data ####################
-raw_comb <- read_csv(here::here("processed_data","raw_comb.csv"))
-  
+raw_comb <- read_csv(here::here("processed_data","raw_comb.csv")) 
+
+p <- raw_comb %>%
+  filter(as.Date(TIMESTAMP) == "2021-04-15",
+         hour(TIMESTAMP) == 3)
+
 output$plot_raw <- renderPlotly({
   raw_plot <- raw_comb %>%
     filter(as.Date(TIMESTAMP) == input$raw_date,
@@ -264,8 +270,7 @@ output$plot_raw <- renderPlotly({
                color = used)) +
     geom_point(size = .9) +
     geom_smooth(method = "lm", se = F, color = "red",
-                data = . %>% filter(used == "yes",
-                                    retained == "yes"), 
+                data = . %>% filter(used == "yes"), 
                 linewidth = 0.5) +
     scale_color_manual(values = c("black", "grey80"),
                        breaks = c("yes", "no"))+
@@ -294,10 +299,10 @@ output$plot_time <- renderPlotly({
                alpha = used, shape = used,
                color = Chamber)) +
     geom_point(size = .9) +
-    geom_smooth(aes(group = paste(group2, gas, Chamber), x = secs, y = value), 
+    geom_smooth(aes(group = paste(gas, Chamber), 
+                    x = secs, y = value), 
                 method = "lm", se = F, color = "black",
-                data = . %>% filter(used == "yes",
-                                    retained == "yes"), 
+                data = . %>% filter(used == "yes"), 
                 linewidth = 0.5) +
     scale_alpha_manual(values = c(1,0.2),
                        breaks = c("yes", "no"))+

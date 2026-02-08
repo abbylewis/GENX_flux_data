@@ -1,5 +1,5 @@
 ---
-title: "2021 raw data dashboard"
+title: "Mega raw data dashboard"
 title-block-banner: true
 format: 
   html:
@@ -117,6 +117,8 @@ input$daily <- "Hourly"
 input$smooth <- "Measured"
 input$time_date <- "2021-07-01"
 input$time_hour <- 11
+input$raw_chamber <- "c_4_e1.5"
+input$raw_date <- "2021-05-08"
 ```
 
 ::: {.row}
@@ -133,7 +135,7 @@ splitLayout(
   dateInput("time_date","Date",
             value = "2021-07-01",
             min = "2021-04-14",
-            max = "2021-12-31"),
+            max = "2025-12-31"),
   
   sliderInput("time_hour","Hour",
               min = 0, max = 24,
@@ -153,7 +155,7 @@ splitLayout(
   dateInput("raw_date","Date",
             value = "2021-07-01",
             min = "2021-04-14",
-            max = "2021-12-31"),
+            max = "2025-12-31"),
   
   selectInput("raw_chamber", "Chamber",
               choices = chamber_levels)
@@ -171,8 +173,12 @@ plotlyOutput('plot_raw', height = 480)
 
 #Code for plots
 ################ Raw data ####################
-raw_comb <- read_csv(here::here("processed_data","raw_comb.csv"))
-  
+raw_comb <- read_csv(here::here("processed_data","raw_comb.csv")) 
+
+p <- raw_comb %>%
+  filter(as.Date(TIMESTAMP) == "2021-04-15",
+         hour(TIMESTAMP) == 3)
+
 output$plot_raw <- renderPlotly({
   raw_plot <- raw_comb %>%
     filter(as.Date(TIMESTAMP) == input$raw_date,
@@ -183,8 +189,7 @@ output$plot_raw <- renderPlotly({
                color = used)) +
     geom_point(size = .9) +
     geom_smooth(method = "lm", se = F, color = "red",
-                data = . %>% filter(used == "yes",
-                                    retained == "yes"), 
+                data = . %>% filter(used == "yes"), 
                 linewidth = 0.5) +
     scale_color_manual(values = c("black", "grey80"),
                        breaks = c("yes", "no"))+
@@ -213,10 +218,10 @@ output$plot_time <- renderPlotly({
                alpha = used, shape = used,
                color = Chamber)) +
     geom_point(size = .9) +
-    geom_smooth(aes(group = paste(group2, gas, Chamber), x = secs, y = value), 
+    geom_smooth(aes(group = paste(gas, Chamber), 
+                    x = secs, y = value), 
                 method = "lm", se = F, color = "black",
-                data = . %>% filter(used == "yes",
-                                    retained == "yes"), 
+                data = . %>% filter(used == "yes"), 
                 linewidth = 0.5) +
     scale_alpha_manual(values = c(1,0.2),
                        breaks = c("yes", "no"))+
