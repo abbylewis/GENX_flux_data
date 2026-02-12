@@ -2,6 +2,7 @@
 source(here::here("R","load_data.R"))
 source(here::here("R","filter_old_data.R"))
 source(here::here("R","group_fun.R"))
+#requires zoo, tidyverse
 
 #' calculate_flux
 #'
@@ -224,7 +225,7 @@ calculate_flux <- function(start_date = NULL,
            n = ifelse(is.na(n), n_removed, n)) %>%
     select(-cutoff_removed, -n_removed)
   
-  if(!reprocess){
+  if(!reprocess |!is.null(start_date)){
     #Load previously calculated slopes
     old_slopes <- read_csv(here::here("processed_data","L0.csv"), 
                            col_types = "nnDcccnnnnnnnnnnnnnnnnnnnnnnncccc",
