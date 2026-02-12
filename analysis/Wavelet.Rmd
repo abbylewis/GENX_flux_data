@@ -1,0 +1,424 @@
+---
+title: "Drivers and CH4"
+author: "Abby Lewis"
+date: "2024-08-22"
+output: html_document
+---
+
+Methods from Ari's paper and this one https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2015JG003054
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+#source("../R/qaqc.R")
+target <- read_csv("../processed_data/partitioned_co2.csv") %>%
+  rename(TIMESTAMP = DateTime)
+met <- read_csv("../processed_data/met_2025_dashboard.csv")
+wl <- read_csv("../processed_data/water_level_dashboard.csv")
+
+df <- target %>%
+  mutate(time_join = round_date(TIMESTAMP, "15 minutes")) %>%
+  left_join(met %>% rename(time_join = TIMESTAMP)) %>%
+  left_join(wl %>% rename(time_join = TIMESTAMP)) %>%
+  filter(CH4 > -0.1,
+         !is.na(TIMESTAMP)) %>%
+  mutate(CH4_raised = CH4-min(CH4, na.rm = T)+0.05,
+         CH4 = log(CH4_raised))
+
+library(data.table)
+
+setDT(df)
+df[, TIMESTAMP := as.POSIXct(TIMESTAMP)]
+
+make_grid <- function(g) {
+  data.table(
+    TIMESTAMP = seq(min(g$TIMESTAMP), max(g$TIMESTAMP), by = "130 min"),
+    MIU_VALVE = g$MIU_VALVE[1]
+  )
+}
+
+grid <- df[, make_grid(.SD), by = MIU_VALVE]
+
+setkey(grid, MIU_VALVE, TIMESTAMP)
+setkey(df, MIU_VALVE, TIMESTAMP)
+
+ch4 <- df[grid, roll = "nearest"]
+
+#mean_of_all <- ch4 %>%
+#  group_by(TIMESTAMP) %>%
+#  summarise(across(where(is.numeric), mean, na.rm = TRUE)) %>%
+#  mutate(MIU_VALVE = "mean")
+#
+#median_of_all <- ch4 %>%
+#  group_by(TIMESTAMP) %>%
+#  summarise(across(where(is.numeric), median, na.rm = TRUE)) %>%
+#  mutate(MIU_VALVE = "median")
+#
+#ch4 <- ch4 %>%
+#  full_join(mean_of_all) %>%
+#  full_join(median_of_all)
+#
+chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
+                   "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75", "c_10_e4.5",
+                   "c_11_e5.25", "c_12_e6.0")
+
+color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
+                 'mediumseagreen','limegreen','yellowgreen','yellow2',
+                 'darkgoldenrod2','darkorange2','orangered1','red2')
+
+ch4 %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4))+
+  geom_point()+
+  facet_wrap(~MIU_VALVE)
+```
+
+Then, we used Mutual Information (I) to find the relative importance of each predictor variable and identify both synchronous and asynchronous interactions (Ruddell et al., 2013). Mutual Information (I) measures the amount of information shared by two variables, X and Y, or the reduction in uncertainty of one variable given the knowledge of the other variable (Fraser & Swinney, 1986). The degree of mutual information between X and Y is increased by adding a time lag (positive or negative) in series Y relative to X, thereby allowing the identification of both synchronous and asynchronous interactions. 
+
+Using the ProcessNetwork Software (v1.5, Ruddell et al., 2008) and the Wavelet Methods for Time Series Analysis (WMTSA) toolkit (Cornish et al., 2003), we decomposed gap-filled CH4 flux and explanatory variables in four general timescales of variation: hourly (1-2 hours), diel (4 hours – 1.3 days), multiday (2.7 – 21.3 days) and seasonal (42.7 – 341 days). These timescales of variation represented short-term perturbations such as wind gusts or overpassing clouds, day-night changes in meteorological variables and tidal fluctuations, neap-spring tidal cycles, and seasonal courses of solar movement and vegetation phenology, respectively. Wavelet decomposition was performed on gap-filled, half-hourly data using the maximal overlap discrete wavelet transform (MODWT), summing the detail over adjacent scales to yield the latter four time-scales of variation (details in (Sturtevant et al., 2016). Wavelet decomposed data were then used to compute the mutual information between CH4 fluxes and biophysical variables within each timescale over a range of time lags (from half a day at the diel scale to 60 days at the seasonal scale). Original gaps in the reconstructed time series were reintroduced before mutual information calculation for all except the seasonal analysis following (Knox et al., 2021). Results were interpreted using the relative mutual information (IR) metric, a normalized measure of the statistical dependence of CH4 flux on a range of predictor variables, with larger values indicating higher dependence. To determine the relative importance of each predictor variable, we ranked the normalized IR values across sites, and we did that within each timescale of interest. In this study, we followed the methods described by Knox et al. 2021 (i.e., 10 bins and 50 random reshufflings to calculate significance thresholds at each lag) and focused on results for the predictors of diel, multiday, and seasonal timescales.
+
+Wavelet
+
+```{r}
+library(waveslim)
+
+parse_time <- function(s_list){
+  out <- numeric(length(s_list))
+  for(i in 1:length(s_list)){
+    if(s_list[i] < 1.5*86400){
+      out[i] <- paste(round(s_list[i]/60/60), "hours")
+    } else {
+      out[i] <- paste(round(s_list[i]/60/60/24), "days")
+    }
+  }
+  return(out)
+}
+
+analyze_wavelets <- function(ch4, treatment, var_name, timestep_s) {
+  #Format data (dealing with irregularly spaced data)
+  test_data <- ch4 %>%
+    filter(MIU_VALVE == treatment) %>%
+    filter(!is.na(!!sym(var_name)))
+  
+  #Run wavelet transformation
+  data <- zoo::na.approx(test_data[[var_name]])
+  wavelet <- waveslim::modwt(data, "la8", n.levels = 11)
+  
+  meshed <- data.frame(TIMESTAMP = test_data$TIMESTAMP,
+                       data,
+                       l_1 = wavelet[[1]],
+                       l_2 = wavelet[[2]],
+                       l_3 = wavelet[[3]],
+                       l_4 = wavelet[[4]],
+                       l_5 = wavelet[[5]],
+                       l_6 = wavelet[[6]],
+                       l_7 = wavelet[[7]],
+                       l_8 = wavelet[[8]],
+                       l_9 = wavelet[[9]],
+                       l_10 = wavelet[[10]],
+                       l_11 = wavelet[[11]]) %>%
+    pivot_longer(cols = -c(data, TIMESTAMP)) %>%
+    mutate(name = as.numeric(sub("l_", "", name)),
+           name = factor(name, 
+                         levels = 1:11,
+                         labels = parse_time(2^(0:10)*timestep_s)
+                           ))
+  
+  df <- meshed %>% 
+    mutate(MIU_VALVE = treatment,
+           var_name = var_name)
+  
+  return(df)
+}
+
+#Apply across all treatments and sites
+grid <- ch4 %>%
+  pivot_longer(cols = c(CH4, NEE, AirTC_Avg, Depth_cm), 
+               names_to = "var_name", values_to = "value")
+
+double_map <- function(treatment, ch4, var_name, timestep_s){
+  dfs <- map(unique(ch4$MIU_VALVE), 
+             analyze_wavelets, 
+             ch4 = ch4, 
+             var_name = var_name,
+             timestep_s = timestep_s) %>%
+    bind_rows()
+}
+
+dfs <- map(unique(grid$var_name), 
+           double_map, 
+           ch4 = ch4, 
+           treatment = unique(ch4$MIU_VALVE),
+           timestep_s = 610*12) %>%
+  bind_rows()
+
+#Plot
+dfs %>%
+  group_by(name, MIU_VALVE, var_name) %>%
+  summarize(var = var(value)) %>%
+  group_by(MIU_VALVE, var_name) %>%
+  mutate(tot_var = sum(var))%>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+                            levels = 1:12,
+                            labels = chamber_levels)) %>%
+  ggplot(aes(x = name, y = var/tot_var * 100, color = MIU_VALVE)) +
+  geom_point(data = . %>% filter(!MIU_VALVE %in% c("mean", "median"))) +
+  geom_line(aes(x = as.numeric(name)), 
+            data = . %>% filter(MIU_VALVE %in% c("mean", "median"))) +
+  labs(x = "Scale",
+       y = "Percentage of total variance") +
+  scale_color_manual(name = "Site", values = color.gradient) +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  facet_wrap(~var_name)
+
+dfs %>%
+  group_by(name, MIU_VALVE, var_name) %>%
+  summarize(var = var(value)) %>%
+  group_by(MIU_VALVE, var_name) %>%
+  mutate(tot_var = sum(var))%>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+                            levels = 1:12,
+                            labels = chamber_levels)) %>%
+  ggplot(aes(x = name, y = var, color = MIU_VALVE)) +
+  geom_point(data = . %>% filter(!MIU_VALVE %in% c("mean", "median"))) +
+  geom_line(aes(x = as.numeric(name)), 
+            data = . %>% filter(MIU_VALVE %in% c("mean", "median"))) +
+  labs(x = "Scale",
+       y = "Total variance") +
+  scale_color_manual(name = "Site", values = color.gradient) +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  facet_wrap(~var_name, scales = "free_y")
+
+dfs %>%
+  filter(var_name == "CH4") %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+                            levels = 1:12,
+                            labels = chamber_levels)) %>%
+  mutate(temp = sub(".+_e*", "", MIU_VALVE),
+         temp = ifelse(temp == "amb", 0, temp),
+         temp = as.numeric(temp),
+         year = year(TIMESTAMP)) %>%
+  group_by(name, MIU_VALVE, var_name, temp) %>%
+  summarize(var = var(value)) %>%
+  group_by(MIU_VALVE, var_name) %>%
+  mutate(tot_var = sum(var))%>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, levels = chamber_levels)) %>%
+  ggplot(aes(x = MIU_VALVE, y = var/tot_var * 100, fill = name)) +
+  geom_col(data = . %>% filter(!MIU_VALVE %in% c("mean", "median"))) +
+  labs(x = "Site",
+       y = "Percentage of total variance") +
+  scale_fill_viridis_d(name = "Site") +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+dfs %>%
+  filter(!MIU_VALVE == 12) %>%
+  group_by(name, MIU_VALVE, var_name) %>%
+  summarize(var = var(value)) %>%
+  group_by(MIU_VALVE, var_name) %>%
+  mutate(tot_var = sum(var))%>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+                            levels = 1:12,
+                            labels = chamber_levels)) %>%
+  ggplot(aes(x = name, y = var, color = MIU_VALVE)) +
+  geom_point(data = . %>% filter(!MIU_VALVE %in% c("mean", "median"))) +
+  geom_line(aes(x = as.numeric(name))) +
+  labs(x = "Scale",
+       y = "Total variance") +
+  scale_color_manual(name = "Site", values = color.gradient) +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  facet_wrap(~var_name, scales = "free_y")
+```
+
+Mutual Information
+
+```{r}
+library(DescTools)
+
+#Make functions to calculate key metrics
+entropy <- function(target) {
+  freq <- table(target)/length(target)
+  # vectorize
+  vec <- as.data.frame(freq)[,2]
+  #compute entropy
+  -sum(vec * log2(vec))
+}
+
+bin <- function(x, n_breaks) {
+  highest <- quantile(x, 0.99)
+  lowest <- quantile(x, 0.01)
+  findInterval(x, seq(lowest, highest, length.out = n_breaks))
+}
+
+#Group wavelet scales into interpretable bins
+discrete_scales <- dfs %>%
+  #mutate(grouped_scale = ifelse(grepl("hour", name), 
+  #                              "Sub-daily",
+  #                              ifelse(as.numeric(sub(" days", "", name)) < 30,
+  #                                     "Multiday", "Seasonal"))) %>%
+  mutate(name = as.character(name),
+         grouped_scale = case_match(name,
+                                    "2 hours"~"2 hours",
+                                    "8 hours"~"8 hours",
+                                    "3 days"~"3 days",
+                                    "87 days"~"87 days")) %>%
+  filter(!is.na(grouped_scale)) %>%
+  group_by(grouped_scale, MIU_VALVE, TIMESTAMP, var_name) %>%
+  summarize(value = sum(value)) %>%
+  pivot_wider(names_from = var_name, values_from = value) 
+
+#Separate explanatory variables
+discrete_scales_exp <- discrete_scales %>%
+  dplyr::select(-c(CH4, NEE)) %>%
+  pivot_longer(cols = -c(grouped_scale, MIU_VALVE, TIMESTAMP), 
+               names_to = "exp_var", values_to = "exp_var_value") %>%
+  filter(!is.na(exp_var_value)) %>%
+  rename(grouped_scale_exp = grouped_scale)
+
+#Calculate mutual information
+mut_infs <- discrete_scales %>%
+  dplyr::select(c(grouped_scale, MIU_VALVE, TIMESTAMP, CH4)) %>%
+  left_join(discrete_scales_exp, relationship =
+              "many-to-many") %>%
+  filter(!is.na(exp_var_value),
+         !is.na(CH4)) %>%
+  group_by(MIU_VALVE, grouped_scale, exp_var, grouped_scale_exp) %>%
+  summarize(entropy_y = entropy(bin(CH4, 11)),
+            mut_inf = MutInf(bin(exp_var_value, 11), bin(CH4, 11))/entropy_y)
+
+#Plot
+mut_infs %>%
+  filter(grouped_scale == grouped_scale_exp) %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+                            levels = 1:12,
+                            labels = chamber_levels),
+         grouped_scale = grouped_scale) %>%
+  ggplot(aes(x = mut_inf, y = exp_var, color = MIU_VALVE)) +
+  geom_point() + 
+  facet_wrap(vars(grouped_scale)) +
+  ylab("Explanatory variable") +
+  xlab("Relative mutual information") +
+  scale_color_manual(name = "Site", values = color.gradient)
+
+discrete_scales %>%
+  filter(grouped_scale == "87 days") %>%
+  ungroup()%>%
+  select(TIMESTAMP, MIU_VALVE, CH4, AirTC_Avg) %>%
+  pivot_longer(cols = -c(TIMESTAMP, MIU_VALVE), names_to = "var_name", values_to = "value") %>%
+  ggplot(aes(x = TIMESTAMP, y = value, color = MIU_VALVE)) +
+  geom_line() +
+  facet_grid(rows = vars(var_name), cols = vars(MIU_VALVE), scales = "free_y") 
+
+discrete_scales %>%
+  filter(grouped_scale == "8 hours",
+         as.Date(TIMESTAMP) > as.Date("2025-07-01"),
+         as.Date(TIMESTAMP) < as.Date("2025-07-10")) %>%
+  ungroup()%>%
+  select(TIMESTAMP, MIU_VALVE, CH4, Depth_cm) %>%
+  pivot_longer(cols = -c(TIMESTAMP, MIU_VALVE), names_to = "var_name", values_to = "value") %>%
+  ggplot(aes(x = TIMESTAMP, y = value, color = MIU_VALVE)) +
+  geom_line() +
+  facet_grid(rows = vars(var_name), cols = vars(MIU_VALVE), scales = "free_y") 
+
+discrete_scales %>%
+  filter(grouped_scale == "87 days") %>%
+  ungroup()%>%
+  select(TIMESTAMP, MIU_VALVE, CH4, Depth_cm, AirTC_Avg, NEE)%>%
+  pivot_longer(cols = -c(TIMESTAMP, MIU_VALVE), names_to = "var_name", values_to = "value") %>%
+  ggplot(aes(x = TIMESTAMP, y = value, color = MIU_VALVE)) +
+  geom_line() +
+  facet_grid(rows = vars(var_name), cols = vars(MIU_VALVE), scales = "free_y") 
+```
+
+With lags
+
+```{r}
+#Separate explanatory variables
+discrete_scales_exp <- discrete_scales %>%
+  dplyr::select(-CH4, -NEE) %>%
+  pivot_longer(cols = -c(grouped_scale, MIU_VALVE, TIMESTAMP), 
+               names_to = "exp_var", values_to = "exp_var_value") %>%
+  filter(!is.na(exp_var_value)) %>%
+  rename(grouped_scale_exp = grouped_scale)
+
+fill_lags <- function(all_lags, lag) {
+  if(lag == 0 | nrow(all_lags) == 0) {
+    return(all_lags %>% filter(is.na(MIU_VALVE))) #empty
+  }
+  if(lag < 0){
+    filled_lags <- all_lags %>%
+      mutate(exp_var_value_lag = lag(exp_var_value, abs(lag))) %>%
+      mutate(lag = lag)
+  }
+  if(lag > 0){
+    filled_lags <- all_lags %>%
+      mutate(exp_var_value_lag = lead(exp_var_value, lag)) %>%
+      mutate(lag = lag)
+  }
+  return(filled_lags)
+}
+
+#library(furrr)
+#plan(multisession)
+output <- pmap(list(-200:0), 
+              ~fill_lags(all_lags = discrete_scales_exp %>%
+                           group_by(grouped_scale_exp, 
+                                    MIU_VALVE, 
+                                    exp_var) %>%
+                           arrange(TIMESTAMP),
+                         .x),
+              .progress = T) %>%
+  bind_rows()
+
+#Calculate mutual information
+lagged_mut_infs <- discrete_scales %>%
+  dplyr::select(c(grouped_scale, MIU_VALVE, TIMESTAMP, CH4)) %>%
+  left_join(output, by = c("MIU_VALVE", "TIMESTAMP")) %>%
+  filter(!is.na(exp_var_value_lag),
+         !is.na(CH4)) %>%
+  group_by(MIU_VALVE, grouped_scale, exp_var, grouped_scale_exp, lag) %>%
+  summarize(entropy_y = entropy(bin(CH4, 9)),
+            mut_inf = MutInf(bin(exp_var_value, 9), bin(CH4, 9))/entropy_y) 
+
+best_lagged_mut_infs <- lagged_mut_infs %>%
+  group_by(MIU_VALVE, grouped_scale, exp_var, grouped_scale_exp) %>%
+  filter(mut_inf == max(mut_inf, na.rm = T))
+
+#Plot
+for(site in unique(discrete_scales$MIU_VALVE)){
+  plot <- best_lagged_mut_infs %>%
+    filter(MIU_VALVE == site) %>%
+    ggplot(aes(x = mut_inf, y = exp_var, fill = lag)) +
+    geom_col() + 
+    geom_col(data = mut_infs %>% filter(MIU_VALVE == site), fill = "black")+
+    facet_grid(cols = vars(grouped_scale), rows = vars(grouped_scale_exp)) +
+    ylab("Explanatory variable") +
+    xlab("Relative mutual information") +
+    scale_fill_distiller(palette = "RdYlBu", direction = -1) +
+    ggtitle(site)
+  print(plot)
+}
+
+for(scale in unique(discrete_scales$grouped_scale)){
+  plot <- lagged_mut_infs %>%
+    filter(lag <= 0, lag >=-100) %>%
+    mutate(MIU_VALVE = factor(MIU_VALVE,
+                                    levels = chamber_levels),
+         grouped_scale = paste0(grouped_scale, " (CH4)")) %>%
+    filter(grouped_scale_exp == scale) %>%
+    ggplot(aes(x = lag, y = mut_inf, color = MIU_VALVE))+
+    geom_line()+
+    scale_color_viridis_d()+
+    facet_grid(rows = vars(exp_var), cols = vars(grouped_scale))+
+    ggtitle(scale)
+  print(plot)
+}
+```
+
+Ari:
+Quantile regressions were fitted for the 0.1, 0.5, and 0.9 quantiles of CH4 fluxes using the nlrq() function within the R package ‘quantreg’ (Koenker, 2023) due to the observed non-linear relationships between CH4 fluxes and the tested predictor variables. The slopes of the fitted conditional quantile regressions were used to estimate the predictor level required to decrease CH4 fluxes by half, based on an exponential decay relationship (i.e., X1/2 = ln(2)/slope). Subsequently, threshold values were estimated as 7 times X1/2, representing a 99% reduction of CH4 fluxes through interactions with increasing predictor levels. We calculated these thresholds for the 50th and 90th percentiles of the conditional distribution of CH4 fluxes, representing the predictor thresholds below which the 50% and 90% of the highest CH4 fluxes occur, respectively.
+
+Partial associations:
+https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2013WR013845
