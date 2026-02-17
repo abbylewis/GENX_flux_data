@@ -41,6 +41,7 @@ part <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
 all <- read_csv("../processed_data/L0_for_dashboard.csv")
 met <- read_csv("../processed_data/met_2025_dashboard.csv") 
 wl <- read_csv("../processed_data/water_level_dashboard.csv")
+evi <- read_csv("../processed_data/evi.csv")
 ```
 
 Check qaqc
@@ -77,12 +78,16 @@ all %>%
 Data summary (Figure 2)
 
 ```{r}
+min_annual = min(part$date[!is.na(part$CH4_umol_m2_h)])
+max_annual = max(part$date[!is.na(part$CH4_umol_m2_h)])
+
 annual <- part %>%
   group_by(date, MIU_VALVE) %>%
   summarize(CH4_umol_m2_h = mean(CH4_umol_m2_h, na.rm = T)) %>%
   ggplot(aes(x = date, y = CH4_umol_m2_h, color = MIU_VALVE))+
   geom_hline(yintercept = 0, color = "grey80")+
   geom_line(size = 0.5)+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
   scale_color_manual(values = color.gradient, name = "Chamber")+
   egg::theme_article()+
   theme(axis.title.x = element_blank(),
@@ -97,6 +102,7 @@ annual_AT <- met %>%
   ggplot(aes(x = date, y = AirTC_Avg))+
   geom_hline(yintercept = 0, color = "grey80")+
   geom_line(size = 0.5)+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
   scale_color_manual(values = color.gradient, name = "Chamber")+
   egg::theme_article()+
   theme(axis.title.x = element_blank(),
@@ -104,12 +110,28 @@ annual_AT <- met %>%
         panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
   ylab(expression(atop("Air temp."," (ºC)")))
 
+annual_wl <- wl %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  group_by(date) %>%
+  summarize(Depth_cm = mean(Depth_cm, na.rm = T)) %>%
+  ggplot(aes(x = date, y = Depth_cm))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  egg::theme_article()+
+  theme(axis.title.x = element_blank(),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
+  ylab(expression(atop("Depth"," (cm)")))
+
 gpp <- part %>%
   group_by(date, MIU_VALVE) %>%
   summarize(GPP = sum(GPP, na.rm = T)) %>%
   ggplot(aes(x = date, y = GPP, color = MIU_VALVE))+
   geom_hline(yintercept = 0, color = "grey80")+
   geom_line(size = 0.5)+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
   scale_color_manual(values = color.gradient, name = "Chamber")+
   egg::theme_article()+
   theme(axis.title.x = element_blank(),
@@ -123,12 +145,24 @@ resp <- part %>%
   ggplot(aes(x = date, y = R, color = MIU_VALVE))+
   geom_hline(yintercept = 0, color = "grey80")+
   geom_line(size = 0.5)+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
   scale_color_manual(values = color.gradient, name = "Chamber")+
   egg::theme_article()+
   theme(axis.title.x = element_blank(),
         panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
         panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
   ylab(expression(atop("Daily mean"~CH[4]~"flux","(µmol"~m^-2~h^-1*")")))
+
+annual_evi <- evi %>%
+  ggplot(aes(x = Date, y = evi_predicted))+
+  geom_line(size = 0.5)+
+  geom_point(aes(y = evi_observed))+
+  egg::theme_article()+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
+  theme(axis.title.x = element_blank(),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
+  ylab(expression(atop("EVI","")))
 
 start_date <- "2025-03-27"
 end_date <- "2025-04-06"
@@ -202,16 +236,30 @@ ggsave("../figures/Figure 2 - Data.jpg", dpi = 300, width = 6, height = 4)
 comb <- ggpubr::ggarrange(
   patchwork::wrap_plots(annual+
                           guides(color = guide_legend(ncol = 4))+
-                          theme(legend.position = "bottom",
-                                legend.title.position = "top"), 
+                          theme(axis.text.x = element_blank(),
+                                axis.ticks.x = element_blank(),
+                                legend.position = "none"), 
                         gpp +
-                          theme(legend.position = "none"),
+                          theme(axis.text.x = element_blank(),
+                                axis.ticks.x = element_blank(),
+                                legend.position = "none"),
                         resp +
-                          theme(legend.position = "none"),
-                        annual_AT, 
+                          theme(axis.text.x = element_blank(),
+                                axis.ticks.x = element_blank(),
+                                legend.position = "none"),
+                        annual_evi +
+                          theme(axis.text.x = element_blank(),
+                                axis.ticks.x = element_blank(),
+                                legend.position = "none"),
+                        annual_AT+
+                          theme(axis.text.x = element_blank(),
+                                axis.ticks.x = element_blank(),
+                                legend.position = "none"), 
+                        annual_wl, 
                         ncol = 1, 
-                        guides = "collect")+
-    theme(legend.position = "bottom"),
+                        guides = "collect") &
+    theme(legend.position = "bottom",
+          legend.title.position = "top"),
   patchwork::wrap_plots(focal_ch4 +
                       scale_x_datetime(date_breaks = "5 day",
                                        date_labels = "%d %b")+
@@ -730,5 +778,42 @@ preds_class <- randomForest::randomForest(hot_moment_iqr~Depth_cm + AirTC_Avg + 
                                         classwt = c(not = 1, hot = 19))
 randomForest::importance(preds_class)
 preds_class$err.rate[nrow(preds_class$err.rate),]
+
+mod_df %>%
+  filter(hot_moment_iqr == "not") %>%
+  ggplot(aes(x = DateTime, y = CH4_umol_m2_h, color = MIU_VALVE))+
+  geom_point(size = 0.5) +
+  geom_line()
+
+patchwork::wrap_plots(mod_df %>%
+                        filter(hot_moment_iqr == "not") %>%
+                        ggplot(aes(x = DateTime, y = CH4_umol_m2_h, color = MIU_VALVE))+
+                        geom_point(size = 0.5) +
+                        geom_line()+
+                        guides(color = guide_legend(ncol = 4))+
+                        egg::theme_article()+
+                        theme(axis.text.x = element_blank(),
+                              axis.ticks.x = element_blank(),
+                              legend.position = "none"), 
+                        annual_AT +
+                          theme(axis.text.x = element_blank(),
+                                axis.ticks.x = element_blank(),
+                                legend.position = "none"), 
+                        annual_evi +
+                          theme(legend.position = "none"),
+                      ncol = 1)
+
+mod_df %>%
+  filter(!is.na(hot_moment_iqr)) %>%
+  ggplot(aes(x = DateTime, y = MIU_VALVE))+
+  geom_tile(aes(color = hot_moment_iqr,
+                fill = hot_moment_iqr))+
+  egg::theme_article()+
+  scale_color_manual(values = c("hot" = "red", "not" = "grey95"))+
+  scale_fill_manual(values = c("hot" = "red", "not" = "grey95"))
+```
+
+```{r}
+
 ```
 
