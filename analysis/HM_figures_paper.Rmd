@@ -5,7 +5,9 @@ date: "2026-01-20"
 output: html_document
 ---
 
-TO DO: Interpolate fluxes
+TO DO: 
+- Interpolate fluxes
+- Bring in EVI
 
 Hot moments are important across all chambers (Figure 2)
 The importance of hot moment events increases with median flux (Figure 3)
@@ -37,6 +39,8 @@ part <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
          date = as.Date(DateTime))
 
 all <- read_csv("../processed_data/L0_for_dashboard.csv")
+met <- read_csv("../processed_data/met_2025_dashboard.csv") 
+wl <- read_csv("../processed_data/water_level_dashboard.csv")
 ```
 
 Check qaqc
@@ -73,12 +77,50 @@ all %>%
 Data summary (Figure 2)
 
 ```{r}
-wl <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/water_level_dashboard.csv")
-
 annual <- part %>%
   group_by(date, MIU_VALVE) %>%
   summarize(CH4_umol_m2_h = mean(CH4_umol_m2_h, na.rm = T)) %>%
   ggplot(aes(x = date, y = CH4_umol_m2_h, color = MIU_VALVE))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  egg::theme_article()+
+  theme(axis.title.x = element_blank(),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
+  ylab(expression(atop("Daily mean"~CH[4]~"flux","(µmol"~m^-2~h^-1*")")))
+
+annual_AT <- met %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  group_by(date) %>%
+  summarize(AirTC_Avg = mean(AirTC_Avg, na.rm = T)) %>%
+  ggplot(aes(x = date, y = AirTC_Avg))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  egg::theme_article()+
+  theme(axis.title.x = element_blank(),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
+  ylab(expression(atop("Air temp."," (ºC)")))
+
+gpp <- part %>%
+  group_by(date, MIU_VALVE) %>%
+  summarize(GPP = sum(GPP, na.rm = T)) %>%
+  ggplot(aes(x = date, y = GPP, color = MIU_VALVE))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  egg::theme_article()+
+  theme(axis.title.x = element_blank(),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
+  ylab(expression(atop("Daily mean"~CH[4]~"flux","(µmol"~m^-2~h^-1*")")))
+
+resp <- part %>%
+  group_by(date, MIU_VALVE) %>%
+  summarize(R = sum(Reco, na.rm = T)) %>%
+  ggplot(aes(x = date, y = R, color = MIU_VALVE))+
   geom_hline(yintercept = 0, color = "grey80")+
   geom_line(size = 0.5)+
   scale_color_manual(values = color.gradient, name = "Chamber")+
@@ -116,23 +158,80 @@ focal_wl <- wl %>%
         panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
   ylab(expression(atop("Water level"," (cm)")))
 
+focal_AT <- met %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  ggplot(aes(x = TIMESTAMP, y = AirTC_Avg))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  egg::theme_article()+
+  theme(axis.title.x = element_blank(),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
+  ylab(expression(atop("Air temp."," (ºC)")))
+
 comb <- ggpubr::ggarrange(
   annual+
     guides(color = guide_legend(ncol = 4))+
     theme(legend.position = "bottom",
           legend.title.position = "top"), 
-  ggpubr::ggarrange(focal_ch4 +
-                      scale_x_datetime(date_breaks = "4 day",
-                                       date_labels = "%d %b"), 
+  patchwork::wrap_plots(focal_ch4 +
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(axis.text.x = element_blank(),
+                              axis.ticks.x = element_blank(),
+                              legend.position = "none"), 
                     focal_wl +
-                      scale_x_datetime(date_breaks = "4 day",
-                                       date_labels = "%d %b"), 
-                    ncol = 1, align = "hv", legend = "none"), 
-  ncol = 2, widths = c(1.7,1), labels = c("a", "b"), 
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(axis.text.x = element_blank(),
+                              axis.ticks.x = element_blank(),
+                              legend.position = "none"), 
+                    focal_AT +
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(legend.position = "none"), 
+                    ncol = 1), 
+  ncol = 2, widths = c(1.7,1), labels = c("a", "b"),
   legend = "bottom", common.legend = T
 )
 comb
-ggsave("../figures/Figure 2 - Data.jpg", dpi = 300, width = 6, height = 3.5)
+ggsave("../figures/Figure 2 - Data.jpg", dpi = 300, width = 6, height = 4)
+
+comb <- ggpubr::ggarrange(
+  patchwork::wrap_plots(annual+
+                          guides(color = guide_legend(ncol = 4))+
+                          theme(legend.position = "bottom",
+                                legend.title.position = "top"), 
+                        gpp +
+                          theme(legend.position = "none"),
+                        resp +
+                          theme(legend.position = "none"),
+                        annual_AT, 
+                        ncol = 1, 
+                        guides = "collect")+
+    theme(legend.position = "bottom"),
+  patchwork::wrap_plots(focal_ch4 +
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(axis.text.x = element_blank(),
+                              axis.ticks.x = element_blank(),
+                              legend.position = "none"), 
+                    focal_wl +
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(axis.text.x = element_blank(),
+                              axis.ticks.x = element_blank(),
+                              legend.position = "none"), 
+                    focal_AT +
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(legend.position = "none"), 
+                    ncol = 1), 
+  ncol = 2, widths = c(1.7,1), labels = c("a", "b")
+)
+comb
 ```
 
 The importance of hot moment events increases with median flux (Figure 3)
@@ -234,8 +333,8 @@ hm_df <- part
 
 library(slider)
 
-BEFORE <- lubridate::days(3)
-AFTER <- lubridate::days(3)
+BEFORE <- lubridate::days(5)
+AFTER <- lubridate::days(5)
 
 hm_ident <- hm_df %>%
   mutate(CH4_umol_m2_h = ifelse(CH4_umol_m2_h < 0, 0, CH4_umol_m2_h)) %>%
@@ -410,11 +509,57 @@ hm_ident %>%
   theme(axis.text.x = element_text(angle = 90))
 ```
 
+Variability increases with median (Figure 3- option 3)
+
+```{r}
+hm_df <- part
+
+daily_summaries <- hm_df %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  left_join(met, 
+            by = c("time_join" = "TIMESTAMP")) %>%
+  mutate(CH4_umol_m2_h = ifelse(CH4_umol_m2_h < 0, 0, CH4_umol_m2_h)) %>%
+  group_by(MIU_VALVE, date) %>%
+  summarize(IQR = IQR(CH4_umol_m2_h, na.rm = T),
+            median = median(CH4_umol_m2_h, na.rm = T),
+            max = max(CH4_umol_m2_h, na.rm = T),
+            min = min(CH4_umol_m2_h, na.rm = T),
+            GPP = median(GPP, na.rm = T),
+            AirT = median(AirTC_Avg, na.rm = T))
+
+daily_summaries %>%
+  ggplot(aes(x = median, y = IQR, color = AirT))+
+  geom_point()+
+  facet_wrap(~MIU_VALVE)+
+  egg::theme_article()+
+  scale_color_viridis_c()
+
+daily_summaries %>%
+  ggplot(aes(x = median, y = IQR, color = AirT))+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  egg::theme_article()+
+  scale_color_manual(values = color.gradient, name = "Chamber")
+
+daily_summaries %>%
+  ggplot(aes(x = median, y = IQR))+
+  geom_point()+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  facet_wrap(~MIU_VALVE)+
+  egg::theme_article()+
+  scale_color_manual(values = color.gradient, name = "Chamber")
+
+daily_summaries %>%
+  ggplot(aes(x = min, y = max))+
+  geom_point()+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  facet_wrap(~MIU_VALVE, scales = "free")+
+  egg::theme_article()+
+  scale_color_manual(values = color.gradient, name = "Chamber")
+```
+
 Because of hot moments, manual sampling underestimates fluxes (Figure 4)
 
 ```{r}
-met <- read_csv("../processed_data/met_2025_dashboard.csv") 
-
 reps <-  100
 samples_per_week <- 1
 
@@ -533,5 +678,57 @@ with_wl %>%
   ggplot(aes(x = Depth_change_cm, y = CH4_umol_m2_h))+
   geom_point()+
   facet_grid(MIU_VALVE~month, scales = "free")
+```
+
+Model hm separately
+```{r}
+mod_df <- hm_ident %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  left_join(wl, by = c("time_join" = "TIMESTAMP")) %>%
+  left_join(met, by = c("time_join" = "TIMESTAMP")) %>%
+  group_by(MIU_VALVE) %>%
+  mutate(Depth_change = Depth_cm - lag(Depth_cm))
+
+data_not = mod_df %>%
+  filter(hot_moment_iqr == "not") %>%
+  select(c(CH4_umol_m2_h, Depth_cm, AirTC_Avg, Depth_change)) %>%
+  drop_na() %>%
+  ungroup() %>%
+  filter(MIU_VALVE == "Ch. 12 (+6.0 ºC)") %>%
+  select(-MIU_VALVE)
+
+preds_not <- randomForest::randomForest(CH4_umol_m2_h~Depth_cm + AirTC_Avg + Depth_change,
+                                        data = data_not,
+                                        importance = T)
+randomForest::importance(preds_not)
+preds_not$rsq[length(preds_not$rsq)]
+
+data_hot = mod_df %>%
+  filter(hot_moment_iqr == "hot") %>%
+  select(c(CH4_umol_m2_h, Depth_cm, AirTC_Avg, Depth_change)) %>%
+  drop_na() %>%
+  ungroup() %>%
+  filter(MIU_VALVE == "Ch. 12 (+6.0 ºC)") %>%
+  select(-MIU_VALVE)
+
+preds_hot <- randomForest::randomForest(CH4_umol_m2_h~Depth_cm + AirTC_Avg + Depth_change,
+                                        data = data_hot,
+                                        importance = T)
+randomForest::importance(preds_hot)
+preds_hot$rsq[length(preds_not$rsq)]
+
+data_class = mod_df %>%
+  select(c(Depth_cm, AirTC_Avg, Depth_change, hot_moment_iqr)) %>%
+  drop_na() %>%
+  ungroup() %>%
+  filter(MIU_VALVE == "Ch. 12 (+6.0 ºC)") %>%
+  select(-MIU_VALVE) %>%
+  mutate(hot_moment_iqr = as.factor(hot_moment_iqr))
+preds_class <- randomForest::randomForest(hot_moment_iqr~Depth_cm + AirTC_Avg + Depth_change,
+                                        data = data_class,
+                                        importance = T,
+                                        classwt = c(not = 1, hot = 19))
+randomForest::importance(preds_class)
+preds_class$err.rate[nrow(preds_class$err.rate),]
 ```
 
