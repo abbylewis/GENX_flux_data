@@ -9,14 +9,22 @@ Methods from Ari's paper and this one https://agupubs.onlinelibrary.wiley.com/do
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
 library(tidyverse)
-#source("../R/qaqc.R")
+library(data.table)
+library(waveslim)
+source("../R/wavelet_functions.R")
+
 target <- read_csv("../processed_data/partitioned_co2.csv") %>%
   rename(TIMESTAMP = DateTime)
-met <- read_csv("../processed_data/met_2025_dashboard.csv")
+met <- read_csv("../processed_data/met_2025_dashboard.csv") %>%
+              mutate(Salinity = ifelse(year(TIMESTAMP) == 2025 & 
+                                         as.numeric(Salinity) < 6, 
+                                       NA, Salinity))
 wl <- read_csv("../processed_data/water_level_dashboard.csv")
 evi <- read_csv("../processed_data/evi.csv")
 
+# Combine
 df <- target %>%
   mutate(time_join = round_date(TIMESTAMP, "15 minutes"),
          date_join = date(TIMESTAMP)) %>%
@@ -27,11 +35,11 @@ df <- target %>%
          !is.na(TIMESTAMP)) %>%
   mutate(CH4_raised = CH4-min(CH4, na.rm = T)+0.05,
          #CH4 = log(CH4_raised),
-         CH4 = CH4_raised
+         CH4 = CH4_raised,
+         GPP = ifelse(is_night, 0, GPP)
          )
 
-library(data.table)
-
+# Interpolate to consistent timestep
 setDT(df)
 df[, TIMESTAMP := as.POSIXct(TIMESTAMP)]
 
@@ -47,22 +55,9 @@ grid <- df[, make_grid(.SD), by = MIU_VALVE]
 setkey(grid, MIU_VALVE, TIMESTAMP)
 setkey(df, MIU_VALVE, TIMESTAMP)
 
-ch4 <- df[grid, roll = "nearest"]
+ch4 <- df[grid, roll = 7200] # 7200 seconds
 
-#mean_of_all <- ch4 %>%
-#  group_by(TIMESTAMP) %>%
-#  summarise(across(where(is.numeric), mean, na.rm = TRUE)) %>%
-#  mutate(MIU_VALVE = "mean")
-#
-#median_of_all <- ch4 %>%
-#  group_by(TIMESTAMP) %>%
-#  summarise(across(where(is.numeric), median, na.rm = TRUE)) %>%
-#  mutate(MIU_VALVE = "median")
-#
-#ch4 <- ch4 %>%
-#  full_join(mean_of_all) %>%
-#  full_join(median_of_all)
-#
+# Plot specifications
 chamber_levels2 = c("Ch. 1 (+0 ºC)", "Ch. 2 (+0 ºC)", "Ch. 3 (+0.75 ºC)", 
                     "Ch. 4 (+1.5 ºC)", "Ch. 5 (+2.25 ºC)", "Ch. 6 (+2.25 ºC)", 
                     "Ch. 7 (+3.0 ºC)", "Ch. 8 (+3.75 ºC)", "Ch. 9 (+3.75 ºC)",
@@ -75,7 +70,7 @@ color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
 ch4 %>%
   ggplot(aes(x = TIMESTAMP, y = CH4))+
   geom_point()+
-  facet_wrap(~MIU_VALVE)
+  facet_wrap(~MIU_VALVE, scales = "free")
 ```
 
 Then, we used Mutual Information (I) to find the relative importance of each predictor variable and identify both synchronous and asynchronous interactions (Ruddell et al., 2013). Mutual Information (I) measures the amount of information shared by two variables, X and Y, or the reduction in uncertainty of one variable given the knowledge of the other variable (Fraser & Swinney, 1986). The degree of mutual information between X and Y is increased by adding a time lag (positive or negative) in series Y relative to X, thereby allowing the identification of both synchronous and asynchronous interactions. 
@@ -85,60 +80,40 @@ Using the ProcessNetwork Software (v1.5, Ruddell et al., 2008) and the Wavelet M
 Wavelet
 
 ```{r}
-library(waveslim)
+drivers <- c(
+  "AirTC_Avg",
+  "Depth_cm",
+  "GPP",
+  "Salinity",
+  "Barometric_Pressure_PB110B_Avg",
+  "WS_ms_RM_Avg",
+  "Reco"
+)
 
-parse_time <- function(s_list){
-  out <- numeric(length(s_list))
-  for(i in 1:length(s_list)){
-    if(s_list[i] < 1.5*86400){
-      out[i] <- paste(round(s_list[i]/60/60), "hours")
-    } else {
-      out[i] <- paste(round(s_list[i]/60/60/24), "days")
-    }
-  }
-  return(out)
-}
+driver_labels <- c(
+  AirTC_Avg = "Air~temperature",
+  Depth_cm = "Water~depth",
+  GPP = "GPP",
+  Salinity = "Salinity",
+  Barometric_Pressure_PB110B_Avg = "Barometric~pressure",
+  WS_ms_RM_Avg = "Wind~speed",
+  Reco = "Reco"
+)
 
-analyze_wavelets <- function(ch4, treatment, var_name, timestep_s) {
-  #Format data (dealing with irregularly spaced data)
-  test_data <- ch4 %>%
-    filter(MIU_VALVE == treatment) %>%
-    filter(!is.na(!!sym(var_name)))
-  
-  #Run wavelet transformation
-  data <- zoo::na.approx(test_data[[var_name]])
-  wavelet <- waveslim::modwt(data, "la8", n.levels = 11)
-  
-  meshed <- data.frame(TIMESTAMP = test_data$TIMESTAMP,
-                       data,
-                       l_1 = wavelet[[1]],
-                       l_2 = wavelet[[2]],
-                       l_3 = wavelet[[3]],
-                       l_4 = wavelet[[4]],
-                       l_5 = wavelet[[5]],
-                       l_6 = wavelet[[6]],
-                       l_7 = wavelet[[7]],
-                       l_8 = wavelet[[8]],
-                       l_9 = wavelet[[9]],
-                       l_10 = wavelet[[10]],
-                       l_11 = wavelet[[11]]) %>%
-    pivot_longer(cols = -c(data, TIMESTAMP)) %>%
-    mutate(name = as.numeric(sub("l_", "", name)),
-           name = factor(name, 
-                         levels = 1:11,
-                         labels = parse_time(2^(0:10)*timestep_s)
-                           ))
-  
-  df <- meshed %>% 
-    mutate(MIU_VALVE = treatment,
-           var_name = var_name)
-  
-  return(df)
-}
+driver_colors <- c(
+  AirTC_Avg = "#E76D66",
+  Depth_cm = "#2176AB",
+  GPP = "#3BAA5D",
+  Salinity = "#6A4C93",
+  Barometric_Pressure_PB110B_Avg = "#8C8C8C",
+  WS_ms_RM_Avg = "#F4A261",
+  Reco = "#264653"
+)
 
 #Apply across all treatments and sites
 grid <- ch4 %>%
-  pivot_longer(cols = c(CH4, AirTC_Avg, Depth_cm), #NOTE: I've also tried EVI and PAR but they don't add much
+  pivot_longer(cols = c("CH4", drivers),
+               #NOTE: I've also tried EVI and PAR but they don't add much
                names_to = "var_name", values_to = "value")
 
 double_map <- function(treatment, ch4, var_name, timestep_s){
@@ -163,17 +138,13 @@ pct_var <- dfs %>%
   summarize(var = var(value)) %>%
   group_by(MIU_VALVE, var_name) %>%
   mutate(tot_var = sum(var),
-         MIU_VALVE = ifelse(var_name == "CH4", MIU_VALVE, NA),
+         MIU_VALVE = ifelse(var_name %in% c("CH4", "GPP", "Reco"), MIU_VALVE, NA),
          MIU_VALVE = factor(MIU_VALVE,
                             levels = 1:12,
                             labels = chamber_levels2),
          var_name = factor(var_name,
-                          levels = c("AirTC_Avg",
-                                     "Depth_cm",
-                                     "CH4"),
-                          labels = c("Air~temperature",
-                                     "Water~depth",
-                                     "CH[4]"))) %>%
+                           levels = c(drivers, "CH4"),
+                           labels = c(driver_labels[drivers], "CH[4]"))) %>%
   group_by(MIU_VALVE, name, var_name) %>%
   summarize(var = mean(var),
             tot_var = mean(tot_var)) %>%
@@ -201,22 +172,7 @@ Mutual Information
 ```{r}
 library(DescTools)
 
-N_BINS = 11
-
-#Make functions to calculate key metrics
-entropy <- function(target) {
-  freq <- table(target)/length(target)
-  # vectorize
-  vec <- as.data.frame(freq)[,2]
-  #compute entropy
-  -sum(vec * log2(vec))
-}
-
-bin <- function(x, n_breaks) {
-  highest <- quantile(x, 0.99)
-  lowest <- quantile(x, 0.01)
-  findInterval(x, seq(lowest, highest, length.out = n_breaks))
-}
+N_BINS = 10
 
 #Group wavelet scales into interpretable bins
 discrete_scales <- dfs %>%
@@ -253,8 +209,12 @@ mut_infs <- discrete_scales %>%
   filter(!is.na(exp_var_value),
          !is.na(CH4)) %>%
   group_by(MIU_VALVE, grouped_scale, exp_var, grouped_scale_exp) %>%
-  summarize(entropy_y = entropy(bin(CH4, N_BINS)),
-            mut_inf = MutInf(bin(exp_var_value, N_BINS), bin(CH4, N_BINS))/entropy_y)
+  summarize(entropy_y = entropy(bin_ranked((CH4, N_BINS)),
+            mut_inf = MutInf(
+              bin_ranked((exp_var_value, N_BINS), 
+              bin_ranked((CH4, N_BINS)
+              ) / 
+              entropy_y)
 
 #Plot
 mut_infs %>%
@@ -266,12 +226,7 @@ mut_infs %>%
                             labels = chamber_levels2),
          mut_inf = ifelse(exp_var == "evi_predicted" & 
                             grepl("hours", grouped_scale), NA,
-                          mut_inf),
-         exp_var = factor(exp_var,
-                          levels = c("AirTC_Avg",
-                                     "Depth_cm"),
-                          labels = c("Air temperature",
-                                     "Water depth"))) %>%
+                          mut_inf)) %>%
   ggplot(aes(y = mut_inf, x = grouped_scale, 
              color = exp_var, group = exp_var)) +
   geom_point(aes(shape = exp_var)) + 
@@ -280,11 +235,13 @@ mut_infs %>%
   xlab("Wavelet scale of variation") +
   ylab("Relative mutual information") +
   egg::theme_article()+
-  scale_color_manual(values = c("Air temperature" = "#E76D66", 
-                                "Water depth" = "#2176AB", 
-                                "evi_predicted" = "#354C2F"),
-                     name = "Explanatory variable") +
-  scale_shape_discrete(name = "Explanatory variable") +
+  scale_color_manual(
+    values = driver_colors[drivers],
+    labels = driver_labels[drivers],
+    name = "Explanatory variable"
+  )+
+  scale_shape_discrete(name = "Explanatory variable",
+                       labels = driver_labels[drivers]) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
         panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))
@@ -300,10 +257,8 @@ simple_mut_inf_plot <- mut_infs %>%
                             grepl("hours", grouped_scale), NA,
                           mut_inf),
          exp_var = factor(exp_var,
-                          levels = c("AirTC_Avg",
-                                     "Depth_cm"),
-                          labels = c("Air temperature",
-                                     "Water depth"))) %>%
+                 levels = drivers,
+                 labels = driver_labels[drivers])) %>%
   ggplot(aes(y = mut_inf, x = grouped_scale, 
              color = MIU_VALVE, group = MIU_VALVE)) +
   geom_point() + 
@@ -324,10 +279,6 @@ ggsave(simple_mut_inf_plot, filename = "../figures/mut_inf_simple.png", width = 
 ggsave(pct_var+
          theme(axis.text.x = element_text(size = 8)), 
        filename = "../figures/pct_var_wavelet.png", width = 7, height = 3.5)
-
-ggpubr::ggarrange(pct_var,
-          simple_mut_inf_plot,
-          nrow = 2, ncol = 1, align = "v", heights = c(1, 1))
 ```
 
 Random forest
@@ -375,15 +326,13 @@ for (chamber in chambers) {
       
       # Train RF
       rf <- ranger(
-        CH4 ~ AirTC_Avg + Depth_cm,
+        formula = reformulate(drivers, response = "CH4"),
         data = train,
         num.trees = 500,
         importance = "permutation"
       )
       
       preds <- predict(rf, data = test)$predictions
-      
-      plot(preds, test$CH4)
       
       # Compute metrics
       rmse <- sqrt(mean((test$CH4 - preds)^2))
@@ -469,56 +418,63 @@ rf_importance_summary %>%
 With lags
 
 ```{r}
-#Separate explanatory variables
-discrete_scales_exp <- discrete_scales %>%
-  dplyr::select(-CH4, -NEE) %>%
-  pivot_longer(cols = -c(grouped_scale, MIU_VALVE, TIMESTAMP), 
-               names_to = "exp_var", values_to = "exp_var_value") %>%
-  filter(!is.na(exp_var_value)) %>%
-  rename(grouped_scale_exp = grouped_scale)
+discrete_scales_exp <- discrete_scales_exp %>%
+  group_by(grouped_scale_exp, MIU_VALVE, exp_var) %>%
+  mutate(exp_bin = bin_ranked((exp_var_value, N_BINS))
 
-fill_lags <- function(all_lags, lag) {
-  if(lag == 0 | nrow(all_lags) == 0) {
-    return(all_lags %>% filter(is.na(MIU_VALVE))) #empty
-  }
-  if(lag < 0){
-    filled_lags <- all_lags %>%
-      mutate(exp_var_value_lag = lag(exp_var_value, abs(lag))) %>%
-      mutate(lag = lag)
-  }
-  if(lag > 0){
-    filled_lags <- all_lags %>%
-      mutate(exp_var_value_lag = lead(exp_var_value, lag)) %>%
-      mutate(lag = lag)
-  }
-  return(filled_lags)
-}
+discrete_scales_ch4 <- discrete_scales %>%
+  select(grouped_scale, MIU_VALVE, TIMESTAMP, CH4) %>%
+  mutate(ch4_bin = bin_ranked((CH4, N_BINS))
 
-#library(furrr)
-#plan(multisession)
-output <- pmap(list(-200:0), 
-              ~fill_lags(all_lags = discrete_scales_exp %>%
-                           group_by(grouped_scale_exp, 
-                                    MIU_VALVE, 
-                                    exp_var) %>%
-                           arrange(TIMESTAMP),
-                         .x),
-              .progress = T) %>%
-  bind_rows()
-
-#Calculate mutual information
-lagged_mut_infs <- discrete_scales %>%
-  dplyr::select(c(grouped_scale, MIU_VALVE, TIMESTAMP, CH4)) %>%
-  left_join(output, by = c("MIU_VALVE", "TIMESTAMP")) %>%
-  filter(!is.na(exp_var_value_lag),
-         !is.na(CH4)) %>%
-  group_by(MIU_VALVE, grouped_scale, exp_var, grouped_scale_exp, lag) %>%
-  summarize(entropy_y = entropy(bin(CH4, 9)),
-            mut_inf = MutInf(bin(exp_var_value, 9), bin(CH4, 9))/entropy_y) 
+lagged_mut_infs <- map_dfr(unique(discrete_scales$grouped_scale), function(scale_name) {
+  
+  message("Processing scale: ", scale_name)
+  
+  lags <- 200 # TO DO make lags depend on scale
+  
+  # subset this scale only
+  exp_data_scale <- discrete_scales_exp %>%
+    filter(grouped_scale_exp == scale_name)
+  
+  ch4_scale <- discrete_scales_ch4 %>%
+    filter(grouped_scale == scale_name)
+  
+  map_dfr(lags, function(lg) {
+    
+    lagged_data <- exp_data_scale %>%
+      group_by(MIU_VALVE, exp_var) %>%
+      arrange(TIMESTAMP) %>%
+      mutate(
+        exp_bin_lag =
+          if (lg < 0) dplyr::lag(exp_bin, abs(lg))
+          else if (lg > 0) dplyr::lead(exp_bin, lg)
+          else exp_bin,
+        lag = lg
+      ) %>%
+      ungroup()
+    
+    ch4_scale %>%
+      left_join(lagged_data,
+                by = c("MIU_VALVE", "TIMESTAMP")) %>%
+      filter(!is.na(exp_bin_lag),
+             !is.na(ch4_bin)) %>%
+      group_by(MIU_VALVE, exp_var, lag) %>%
+      summarize(
+        entropy_y = entropy(ch4_bin),
+        mut_inf = MutInf(exp_bin_lag, ch4_bin) / entropy_y,
+        grouped_scale = scale_name,
+        .groups = "drop"
+      )
+  })
+})
 
 best_lagged_mut_infs <- lagged_mut_infs %>%
-  group_by(MIU_VALVE, grouped_scale, exp_var, grouped_scale_exp) %>%
-  filter(mut_inf == max(mut_inf, na.rm = T))
+  group_by(MIU_VALVE, grouped_scale, exp_var) %>%
+  filter(mut_inf == max(mut_inf, na.rm = TRUE)) %>%
+  ungroup()
+
+
+
 
 #Plot
 for(site in unique(discrete_scales$MIU_VALVE)){

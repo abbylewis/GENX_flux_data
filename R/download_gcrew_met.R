@@ -39,9 +39,16 @@ download_gcrew_met <- function(gcrew_met_folder = here::here("Raw_data", "dropbo
     filter(!is.na(TIMESTAMP)) %>%
     distinct()
   
+  data %>%
+    mutate(WS_ms_WS_Avg = as.numeric(WS_ms_WS_Avg),
+           WS_ms_RM_Avg = as.numeric(WS_ms_RM_Avg),
+           Salinity = as.numeric(Salinity)) %>%
+    ggplot(aes(x = TIMESTAMP, y = Salinity))+
+    geom_point()
+  
   write_csv(data %>%
               filter(TIMESTAMP >= as.Date("2025-03-18")) %>%
-              select(all_of(c("TIMESTAMP", "PAR_Den_C_Avg", "AirTC_Avg", "Rain_cm_Tot"))), 
+              select(all_of(c("TIMESTAMP", "PAR_Den_C_Avg", "AirTC_Avg", "Rain_cm_Tot", "Barometric_Pressure_PB110B_Avg", "Salinity", "WS_ms_RM_Avg"))) , 
             here::here("processed_data", "met_2025_dashboard.csv"))
   
   write_csv(data %>%

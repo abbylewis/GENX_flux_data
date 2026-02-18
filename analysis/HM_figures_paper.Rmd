@@ -93,7 +93,7 @@ annual <- part %>%
   theme(axis.title.x = element_blank(),
         panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
         panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
-  ylab(expression(atop("Daily mean"~CH[4]~"flux","(µmol"~m^-2~h^-1*")")))
+  ylab(expression(atop(CH[4]~"flux","(µmol"~m^-2~h^-1*")")))
 
 annual_AT <- met %>%
   mutate(date = as.Date(TIMESTAMP)) %>%
@@ -101,7 +101,7 @@ annual_AT <- met %>%
   summarize(AirTC_Avg = mean(AirTC_Avg, na.rm = T)) %>%
   ggplot(aes(x = date, y = AirTC_Avg))+
   geom_hline(yintercept = 0, color = "grey80")+
-  geom_line(size = 0.5)+
+  geom_line(size = 0.5, color = "grey20")+
   coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
   scale_color_manual(values = color.gradient, name = "Chamber")+
   egg::theme_article()+
@@ -116,14 +116,14 @@ annual_wl <- wl %>%
   summarize(Depth_cm = mean(Depth_cm, na.rm = T)) %>%
   ggplot(aes(x = date, y = Depth_cm))+
   geom_hline(yintercept = 0, color = "grey80")+
-  geom_line(size = 0.5)+
+  geom_line(size = 0.5, color = "grey20")+
   coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
   scale_color_manual(values = color.gradient, name = "Chamber")+
   egg::theme_article()+
   theme(axis.title.x = element_blank(),
         panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
         panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
-  ylab(expression(atop("Depth"," (cm)")))
+  ylab(expression(atop("Water level"," (cm)")))
 
 gpp <- part %>%
   group_by(date, MIU_VALVE) %>%
@@ -184,7 +184,7 @@ focal_wl <- wl %>%
   filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
   ggplot(aes(x = TIMESTAMP, y = Depth_cm))+
   geom_hline(yintercept = 0, color = "grey80")+
-  geom_line(size = 0.5)+
+  geom_line(size = 0.5, color = "grey20")+
   scale_color_manual(values = color.gradient, name = "Chamber")+
   egg::theme_article()+
   theme(axis.title.x = element_blank(),
@@ -197,7 +197,7 @@ focal_AT <- met %>%
   filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
   ggplot(aes(x = TIMESTAMP, y = AirTC_Avg))+
   geom_hline(yintercept = 0, color = "grey80")+
-  geom_line(size = 0.5)+
+  geom_line(size = 0.5, color = "grey20")+
   scale_color_manual(values = color.gradient, name = "Chamber")+
   egg::theme_article()+
   theme(axis.title.x = element_blank(),
@@ -233,53 +233,58 @@ comb <- ggpubr::ggarrange(
 comb
 ggsave("../figures/Figure 2 - Data.jpg", dpi = 300, width = 6, height = 4)
 
-comb <- ggpubr::ggarrange(
-  patchwork::wrap_plots(annual+
-                          guides(color = guide_legend(ncol = 4))+
-                          theme(axis.text.x = element_blank(),
-                                axis.ticks.x = element_blank(),
-                                legend.position = "none"), 
-                        gpp +
-                          theme(axis.text.x = element_blank(),
-                                axis.ticks.x = element_blank(),
-                                legend.position = "none"),
-                        resp +
-                          theme(axis.text.x = element_blank(),
-                                axis.ticks.x = element_blank(),
-                                legend.position = "none"),
-                        annual_evi +
-                          theme(axis.text.x = element_blank(),
-                                axis.ticks.x = element_blank(),
-                                legend.position = "none"),
-                        annual_AT+
-                          theme(axis.text.x = element_blank(),
-                                axis.ticks.x = element_blank(),
-                                legend.position = "none"), 
-                        annual_wl, 
-                        ncol = 1, 
-                        guides = "collect") &
-    theme(legend.position = "bottom",
-          legend.title.position = "top"),
-  patchwork::wrap_plots(focal_ch4 +
-                      scale_x_datetime(date_breaks = "5 day",
-                                       date_labels = "%d %b")+
-                        theme(axis.text.x = element_blank(),
-                              axis.ticks.x = element_blank(),
-                              legend.position = "none"), 
-                    focal_wl +
-                      scale_x_datetime(date_breaks = "5 day",
-                                       date_labels = "%d %b")+
-                        theme(axis.text.x = element_blank(),
-                              axis.ticks.x = element_blank(),
-                              legend.position = "none"), 
-                    focal_AT +
-                      scale_x_datetime(date_breaks = "5 day",
-                                       date_labels = "%d %b")+
-                        theme(legend.position = "none"), 
-                    ncol = 1), 
-  ncol = 2, widths = c(1.7,1), labels = c("a", "b")
-)
+comb <- patchwork::wrap_plots(
+  a = patchwork::wrap_plots(
+    annual +
+      guides(color = guide_legend(ncol = 4)) +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            legend.position = "none") +
+      ggtitle("Seasonal (daily average)"), 
+    annual_wl +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            legend.position = "none"), 
+    annual_AT, 
+    ncol = 1, design = c("A
+                          A
+                          B
+                          C")
+  ),
+  b = patchwork::wrap_plots(
+    focal_ch4 +
+      scale_x_datetime(date_breaks = "5 day", date_labels = "%d %b") +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            axis.title.y = element_blank(),
+            legend.position = "none") +
+      ggtitle("Short-term (hourly)"), 
+    focal_wl +
+      scale_x_datetime(date_breaks = "5 day", date_labels = "%d %b") +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            axis.title.y = element_blank(),
+            legend.position = "none"), 
+    focal_AT +
+      scale_x_datetime(date_breaks = "5 day", date_labels = "%d %b") +
+      theme(legend.position = "none",
+            axis.title.y = element_blank()),
+    ncol = 1,
+    design = c("A
+               A
+               B
+               C")
+  ),
+  ncol = 2, widths = c(2,1),
+  guides = "collect"
+) + 
+  patchwork::plot_layout(guides = "collect") &
+  theme(legend.position = "bottom", legend.justification = "center", 
+        legend.title.position = "top")
+
 comb
+
+ggsave("../figures/Figure 2 - Data drivers.jpg", dpi = 300, width = 7, height = 5)
 ```
 
 The importance of hot moment events increases with median flux (Figure 3)
@@ -572,6 +577,11 @@ daily_summaries <- hm_df %>%
             median = median(CH4_umol_m2_h, na.rm = T),
             max = max(CH4_umol_m2_h, na.rm = T),
             min = min(CH4_umol_m2_h, na.rm = T),
+            tot = sum(CH4_umol_m2_h, na.rm = T),
+            top = max(CH4_umol_m2_h, na.rm = T),
+            prop = max/tot,
+            q_25 = quantile(CH4_umol_m2_h, probs = 0.25, na.rm = T),
+            q_95 = quantile(CH4_umol_m2_h, probs = 0.95, na.rm = T),
             GPP = median(GPP, na.rm = T),
             AirT = median(AirTC_Avg, na.rm = T))
 
@@ -594,15 +604,42 @@ daily_summaries %>%
   geom_smooth(aes(color = MIU_VALVE), method = "lm")+
   facet_wrap(~MIU_VALVE)+
   egg::theme_article()+
-  scale_color_manual(values = color.gradient, name = "Chamber")
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme(legend.position = "none",
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))
+
 
 daily_summaries %>%
-  ggplot(aes(x = min, y = max))+
+  ggplot(aes(x = median, y = IQR))+
+  geom_point(aes(color = MIU_VALVE), shape = 21)+
+  egg::theme_article()+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme(panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))
+
+daily_summaries %>%
+  #filter(median > 10) %>%
+  ggplot(aes(x = median, y = prop))+
   geom_point()+
   geom_smooth(aes(color = MIU_VALVE), method = "lm")+
-  facet_wrap(~MIU_VALVE, scales = "free")+
+  facet_wrap(~MIU_VALVE)+
   egg::theme_article()+
-  scale_color_manual(values = color.gradient, name = "Chamber")
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme(legend.position = "none",
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))
+
+daily_summaries %>%
+  ggplot(aes(x = q_25, y = q_95))+
+  geom_point()+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  facet_wrap(~MIU_VALVE)+
+  egg::theme_article()+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme(legend.position = "none",
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))
 ```
 
 Because of hot moments, manual sampling underestimates fluxes (Figure 4)
