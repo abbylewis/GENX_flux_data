@@ -165,6 +165,26 @@ pct_var <- dfs %>%
         plot.background = element_rect(fill = "white"))+
   facet_wrap(~var_name, labeller = "label_parsed")
 pct_var
+
+dfs %>%
+  group_by(var_name, MIU_VALVE) %>%
+  mutate(value = bin_ranked(value, 10)) %>%
+  filter(as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-04-01"), as.Date("2025-04-05"), by = "1 day"),
+         name == "8 hours", 
+         var_name %in% c("CH4", "Depth_cm", "GPP")) %>%
+  ggplot(aes(x = TIMESTAMP, y = value, color = var_name))+
+  geom_line()+
+  facet_grid(var_name~MIU_VALVE, scales = "free")
+
+dfs %>%
+  select(-data) %>%
+  filter(as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-08-01"), as.Date("2025-10-04"), by = "1 day"),
+         name == "4 hours", 
+         var_name %in% c("CH4", "Depth_cm")) %>%
+  pivot_wider(names_from = var_name, values_from = value) %>%
+  ggplot(aes(x = CH4, y = Depth_cm))+
+  geom_point()+
+  facet_wrap(~MIU_VALVE, scales = "free")
 ```
 
 Mutual Information
@@ -209,10 +229,10 @@ mut_infs <- discrete_scales %>%
   filter(!is.na(exp_var_value),
          !is.na(CH4)) %>%
   group_by(MIU_VALVE, grouped_scale, exp_var, grouped_scale_exp) %>%
-  summarize(entropy_y = entropy(bin_ranked((CH4, N_BINS)),
+  summarize(entropy_y = entropy(bin_ranked(CH4, N_BINS)),
             mut_inf = MutInf(
-              bin_ranked((exp_var_value, N_BINS), 
-              bin_ranked((CH4, N_BINS)
+              bin_ranked(exp_var_value, N_BINS), 
+              bin_ranked(CH4, N_BINS)
               ) / 
               entropy_y)
 
@@ -281,85 +301,224 @@ ggsave(pct_var+
        filename = "../figures/pct_var_wavelet.png", width = 7, height = 3.5)
 ```
 
+```{r}
+# Calculate Spearman correlation
+spearman_corrs <- discrete_scales %>%
+  dplyr::select(c(grouped_scale, MIU_VALVE, TIMESTAMP, CH4)) %>%
+  left_join(discrete_scales_exp, relationship = "many-to-many") %>%
+  filter(!is.na(exp_var_value),
+         !is.na(CH4)) %>%
+  group_by(MIU_VALVE, grouped_scale, exp_var, grouped_scale_exp) %>%
+  summarize(
+    spearman_rho = cor(exp_var_value, CH4, 
+                       method = "spearman", 
+                       use = "complete.obs"),
+    spearman_rho2 = spearman_rho^2,
+    .groups = "drop"
+  )
+
+spearman_corrs %>%
+  filter(grouped_scale == grouped_scale_exp,
+         !exp_var == "evi_predicted") %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+                            levels = 1:12,
+                            labels = chamber_levels2),
+         spearman_rho = ifelse(exp_var == "evi_predicted" & 
+                                 grepl("hours", grouped_scale), 
+                               NA, spearman_rho)) %>%
+  ggplot(aes(y = spearman_rho, 
+             x = grouped_scale, 
+             color = exp_var, 
+             group = exp_var)) +
+  geom_point(aes(shape = exp_var)) + 
+  geom_line() +
+  facet_wrap(~MIU_VALVE) +
+  xlab("Wavelet scale of variation") +
+  ylab("Spearman's rank correlation (ρ)") +
+  egg::theme_article() +
+  scale_color_manual(
+    values = driver_colors[drivers],
+    labels = driver_labels[drivers],
+    name = "Explanatory variable"
+  ) +
+  scale_shape_discrete(name = "Explanatory variable",
+                       labels = driver_labels[drivers]) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))
+
+simple_spearman_plot <- spearman_corrs %>%
+  filter(grouped_scale == grouped_scale_exp,
+         !exp_var == "evi_predicted") %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+                            levels = 1:12,
+                            labels = chamber_levels2),
+         spearman_rho = ifelse(exp_var == "evi_predicted" & 
+                                 grepl("hours", grouped_scale), 
+                               NA, spearman_rho),
+         exp_var = factor(exp_var,
+                          levels = drivers,
+                          labels = driver_labels[drivers])) %>%
+  ggplot(aes(y = spearman_rho, 
+             x = grouped_scale, 
+             color = MIU_VALVE, 
+             group = MIU_VALVE)) +
+  geom_point() + 
+  geom_line() +
+  facet_wrap(~exp_var) +
+  xlab("Wavelet scale of variation") +
+  ylab("Spearman's rank correlation (ρ)") +
+  egg::theme_article() +
+  scale_color_manual(name = "Chamber", 
+                     values = color.gradient) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25),
+        plot.background = element_rect(fill = "white"))
+
+simple_spearman_plot
+
+relative_corr <- spearman_corrs %>%
+  filter(grouped_scale == grouped_scale_exp,
+         !exp_var == "evi_predicted") %>%
+  mutate(
+    abs_rho = abs(spearman_rho),
+    MIU_VALVE = factor(MIU_VALVE,
+                       levels = 1:12,
+                       labels = chamber_levels2)
+  )
+
+ggplot(relative_corr,
+       aes(x = grouped_scale,
+           y = abs_rho,
+           color = exp_var,
+           group = exp_var)) +
+  geom_point(size = 0.5) +
+  geom_line() +
+  facet_wrap(~MIU_VALVE) +
+  xlab("Wavelet scale of variation") +
+  ylab("Absolute Spearman correlation (|ρ|)") +
+  scale_color_manual(values = driver_colors[drivers],
+                     labels = driver_labels[drivers],
+                     name = "Explanatory variable") +
+  egg::theme_article() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(relative_corr,
+       aes(x = grouped_scale,
+           y = abs_rho,
+           color = MIU_VALVE,
+           group = MIU_VALVE)) +
+  geom_point(size = 0.5) +
+  geom_line() +
+  facet_wrap(~exp_var) +
+  xlab("Wavelet scale of variation") +
+  ylab("Absolute Spearman correlation (|ρ|)") +
+  scale_color_manual(name = "Chamber", values = color.gradient)+
+  egg::theme_article() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+relative_corr %>%
+  ggplot(aes(x = grouped_scale,
+             y = abs_rho,
+             color = exp_var,
+             group = exp_var)) +
+  geom_line(alpha = 0.1, aes(group = paste0(MIU_VALVE, exp_var)))+
+  geom_smooth(se = F)+
+  xlab("Wavelet scale of variation") +
+  ylab("Relative correlation (proportional |ρ|)") +
+  scale_color_manual(values = driver_colors[drivers],
+                     labels = driver_labels[drivers],
+                     name = "Explanatory variable") +
+  egg::theme_article() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
 Random forest
-- I don't like this approach. Doing a RF with the seasonal timescale is super suspect
+- Benefit of this over MI is that MI requires binning the data, which loses information especially for chamber 12
 
 ```{r}
+library(caret)
 library(ranger)
+set.seed(47)
 
-# Storage for results
 rf_results <- data.frame()
 rf_importance <- data.frame()
 
-# Unique scales and MIU_VALVE
-scales <- unique(discrete_scales$grouped_scale)
+scales   <- unique(discrete_scales$grouped_scale)
 chambers <- unique(discrete_scales$MIU_VALVE)
 
-# Set number of CV folds
-n_folds <- 5
-set.seed(123) # reproducible random folds
+# 5-fold CV setup
+ctrl <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = "final"
+)
 
-# Loop over MIU_VALVE
 for (chamber in chambers) {
+  
   cat("Processing MIU_VALVE:", chamber, "\n")
   
-  df_valve <- discrete_scales %>% filter(MIU_VALVE == chamber) %>% drop_na(CH4)
+  df_valve <- discrete_scales %>%
+    filter(MIU_VALVE == chamber) %>%
+    drop_na(CH4)
   
-  # Loop over scales
   for (scale_name in scales) {
     
-    df_scale <- df_valve %>% filter(grouped_scale == scale_name)
+    df_scale <- df_valve %>%
+      filter(grouped_scale == scale_name) %>%
+      as.data.frame()
     
-    if (nrow(df_scale) < n_folds) {
+    if (nrow(df_scale) < 5) {
       cat("  Skipping scale", scale_name, "- not enough data\n")
       next
     }
     
-    # Assign random folds
-    df_scale$fold <- sample(1:n_folds, nrow(df_scale), replace = TRUE)
-    
-    # Loop over folds
-    for (f in 1:n_folds) {
-      
-      train <- df_scale %>% filter(fold != f)
-      test  <- df_scale %>% filter(fold == f)
-      
-      # Train RF
-      rf <- ranger(
-        formula = reformulate(drivers, response = "CH4"),
-        data = train,
-        num.trees = 500,
-        importance = "permutation"
+    # Train RF with caret
+    rf_fit <- train(
+      x = df_scale[, drivers],
+      y = df_scale$CH4,
+      method = "ranger",
+      trControl = ctrl,
+      importance = "permutation",
+      num.trees = 500,
+      tuneGrid = data.frame(
+        mtry = floor(sqrt(length(drivers))),
+        splitrule = "variance",
+        min.node.size = 5
       )
-      
-      preds <- predict(rf, data = test)$predictions
-      
-      # Compute metrics
-      rmse <- sqrt(mean((test$CH4 - preds)^2))
-      rsq  <- cor(test$CH4, preds)^2
-      
-      rf_results <- rbind(rf_results,
-                          data.frame(
-                            MIU_VALVE = chamber,
-                            scale = scale_name,
-                            fold = f,
-                            rmse = rmse,
-                            rsq = rsq
-                          ))
-      
-      # Variable importance (same for all folds in this scale)
-      imp <- data.frame(
+    )
+    
+    # Extract CV performance
+    res <- rf_fit$resample
+    
+    rf_results <- rbind(
+      rf_results,
+      data.frame(
         MIU_VALVE = chamber,
         scale = scale_name,
-        variable = names(rf$variable.importance),
-        importance = rf$variable.importance
+        mean_rsq  = mean(res$Rsquared),
+        sd_rsq    = sd(res$Rsquared),
+        mean_rmse = mean(res$RMSE),
+        sd_rmse   = sd(res$RMSE)
       )
-      
-      rf_importance <- rbind(rf_importance, imp)
-      
-    } # end fold loop
+    )
     
-  } # end scale loop
+    # Variable importance (from final model)
+    imp <- varImp(rf_fit)$importance
+    
+    rf_importance <- rbind(
+      rf_importance,
+      data.frame(
+        MIU_VALVE = chamber,
+        scale = scale_name,
+        variable = rownames(imp),
+        importance = imp$Overall
+      )
+    )
+    
+  }
   
 } # end MIU_VALVE loop
 
@@ -373,7 +532,8 @@ rf_results_summary <- rf_results %>%
             .groups = "drop")
 
 # Plot R2 by scale for all chambers
-rf_results_summary %>%
+#Note I don't think this means anything
+rf_results %>%
   mutate(MIU_VALVE = factor(MIU_VALVE,
                             levels = 1:12,
                             labels = chamber_levels2)) %>%
@@ -395,7 +555,9 @@ rf_importance_summary <- rf_importance %>%
 rf_importance_summary %>%
   mutate(MIU_VALVE = factor(MIU_VALVE,
                             levels = 1:12,
-                            labels = chamber_levels2)) %>%
+                            labels = chamber_levels2),
+         scale = factor(scale,
+                        levels = levels(discrete_scales$grouped_scale))) %>%
   ggplot(aes(x = variable, y = median_importance, color = MIU_VALVE)) +
   geom_point()+
   facet_wrap(~scale) +
@@ -405,32 +567,40 @@ rf_importance_summary %>%
   xlab("Predictor variable")+
   scale_color_manual(name = "Site", values = color.gradient)
 
+rf_importance_summary %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+                            levels = 1:12,
+                            labels = chamber_levels2),
+         scale = factor(scale,
+                        levels = levels(discrete_scales$grouped_scale))) %>%
+  ggplot(aes(x = scale, y = median_importance, color = MIU_VALVE, group = MIU_VALVE)) +
+  geom_line()+
+  facet_wrap(~variable) +
+  theme_bw() +
+  ylab("Permutation importance") +
+  xlab("Scale")+
+  scale_color_manual(name = "Site", values = color.gradient)
+
 ```
-
-
-
-
-
-
-
-
 
 With lags
 
 ```{r}
 discrete_scales_exp <- discrete_scales_exp %>%
   group_by(grouped_scale_exp, MIU_VALVE, exp_var) %>%
-  mutate(exp_bin = bin_ranked((exp_var_value, N_BINS))
+  mutate(exp_bin = bin_ranked(exp_var_value, N_BINS))
 
 discrete_scales_ch4 <- discrete_scales %>%
-  select(grouped_scale, MIU_VALVE, TIMESTAMP, CH4) %>%
-  mutate(ch4_bin = bin_ranked((CH4, N_BINS))
+  group_by(grouped_scale, MIU_VALVE) %>%
+  mutate(ch4_bin = bin_ranked(CH4, N_BINS))
 
 lagged_mut_infs <- map_dfr(unique(discrete_scales$grouped_scale), function(scale_name) {
   
   message("Processing scale: ", scale_name)
+  n <- which(levels(discrete_scales$grouped_scale) == scale_name)
+  mult <- n*6
   
-  lags <- 200 # TO DO make lags depend on scale
+  lags <- round(seq(-mult, mult, length.out = 9))
   
   # subset this scale only
   exp_data_scale <- discrete_scales_exp %>%
@@ -473,38 +643,15 @@ best_lagged_mut_infs <- lagged_mut_infs %>%
   filter(mut_inf == max(mut_inf, na.rm = TRUE)) %>%
   ungroup()
 
-
-
-
-#Plot
-for(site in unique(discrete_scales$MIU_VALVE)){
-  plot <- best_lagged_mut_infs %>%
-    filter(MIU_VALVE == site) %>%
-    ggplot(aes(x = mut_inf, y = exp_var, fill = lag)) +
-    geom_col() + 
-    geom_col(data = mut_infs %>% filter(MIU_VALVE == site), fill = "black")+
-    facet_grid(cols = vars(grouped_scale), rows = vars(grouped_scale_exp)) +
-    ylab("Explanatory variable") +
-    xlab("Relative mutual information") +
-    scale_fill_distiller(palette = "RdYlBu", direction = -1) +
-    ggtitle(site)
-  print(plot)
-}
-
-for(scale in unique(discrete_scales$grouped_scale)){
-  plot <- lagged_mut_infs %>%
-    filter(lag <= 0, lag >=-100) %>%
-    mutate(MIU_VALVE = factor(MIU_VALVE,
-                                    levels = chamber_levels2),
-         grouped_scale = paste0(grouped_scale, " (CH4)")) %>%
-    filter(grouped_scale_exp == scale) %>%
-    ggplot(aes(x = lag, y = mut_inf, color = MIU_VALVE))+
-    geom_line()+
-    scale_color_viridis_d()+
-    facet_grid(rows = vars(exp_var), cols = vars(grouped_scale))+
-    ggtitle(scale)
-  print(plot)
-}
+lagged_mut_infs %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+                            levels = 1:12,
+                            labels = chamber_levels2),
+         lag=as.numeric(lag)) %>%
+  ggplot(aes(x = lag, y = mut_inf, color = MIU_VALVE, group = MIU_VALVE))+
+  geom_line()+
+  ggh4x::facet_grid2(grouped_scale~exp_var, scales = "free", independent = "x")+
+  scale_color_manual(name = "Chamber", values = color.gradient)
 ```
 
 Ari:
