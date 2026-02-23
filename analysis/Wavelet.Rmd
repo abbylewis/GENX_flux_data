@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(data.table)
 library(waveslim)
+library(DescTools)
 source("../R/wavelet_functions.R")
 
 target <- read_csv("../processed_data/partitioned_co2.csv") %>%
@@ -33,9 +34,9 @@ df <- target %>%
   left_join(evi %>% rename(date_join = Date)) %>%
   filter(CH4 > -0.1,
          !is.na(TIMESTAMP)) %>%
-  mutate(CH4_raised = CH4-min(CH4, na.rm = T)+0.05,
+  mutate(#CH4_raised = CH4-min(CH4, na.rm = T)+0.05,
          #CH4 = log(CH4_raised),
-         CH4 = CH4_raised,
+         CH4 = ifelse(CH4 < 0, NA, CH4),
          GPP = ifelse(is_night, 0, GPP)
          )
 
@@ -43,19 +44,13 @@ df <- target %>%
 setDT(df)
 df[, TIMESTAMP := as.POSIXct(TIMESTAMP)]
 
-make_grid <- function(g) {
-  data.table(
-    TIMESTAMP = seq(min(g$TIMESTAMP), max(g$TIMESTAMP), by = "130 min"),
-    MIU_VALVE = g$MIU_VALVE[1]
-  )
-}
-
 grid <- df[, make_grid(.SD), by = MIU_VALVE]
 
 setkey(grid, MIU_VALVE, TIMESTAMP)
 setkey(df, MIU_VALVE, TIMESTAMP)
 
 ch4 <- df[grid, roll = 7200] # 7200 seconds
+ch4 <- df[grid, roll = "nearest"] # 7200 seconds
 
 # Plot specifications
 chamber_levels2 = c("Ch. 1 (+0 ºC)", "Ch. 2 (+0 ºC)", "Ch. 3 (+0.75 ºC)", 
@@ -70,6 +65,7 @@ color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
 ch4 %>%
   ggplot(aes(x = TIMESTAMP, y = CH4))+
   geom_point()+
+  geom_smooth()+
   facet_wrap(~MIU_VALVE, scales = "free")
 ```
 
@@ -116,15 +112,6 @@ grid <- ch4 %>%
                #NOTE: I've also tried EVI and PAR but they don't add much
                names_to = "var_name", values_to = "value")
 
-double_map <- function(treatment, ch4, var_name, timestep_s){
-  dfs <- map(unique(ch4$MIU_VALVE), 
-             analyze_wavelets, 
-             ch4 = ch4, 
-             var_name = var_name,
-             timestep_s = timestep_s) %>%
-    bind_rows()
-}
-
 dfs <- map(unique(grid$var_name), 
            double_map, 
            ch4 = ch4, 
@@ -168,9 +155,9 @@ pct_var
 
 dfs %>%
   group_by(var_name, MIU_VALVE) %>%
-  mutate(value = bin_ranked(value, 10)) %>%
-  filter(as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-04-01"), as.Date("2025-04-05"), by = "1 day"),
-         name == "8 hours", 
+  #mutate(value = bin(value, 10)) %>%
+  filter(as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-03-27"), as.Date("2025-04-06"), by = "1 day"),
+         name == "33 hours", 
          var_name %in% c("CH4", "Depth_cm", "GPP")) %>%
   ggplot(aes(x = TIMESTAMP, y = value, color = var_name))+
   geom_line()+
@@ -190,28 +177,25 @@ dfs %>%
 Mutual Information
 
 ```{r}
-library(DescTools)
-
 N_BINS = 10
 
 #Group wavelet scales into interpretable bins
 discrete_scales <- dfs %>%
-  #mutate(grouped_scale = ifelse(grepl("hour", name), 
-  #                              "Sub-daily",
-  #                              ifelse(as.numeric(sub(" days", "", name)) < 30,
-  #                                     "Multiday", "Seasonal"))) %>%
-  mutate(#name = as.character(name),
-         grouped_scale = name,
-         #grouped_scale = case_match(name,
-         #                           "2 hours"~"2 hours",
-         #                           "8 hours"~"8 hours",
-         #                           "3 days"~"3 days",
-         #                           "87 days"~"87 days")
-         ) %>%
-  filter(!is.na(grouped_scale)) %>%
+  #mutate(grouped_scale = name) %>%
+  mutate(
+    name = as.character(name),
+    num_value = as.numeric(gsub("[^0-9]", "", name)),
+    grouped_scale = case_when(
+      grepl("days", name) & num_value < 30 ~ "multiday",
+      grepl("hours", name) & num_value < 10 ~ "hourly",
+      grepl("hours", name) & num_value >= 10 ~ "daily",
+      TRUE ~ "seasonal"
+    )
+  ) %>%
+  select(-num_value) %>%
   group_by(grouped_scale, MIU_VALVE, TIMESTAMP, var_name) %>%
-  summarize(value = sum(value)) %>%
-  pivot_wider(names_from = var_name, values_from = value) 
+  summarize(value = sum(value), .groups = "drop") %>%
+  pivot_wider(names_from = var_name, values_from = value)
 
 #Separate explanatory variables
 discrete_scales_exp <- discrete_scales %>%
@@ -432,6 +416,54 @@ relative_corr %>%
                      name = "Explanatory variable") +
   egg::theme_article() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+to_plot <- discrete_scales %>%
+  ungroup() %>%
+  select(TIMESTAMP, grouped_scale, MIU_VALVE, CH4) %>%
+  mutate(TIMESTAMP = round_date(TIMESTAMP, "2 hours")) %>%
+  pivot_wider(names_from = MIU_VALVE, values_from = CH4) %>%
+  group_by(grouped_scale) %>%
+  summarise(
+    cor_matrix = list(
+      cor(across(where(is.numeric)),
+          use = "complete.obs",
+          method = "spearman")
+    )
+  ) %>%
+  mutate(cor_df = map(cor_matrix, ~ as.data.frame(as.table(.x)))) %>%
+  unnest(cor_df)
+
+dfs %>%
+  filter(name %in% c("174 days"),
+         var_name == "CH4") %>%
+  group_by(MIU_VALVE, TIMESTAMP) %>%
+  summarize(value = sum(value)) %>%
+  ggplot(aes(x = TIMESTAMP, y = value)) +
+  geom_line()+
+  facet_wrap(~MIU_VALVE)
+
+to_plot %>%
+  ggplot(aes(x = grouped_scale, y = Freq, color = Var2, group = Var2)) +
+  geom_line() +
+  facet_wrap(~Var1)+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_color_manual(name = "Chamber", 
+                     values = color.gradient) 
+
+discrete_scales %>%
+  pivot_longer(c(drivers, "CH4")) %>%
+  filter(!is.na(value)) %>%
+  group_by(name, grouped_scale, MIU_VALVE) %>%
+  #mutate(value = bin(value, 20)) %>%
+  filter(as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-03-27"), as.Date("2025-04-06"), by = "1 day"),
+         grouped_scale == "hourly",
+         name %in% c("CH4", "Depth_cm", "GPP")) %>%
+  ggplot(aes(x = TIMESTAMP, y = value, color = name))+
+  geom_line()+
+  facet_grid(name~MIU_VALVE, scales = "free")
 ```
 
 

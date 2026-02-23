@@ -278,7 +278,7 @@ comb <- patchwork::wrap_plots(
   ncol = 2, widths = c(2,1),
   guides = "collect"
 ) + 
-  patchwork::plot_layout(guides = "collect") &
+  patchwork::plot_layout(guides = "collect") +
   theme(legend.position = "bottom", legend.justification = "center", 
         legend.title.position = "top")
 
@@ -640,6 +640,19 @@ daily_summaries %>%
   theme(legend.position = "none",
         panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
         panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))
+
+daily_summaries %>%
+  mutate(month = month(date),
+         adj = as.numeric(sub(" ºC", "", str_extract(MIU_VALVE, "[0-9]+\\.*[0-9]* ºC"))),
+         AirT = AirT+adj) %>%
+  ggplot(aes(x = AirT, y = median, color = MIU_VALVE))+
+  geom_point(shape = 21)+
+  geom_smooth(method = "lm")+
+  egg::theme_article()+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme(panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25))+
+  facet_wrap(~month, scales = "free")
 ```
 
 Because of hot moments, manual sampling underestimates fluxes (Figure 4)

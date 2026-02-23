@@ -160,7 +160,7 @@ ggsave("../figures/quantiles_2021.jpg", width = 6, height = 3)
 ```
 
 ```{r}
-chambers <- c(2:4, 6:7,9:12)
+chambers <- c(1:4, 6:12)
 quants_rel <- comb %>%
   filter(!is.na(CH4_slope_ppm_per_day),
          MIU_VALVE %in% chambers) %>%
@@ -171,8 +171,8 @@ quants_rel <- comb %>%
          Temp_C = as.numeric(sub("mb", "0", Temp_C)),
          yday = yday(Date)) %>%
   group_by(yday)  %>%
-  filter(length(unique(MIU_VALVE[Year == 2025])) == 9 &
-           length(unique(MIU_VALVE[Year == 2021])) == 9) %>%
+  filter(length(unique(MIU_VALVE[Year == 2025])) == 11 &
+           length(unique(MIU_VALVE[Year == 2021])) == 11) %>%
   group_by(MIU_VALVE, Temp_C, Year) %>%
   summarize(q_50 = quantile(CH4_slope_ppm_per_day, .50),
             #q_5 = quantile(CH4, .05),

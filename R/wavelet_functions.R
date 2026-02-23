@@ -19,6 +19,22 @@ bin_ranked <- function(x, n_breaks) {
   return(bins)
 }
 
+make_grid <- function(g) {
+  data.table(
+    TIMESTAMP = seq(min(g$TIMESTAMP), max(g$TIMESTAMP), by = "130 min"),
+    MIU_VALVE = g$MIU_VALVE[1]
+  )
+}
+
+double_map <- function(treatment, ch4, var_name, timestep_s){
+  dfs <- map(unique(ch4$MIU_VALVE), 
+             analyze_wavelets, 
+             ch4 = ch4, 
+             var_name = var_name,
+             timestep_s = timestep_s) %>%
+    bind_rows()
+}
+
 analyze_wavelets <- function(ch4, treatment, var_name, timestep_s) {
   #Format data (dealing with irregularly spaced data)
   test_data <- ch4 %>%
