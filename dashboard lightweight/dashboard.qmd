@@ -312,7 +312,7 @@ output$plot_flux <- renderPlotly({
     geom_hline(yintercept = 0, color = "grey70") +
     geom_point(size = 0.5) +
     {if(input$smooth == "Smoothed") {
-      geom_smooth(se = FALSE) 
+      geom_smooth(se = FALSE, method = "gam") 
     } else{
       geom_line()
     }} +
@@ -368,7 +368,7 @@ output$plot_co2 <- renderPlotly({
     geom_hline(yintercept = 0, color = "grey70") +
     geom_point(size = 0.5) +
     {if(input$smooth == "Smoothed") {
-      geom_smooth(se = FALSE) 
+      geom_smooth(se = FALSE, method = "gam") 
     } else{
       geom_line()
     }} +
@@ -414,7 +414,7 @@ output$plot_wl <- renderPlotly({
     ggplot(aes(x = TIMESTAMP, y = value)) +
     geom_point(size = 0.5) +
     {if(input$smooth == "Smoothed") {
-      geom_smooth(se = FALSE) 
+      geom_smooth(se = FALSE, method = "gam") 
     } else{
       geom_line()
     }} +
@@ -536,7 +536,7 @@ output$flux_wl <- renderPlotly({
     ggplot(aes(x = DateTime, y = value, color = Chamber)) +
     geom_point(size = 0.5) +
     {if(input$smooth == "Smoothed") {
-      geom_smooth(se = FALSE) 
+      geom_smooth(se = FALSE, method = "gam") 
     } else{
       geom_line()
     }} +

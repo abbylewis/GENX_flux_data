@@ -1,0 +1,99 @@
+---
+title: "Biomass"
+author: "Abby Lewis"
+date: "2026-02-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+```
+
+```{r}
+files <- list.files("../Raw_data/biomass", full.names = T)
+agb <- files[grepl("aboveground", files)]
+df <- agb %>%
+  map(read_csv, show_col_types = F) %>%
+  bind_rows() %>%
+  mutate(chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
+         chamber_ref = factor(chamber_ref,
+                              levels = 1:12,
+                              labels = 1:12),
+         `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber"))
+
+df %>%
+  ggplot(aes(x = chamber_ref, y = Above.g.m2))+
+  geom_col(position = "dodge")+
+  facet_grid(`Measurement type`~Year)
+
+df %>%
+  ggplot(aes(x = chamber_ref, y = SCAM.g.m2))+
+  geom_col(position = "dodge")+
+  facet_grid(`Measurement type`~Year)
+
+df %>%
+  ggplot(aes(x = chamber_ref, y = DISP.g.m2))+
+  geom_col(position = "dodge")+
+  facet_grid(`Measurement type`~Year)
+
+df %>%
+  ggplot(aes(x = chamber_ref, y = SPPA.g.m2))+
+  geom_col(position = "dodge")+
+  facet_grid(`Measurement type`~Year)
+
+```
+
+```{r}
+stem_files <- files[grepl("1-", files)]
+stems <- stem_files %>%
+  map(read_excel, col_types = "text") %>%
+  bind_rows() %>%
+  mutate(chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
+         chamber_ref = factor(chamber_ref,
+                              levels = 1:12,
+                              labels = 1:12),
+         `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber"),
+         Total_Height = as.numeric(Total_Height),
+         Width = as.numeric(Width))
+
+stem_sum <- stems %>%
+  group_by(chamber_ref, `Measurement type`, Year) %>%
+  summarize(u_height = mean(Total_Height, na.rm = T),
+            med_height = median(Total_Height, na.rm = T),
+            sd_height = sd(Total_Height, na.rm = T),
+            u_width = mean(Width, na.rm = T),
+            med_width = median(Width, na.rm = T),
+            sd_width = sd(Width, na.rm = T))
+
+stems %>%
+  ggplot(aes(x = chamber_ref))+
+  geom_boxplot(aes(y = Total_Height))+
+  facet_grid(`Measurement type`~Year)
+
+stems %>%
+  ggplot(aes(x = chamber_ref))+
+  geom_boxplot(aes(y = Width))+
+  facet_grid(`Measurement type`~Year)
+```
+
+```{r}
+count_files <- files[grepl("2-", files)]
+counts <- count_files %>%
+  map(read_excel, col_types = "text") %>%
+  bind_rows() %>%
+  mutate(chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
+         chamber_ref = factor(chamber_ref,
+                              levels = 1:12,
+                              labels = 1:12),
+         `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber"),
+         Count = as.numeric(ifelse(is.na(Count), StemCount, Count))) %>%
+  select(-StemCount)
+
+counts %>%
+  ggplot(aes(x = chamber_ref, y = Count))+
+  geom_col(position = "dodge")+
+  facet_grid(`Measurement type`~Year)
+```
+

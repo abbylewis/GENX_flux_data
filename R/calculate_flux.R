@@ -297,3 +297,5 @@ calculate_flux <- function(start_date = NULL,
 #               start_date = as.Date("2025-03-01"),
 #               end_date = Sys.Date())
 #
+
+#calculate_flux(reprocess = F)
