@@ -16,57 +16,7 @@ library(waveslim)
 library(DescTools)
 source("../R/wavelet_functions.R")
 
-target <- read_csv("../processed_data/partitioned_co2.csv") %>%
-  rename(TIMESTAMP = DateTime)
-met <- read_csv("../processed_data/met_2025_dashboard.csv") %>%
-              mutate(Salinity = ifelse(year(TIMESTAMP) == 2025 & 
-                                         as.numeric(Salinity) < 6, 
-                                       NA, Salinity))
-wl <- read_csv("../processed_data/water_level_dashboard.csv")
-evi <- read_csv("../processed_data/evi.csv")
-
-# Combine
-df <- target %>%
-  mutate(time_join = round_date(TIMESTAMP, "15 minutes"),
-         date_join = date(TIMESTAMP)) %>%
-  left_join(met %>% rename(time_join = TIMESTAMP)) %>%
-  left_join(wl %>% rename(time_join = TIMESTAMP)) %>%
-  left_join(evi %>% rename(date_join = Date)) %>%
-  filter(CH4 > -0.1,
-         !is.na(TIMESTAMP)) %>%
-  mutate(#CH4_raised = CH4-min(CH4, na.rm = T)+0.05,
-         #CH4 = log(CH4_raised),
-         CH4 = ifelse(CH4 < 0, NA, CH4),
-         GPP = ifelse(is_night, 0, GPP)
-         )
-
-# Interpolate to consistent timestep
-setDT(df)
-df[, TIMESTAMP := as.POSIXct(TIMESTAMP)]
-
-grid <- df[, make_grid(.SD), by = MIU_VALVE]
-
-setkey(grid, MIU_VALVE, TIMESTAMP)
-setkey(df, MIU_VALVE, TIMESTAMP)
-
-ch4 <- df[grid, roll = 7200] # 7200 seconds
-ch4 <- df[grid, roll = "nearest"] # 7200 seconds
-
-# Plot specifications
-chamber_levels2 = c("Ch. 1 (+0 ºC)", "Ch. 2 (+0 ºC)", "Ch. 3 (+0.75 ºC)", 
-                    "Ch. 4 (+1.5 ºC)", "Ch. 5 (+2.25 ºC)", "Ch. 6 (+2.25 ºC)", 
-                    "Ch. 7 (+3.0 ºC)", "Ch. 8 (+3.75 ºC)", "Ch. 9 (+3.75 ºC)",
-                   "Ch. 10 (+4.5 ºC)", "Ch. 11 (+5.25 ºC)", "Ch. 12 (+6.0 ºC)")
-
-color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
-                 'mediumseagreen','limegreen','yellowgreen','yellow2',
-                 'darkgoldenrod2','darkorange2','orangered1','red2')
-
-ch4 %>%
-  ggplot(aes(x = TIMESTAMP, y = CH4))+
-  geom_point()+
-  geom_smooth()+
-  facet_wrap(~MIU_VALVE, scales = "free")
+ch4 <- read_csv(here::here("processed_data","L2- partitioned_and_gap_filled.csv"))
 ```
 
 Then, we used Mutual Information (I) to find the relative importance of each predictor variable and identify both synchronous and asynchronous interactions (Ruddell et al., 2013). Mutual Information (I) measures the amount of information shared by two variables, X and Y, or the reduction in uncertainty of one variable given the knowledge of the other variable (Fraser & Swinney, 1986). The degree of mutual information between X and Y is increased by adding a time lag (positive or negative) in series Y relative to X, thereby allowing the identification of both synchronous and asynchronous interactions. 
@@ -79,7 +29,7 @@ Wavelet
 drivers <- c(
   "AirTC_Avg",
   "Depth_cm",
-  "GPP",
+  "GPP_filled",
   "Salinity",
   "Barometric_Pressure_PB110B_Avg",
   "WS_ms_RM_Avg",
@@ -89,7 +39,7 @@ drivers <- c(
 driver_labels <- c(
   AirTC_Avg = "Air~temperature",
   Depth_cm = "Water~depth",
-  GPP = "GPP",
+  GPP_filled = "GPP_filled",
   Salinity = "Salinity",
   Barometric_Pressure_PB110B_Avg = "Barometric~pressure",
   WS_ms_RM_Avg = "Wind~speed",
@@ -99,7 +49,7 @@ driver_labels <- c(
 driver_colors <- c(
   AirTC_Avg = "#E76D66",
   Depth_cm = "#2176AB",
-  GPP = "#3BAA5D",
+  GPP_filled = "#3BAA5D",
   Salinity = "#6A4C93",
   Barometric_Pressure_PB110B_Avg = "#8C8C8C",
   WS_ms_RM_Avg = "#F4A261",
@@ -108,7 +58,7 @@ driver_colors <- c(
 
 #Apply across all treatments and sites
 grid <- ch4 %>%
-  pivot_longer(cols = c("CH4", drivers),
+  pivot_longer(cols = c("CH4_filled", drivers),
                #NOTE: I've also tried EVI and PAR but they don't add much
                names_to = "var_name", values_to = "value")
 
@@ -125,12 +75,12 @@ pct_var <- dfs %>%
   summarize(var = var(value)) %>%
   group_by(MIU_VALVE, var_name) %>%
   mutate(tot_var = sum(var),
-         MIU_VALVE = ifelse(var_name %in% c("CH4", "GPP", "Reco"), MIU_VALVE, NA),
+         MIU_VALVE = ifelse(var_name %in% c("CH4_filled", "GPP_filled", "Reco"), MIU_VALVE, NA),
          MIU_VALVE = factor(MIU_VALVE,
                             levels = 1:12,
                             labels = chamber_levels2),
          var_name = factor(var_name,
-                           levels = c(drivers, "CH4"),
+                           levels = c(drivers, "CH4_filled"),
                            labels = c(driver_labels[drivers], "CH[4]"))) %>%
   group_by(MIU_VALVE, name, var_name) %>%
   summarize(var = mean(var),
@@ -158,7 +108,7 @@ dfs %>%
   #mutate(value = bin(value, 10)) %>%
   filter(as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-03-27"), as.Date("2025-04-06"), by = "1 day"),
          name == "33 hours", 
-         var_name %in% c("CH4", "Depth_cm", "GPP")) %>%
+         var_name %in% c("CH4_filled", "Depth_cm", "GPP_filled")) %>%
   ggplot(aes(x = TIMESTAMP, y = value, color = var_name))+
   geom_line()+
   facet_grid(var_name~MIU_VALVE, scales = "free")
@@ -167,9 +117,9 @@ dfs %>%
   select(-data) %>%
   filter(as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-08-01"), as.Date("2025-10-04"), by = "1 day"),
          name == "4 hours", 
-         var_name %in% c("CH4", "Depth_cm")) %>%
+         var_name %in% c("CH4_filled", "Depth_cm")) %>%
   pivot_wider(names_from = var_name, values_from = value) %>%
-  ggplot(aes(x = CH4, y = Depth_cm))+
+  ggplot(aes(x = CH4_filled, y = Depth_cm))+
   geom_point()+
   facet_wrap(~MIU_VALVE, scales = "free")
 ```
@@ -178,6 +128,12 @@ Mutual Information
 
 ```{r}
 N_BINS = 10
+
+nas_to_add <- ch4 %>%
+  mutate(na_ch4 = ifelse(is.na(CH4), T, F),
+         na_gpp = ifelse(is.na(GPP), T, F)) %>%
+  select(TIMESTAMP, MIU_VALVE, na_ch4, na_gpp) %>%
+  distinct()
 
 #Group wavelet scales into interpretable bins
 discrete_scales <- dfs %>%
@@ -195,11 +151,16 @@ discrete_scales <- dfs %>%
   select(-num_value) %>%
   group_by(grouped_scale, MIU_VALVE, TIMESTAMP, var_name) %>%
   summarize(value = sum(value), .groups = "drop") %>%
-  pivot_wider(names_from = var_name, values_from = value)
+  pivot_wider(names_from = var_name, values_from = value) %>%
+  left_join(nas_to_add) %>%
+  mutate(CH4_filled = ifelse(na_ch4, NA, CH4_filled),
+         GPP_filled = ifelse(na_gpp, NA, GPP_filled)) %>%
+  select(-na_ch4, -na_gpp)
+
 
 #Separate explanatory variables
 discrete_scales_exp <- discrete_scales %>%
-  dplyr::select(-c(CH4)) %>%
+  dplyr::select(-c(CH4_filled)) %>%
   pivot_longer(cols = -c(grouped_scale, MIU_VALVE, TIMESTAMP), 
                names_to = "exp_var", values_to = "exp_var_value") %>%
   filter(!is.na(exp_var_value)) %>%
@@ -207,18 +168,20 @@ discrete_scales_exp <- discrete_scales %>%
 
 #Calculate mutual information
 mut_infs <- discrete_scales %>%
-  dplyr::select(c(grouped_scale, MIU_VALVE, TIMESTAMP, CH4)) %>%
+  dplyr::select(c(grouped_scale, MIU_VALVE, TIMESTAMP, CH4_filled)) %>%
   left_join(discrete_scales_exp, relationship =
               "many-to-many") %>%
   filter(!is.na(exp_var_value),
-         !is.na(CH4)) %>%
+         !is.na(CH4_filled)) %>%
   group_by(MIU_VALVE, grouped_scale, exp_var, grouped_scale_exp) %>%
-  summarize(entropy_y = entropy(bin_ranked(CH4, N_BINS)),
+  summarize(entropy_y = entropy(bin_ranked(CH4_filled, N_BINS)),
             mut_inf = MutInf(
               bin_ranked(exp_var_value, N_BINS), 
-              bin_ranked(CH4, N_BINS)
+              bin_ranked(CH4_filled, N_BINS)
               ) / 
-              entropy_y)
+              entropy_y) %>%
+  mutate(grouped_scale = factor(grouped_scale,
+                                levels = c("hourly", "daily", "multiday", "seasonal")))
 
 #Plot
 mut_infs %>%
@@ -288,18 +251,20 @@ ggsave(pct_var+
 ```{r}
 # Calculate Spearman correlation
 spearman_corrs <- discrete_scales %>%
-  dplyr::select(c(grouped_scale, MIU_VALVE, TIMESTAMP, CH4)) %>%
+  dplyr::select(c(grouped_scale, MIU_VALVE, TIMESTAMP, CH4_filled)) %>%
   left_join(discrete_scales_exp, relationship = "many-to-many") %>%
   filter(!is.na(exp_var_value),
-         !is.na(CH4)) %>%
+         !is.na(CH4_filled)) %>%
   group_by(MIU_VALVE, grouped_scale, exp_var, grouped_scale_exp) %>%
   summarize(
-    spearman_rho = cor(exp_var_value, CH4, 
+    spearman_rho = cor(exp_var_value, CH4_filled, 
                        method = "spearman", 
                        use = "complete.obs"),
     spearman_rho2 = spearman_rho^2,
     .groups = "drop"
-  )
+  ) %>%
+  mutate(grouped_scale = factor(grouped_scale,
+                                levels = c("hourly", "daily", "multiday", "seasonal")))
 
 spearman_corrs %>%
   filter(grouped_scale == grouped_scale_exp,
@@ -421,9 +386,9 @@ relative_corr %>%
 ```{r}
 to_plot <- discrete_scales %>%
   ungroup() %>%
-  select(TIMESTAMP, grouped_scale, MIU_VALVE, CH4) %>%
+  select(TIMESTAMP, grouped_scale, MIU_VALVE, CH4_filled) %>%
   mutate(TIMESTAMP = round_date(TIMESTAMP, "2 hours")) %>%
-  pivot_wider(names_from = MIU_VALVE, values_from = CH4) %>%
+  pivot_wider(names_from = MIU_VALVE, values_from = CH4_filled) %>%
   group_by(grouped_scale) %>%
   summarise(
     cor_matrix = list(
@@ -433,11 +398,13 @@ to_plot <- discrete_scales %>%
     )
   ) %>%
   mutate(cor_df = map(cor_matrix, ~ as.data.frame(as.table(.x)))) %>%
-  unnest(cor_df)
+  unnest(cor_df)%>%
+  mutate(grouped_scale = factor(grouped_scale,
+                                levels = c("hourly", "daily", "multiday", "seasonal")))
 
 dfs %>%
   filter(name %in% c("174 days"),
-         var_name == "CH4") %>%
+         var_name == "CH4_filled") %>%
   group_by(MIU_VALVE, TIMESTAMP) %>%
   summarize(value = sum(value)) %>%
   ggplot(aes(x = TIMESTAMP, y = value)) +
@@ -454,13 +421,13 @@ to_plot %>%
                      values = color.gradient) 
 
 discrete_scales %>%
-  pivot_longer(c(drivers, "CH4")) %>%
+  pivot_longer(c(drivers, "CH4_filled")) %>%
   filter(!is.na(value)) %>%
   group_by(name, grouped_scale, MIU_VALVE) %>%
   #mutate(value = bin(value, 20)) %>%
   filter(as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-03-27"), as.Date("2025-04-06"), by = "1 day"),
-         grouped_scale == "hourly",
-         name %in% c("CH4", "Depth_cm", "GPP")) %>%
+         grouped_scale == "daily",
+         name %in% c("CH4_filled", "Depth_cm", "GPP_filled")) %>%
   ggplot(aes(x = TIMESTAMP, y = value, color = name))+
   geom_line()+
   facet_grid(name~MIU_VALVE, scales = "free")
@@ -469,6 +436,8 @@ discrete_scales %>%
 
 Random forest
 - Benefit of this over MI is that MI requires binning the data, which loses information especially for chamber 12
+- Spearmans correlation is simpler
+- This takes a while to run
 
 ```{r}
 library(caret)
@@ -494,7 +463,7 @@ for (chamber in chambers) {
   
   df_valve <- discrete_scales %>%
     filter(MIU_VALVE == chamber) %>%
-    drop_na(CH4)
+    drop_na(CH4_filled)
   
   for (scale_name in scales) {
     
@@ -510,7 +479,7 @@ for (chamber in chambers) {
     # Train RF with caret
     rf_fit <- train(
       x = df_scale[, drivers],
-      y = df_scale$CH4,
+      y = df_scale$CH4_filled,
       method = "ranger",
       trControl = ctrl,
       importance = "permutation",
@@ -624,7 +593,7 @@ discrete_scales_exp <- discrete_scales_exp %>%
 
 discrete_scales_ch4 <- discrete_scales %>%
   group_by(grouped_scale, MIU_VALVE) %>%
-  mutate(ch4_bin = bin_ranked(CH4, N_BINS))
+  mutate(ch4_bin = bin_ranked(CH4_filled, N_BINS))
 
 lagged_mut_infs <- map_dfr(unique(discrete_scales$grouped_scale), function(scale_name) {
   
