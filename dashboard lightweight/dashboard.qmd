@@ -261,11 +261,8 @@ splitLayout(
 ################ FLUXES ####################
 #This file has BOTH fluxes and partitioned GPP/R
 partitioned <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/partitioned_co2.csv", show_col_types = F) %>%
-  mutate(GPP = ifelse(!is_day, 0, GPP),
-         N2O = ifelse(DateTime > as.Date("2025-05-30") & DateTime < as.Date("2025-08-25"),
-                      NA,
-                      N2O)) %>%
-  filter(is.na(CH4) | CH4 > -0.2)
+  mutate(GPP = ifelse(!is_day & !is.na(NEE), 0, GPP),
+         CH4 = ifelse(CH4 < -0.2, NA, CH4))
 
 updateDateInput(inputId = "today", 
                   max = as.Date(max(partitioned$DateTime)),

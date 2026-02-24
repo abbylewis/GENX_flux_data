@@ -51,7 +51,7 @@ merged[, is_night := PAR < par_night_thresh]
 # Model: log(Reco) = a + b*(Ta - Tref); where b = ln(Q10)/10. We'll use Tref = 10°C.
 
 # helper function to fit Q10 (log-linear)
-fit_q10_lm <- function(dt_night, Tref = 10, min_night = 10) {
+fit_q10_lm <- function(dt_night, Tref = 10, min_night = 40) {
   # dt_night: data.table with columns NEE, Ta; NEE must be > 0
   if (nrow(dt_night) < min_night) return(NULL)
   dt_night <- dt_night[NEE > 0 & is.finite(Ta)]
