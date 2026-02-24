@@ -26,15 +26,10 @@ df <- target %>%
   left_join(met %>% rename(time_join = TIMESTAMP)) %>%
   left_join(wl %>% rename(time_join = TIMESTAMP)) %>%
   left_join(evi %>% rename(date_join = Date)) %>%
-  filter(CH4 > -0.1,
-         !is.na(TIMESTAMP)) %>%
+  filter(!is.na(TIMESTAMP)) %>%
   mutate(#CH4_raised = CH4-min(CH4, na.rm = T)+0.05,
          #CH4 = log(CH4_raised),
-         CH4 = ifelse(CH4 < 0, NA, CH4),
-         GPP = ifelse(is_night, 0, GPP),
-         GPP = ifelse(is.na(NEE), NA, GPP),
-         Reco = ifelse(is.na(NEE), NA, Reco)
-         )
+         CH4 = ifelse(CH4 < 0, NA, CH4))
 
 # Interpolate to consistent timestep
 setDT(df)
@@ -70,7 +65,23 @@ ch4 %>%
   geom_point()+
   geom_smooth()+
   facet_wrap(~MIU_VALVE, scales = "free")
+
+ch4 %>%
+  filter(MIU_VALVE == 6) %>%
+  ggplot(aes(x = TIMESTAMP, y = Reco))+
+  geom_point()+
+  geom_smooth()+
+  facet_wrap(~MIU_VALVE, scales = "free")
 ```
+
+```{r}
+ch4 %>%
+  mutate(month = month(TIMESTAMP)) %>%
+  ggplot(aes(x = AirTC_Avg, y = Reco))+
+  geom_point()+
+  facet_grid(month~MIU_VALVE, scales = "free")
+```
+
 
 ```{r}
 sums <- ch4 %>%
@@ -89,10 +100,11 @@ sums %>%
   ggplot(aes(x = Reco, y = CH4, color = MIU_VALVE))+
   geom_point()
 
-sums %>%
+p <- sums %>%
   ggplot(aes(x = GPP, y = Reco, color = MIU_VALVE))+
   geom_point()+
   geom_abline()
+plotly::ggplotly(p)
 
 sums %>%
   ggplot(aes(x = MIU_VALVE, y = CH4))+

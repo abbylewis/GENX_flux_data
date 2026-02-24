@@ -51,7 +51,7 @@ merged[, is_night := PAR < par_night_thresh]
 # Model: log(Reco) = a + b*(Ta - Tref); where b = ln(Q10)/10. We'll use Tref = 10°C.
 
 # helper function to fit Q10 (log-linear)
-fit_q10_lm <- function(dt_night, Tref = 10, min_night = 5) {
+fit_q10_lm <- function(dt_night, Tref = 10, min_night = 10) {
   # dt_night: data.table with columns NEE, Ta; NEE must be > 0
   if (nrow(dt_night) < min_night) return(NULL)
   dt_night <- dt_night[NEE > 0 & is.finite(Ta)]
@@ -69,7 +69,7 @@ fit_q10_lm <- function(dt_night, Tref = 10, min_night = 5) {
 
 # Function: moving-window parameter estimation per chamber
 estimate_params_moving_window <- function(
-    dt_ch, window_days = 30, step_days = 7, 
+    dt_ch, window_days = 30, step_days = 1, 
     par_night_thresh = 5, Tref = 10) {
   # dt_ch: data.table for one chamber
   if (nrow(dt_ch) == 0) return(NULL)
@@ -155,6 +155,6 @@ merged[day_mask, GPP := Reco - NEE]
 # enforce non-negative GPP if desired
 merged[day_mask & GPP < 0, GPP := 0]
 merged[is.na(NEE), GPP := NA]
-merged[is.na(NEE), Reco := NA]
+#merged[is.na(NEE), Reco := NA]
 
 write_csv(merged, "processed_data/partitioned_co2.csv")
