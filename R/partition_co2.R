@@ -154,6 +154,7 @@ day_mask <- merged$is_day & is.finite(merged$Reco) & is.finite(merged$NEE)
 merged[day_mask, GPP := Reco - NEE]
 # enforce non-negative GPP if desired
 merged[day_mask & GPP < 0, GPP := 0]
+merged[is.na(NEE), GPP := NA]
+merged[is.na(NEE), Reco := NA]
 
 write_csv(merged, "processed_data/partitioned_co2.csv")
-

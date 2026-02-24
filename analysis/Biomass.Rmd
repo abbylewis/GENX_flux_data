@@ -43,6 +43,24 @@ df %>%
   geom_col(position = "dodge")+
   facet_grid(`Measurement type`~Year)
 
+df %>%
+  ggplot(aes(x = chamber_ref, y = SPPA.g.m2 + DISP.g.m2))+
+  geom_col(position = "dodge")+
+  facet_grid(`Measurement type`~Year)
+
+df %>%
+  pivot_longer(c(SPPA.g.m2, DISP.g.m2, SCAM.g.m2)) %>%
+  ggplot(aes(x = chamber_ref, y = value, fill = name))+
+  geom_col()+
+  facet_grid(`Measurement type`~Year)
+
+df %>%
+  pivot_longer(c(SPPA.g.m2, DISP.g.m2, SCAM.g.m2)) %>%
+  mutate(name = ifelse(name %in% c("SPPA.g.m2", "DISP.g.m2"),
+                       "grass", "sedge")) %>%
+  ggplot(aes(x = chamber_ref, y = value, fill = name))+
+  geom_col()+
+  facet_grid(`Measurement type`~Year)
 ```
 
 ```{r}

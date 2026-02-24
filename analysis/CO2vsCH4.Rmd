@@ -31,7 +31,9 @@ df <- target %>%
   mutate(#CH4_raised = CH4-min(CH4, na.rm = T)+0.05,
          #CH4 = log(CH4_raised),
          CH4 = ifelse(CH4 < 0, NA, CH4),
-         GPP = ifelse(is_night, 0, GPP)
+         GPP = ifelse(is_night, 0, GPP),
+         GPP = ifelse(is.na(NEE), NA, GPP),
+         Reco = ifelse(is.na(NEE), NA, Reco)
          )
 
 # Interpolate to consistent timestep
@@ -69,3 +71,35 @@ ch4 %>%
   geom_smooth()+
   facet_wrap(~MIU_VALVE, scales = "free")
 ```
+
+```{r}
+sums <- ch4 %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels)) %>%
+  group_by(MIU_VALVE) %>%
+  summarize(GPP = sum(GPP, na.rm = T),
+            CH4 = sum(CH4, na.rm = T),
+            Reco = sum(Reco, na.rm = T)) 
+
+sums %>%
+  ggplot(aes(x = GPP, y = CH4, color = MIU_VALVE))+
+  geom_point()
+
+sums %>%
+  ggplot(aes(x = Reco, y = CH4, color = MIU_VALVE))+
+  geom_point()
+
+sums %>%
+  ggplot(aes(x = GPP, y = Reco, color = MIU_VALVE))+
+  geom_point()+
+  geom_abline()
+
+sums %>%
+  ggplot(aes(x = MIU_VALVE, y = CH4))+
+  geom_point()
+
+sums %>%
+  ggplot(aes(x = MIU_VALVE, y = Reco/GPP))+
+  geom_point()
+```
+
