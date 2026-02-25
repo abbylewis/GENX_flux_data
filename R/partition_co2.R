@@ -5,8 +5,8 @@
 # Load packages
 library(tidyverse)
 library(data.table)
-source("R/download_gcrew_met.R")
-source("R/download_water_level.R")
+source(here::here("R","download_gcrew_met.R"))
+source(here::here("R","download_water_level.R"))
 
 # Load slopes
 df <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
@@ -16,7 +16,7 @@ download_gcrew_met()
 # Update water level (not used in this script, but part of daily update)
 download_water_level()
 # Load met
-met <- read_csv("processed_data/met_2025_dashboard.csv")
+met <- read_csv(here::here("processed_data","met_2025_dashboard.csv"))
 
 # Format
 df$DateTime <- as.POSIXct(df$TIMESTAMP, tz = "EST")
@@ -158,4 +158,5 @@ merged[day_mask & GPP < 0, GPP := 0]
 merged[is.na(NEE), GPP := NA]
 #merged[is.na(NEE), Reco := NA]
 
-write_csv(merged, "processed_data/partitioned_co2.csv")
+write_csv(merged, here::here("processed_data","partitioned_co2.csv"))
+

@@ -12,7 +12,14 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(ggridges)
 
-part <- read_csv(here::here("processed_data", "partitioned_co2.csv"))
+part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) %>%
+  rename(DateTime = TIMESTAMP) %>%
+  mutate(CH4 = CH4_filled * (60 * 60),
+         MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels2),
+         date = as.Date(DateTime)) %>%
+  filter(CH4_filled < 1) #Removing n = 1 flux from chamber 12. Probably good to add an si figure showing what happens if we don't do this
+
 chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
                    "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
                    "c_10_e4.5", "c_11_e5.25", "c_12_e6.0")
@@ -24,8 +31,6 @@ color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
 
 ```{r}
 part %>%
-  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
-                            labels = chamber_levels)) %>%
   ggplot(aes(x = CH4, y = MIU_VALVE, fill = MIU_VALVE))+
   geom_vline(xintercept = 0, color = "grey50")+
   stat_density_ridges(
@@ -43,12 +48,10 @@ part %>%
   theme(legend.position = "none",
         axis.title.y = element_blank())
 
-quants <- part %>%
+quants_monthly <- part %>%
   filter(!is.na(CH4)) %>%
-  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
-                            labels = chamber_levels),
-         Date = as.Date(DateTime),
-         Temp_C = sub("c_[0-9]+_[e|a]", "", MIU_VALVE),
+  mutate(Date = as.Date(DateTime),
+         Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
          Temp_C = as.numeric(sub("mb", "0", Temp_C))) %>%
   group_by(Date)  %>%
   filter(length(unique(MIU_VALVE)) == 12) %>%
@@ -76,16 +79,46 @@ quants <- part %>%
   egg::theme_article()+
   theme(panel.grid.major = element_line(color = "grey95"))
 
+quants_monthly
+
+quants <- part %>%
+  filter(!is.na(CH4)) %>%
+  mutate(Date = as.Date(DateTime),
+         Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
+         Temp_C = as.numeric(sub("mb", "0", Temp_C))) %>%
+  group_by(Date)  %>%
+  filter(length(unique(MIU_VALVE)) == 12) %>%
+  group_by(MIU_VALVE, Temp_C) %>%
+  summarize(q_50 = quantile(CH4, .50),
+            #q_5 = quantile(CH4, .05),
+            q_95 = quantile(CH4, .95),
+            q_99 = quantile(CH4, .99)) %>%
+  pivot_longer(q_50:q_99) %>%
+  group_by(name) %>%
+  mutate(ref = mean(value[Temp_C == 0]),
+         name = as.numeric(sub("q_", "", name)),
+         name_txt = paste0(name, "th quantile"),
+         name_txt = fct_reorder(name_txt, name)) %>%
+  ggplot(aes(x = Temp_C, y = value/ref * 100))+
+  geom_hline(yintercept = 100, color = "grey50")+
+  geom_smooth(color = "black", fill = "grey70")+
+  geom_point(aes(fill = MIU_VALVE), color = "black", 
+             shape = 21, size = 2, stroke = 0.5)+
+  scale_fill_manual(values = color.gradient, name = "Chamber")+
+  ylab(expression(atop(CH[4]~"flux quantile value", "(% of ambient; ppm"~m^-2~s^-1*")")))+
+  xlab("Temperature treatment (ºC above ambient)")+
+  facet_wrap(~name_txt)+
+  egg::theme_article()+
+  theme(panel.grid.major = element_line(color = "grey95"))
+
 quants
 
 ggsave("../figures/quantiles.jpg", width = 6, height = 3)
 
 part %>%
   filter(!is.na(CH4)) %>%
-  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
-                            labels = chamber_levels),
-         Date = as.Date(DateTime),
-         Temp_C = sub("c_[0-9]+_[e|a]", "", MIU_VALVE),
+  mutate(Date = as.Date(DateTime),
+         Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
          Temp_C = as.numeric(sub("mb", "0", Temp_C))) %>%
   group_by(Date)  %>%
   filter(length(unique(MIU_VALVE)) == 12) %>%
@@ -114,12 +147,9 @@ part %>%
   theme(panel.grid.major = element_line(color = "grey95"))
 
 p <- part %>%
-  filter(!is.na(CH4),
-         year(DateTime) == 2025) %>%
-  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
-                            labels = chamber_levels),
-         Date = as.Date(DateTime),
-         Temp_C = sub("c_[0-9]+_[e|a]", "", MIU_VALVE),
+  filter(!is.na(CH4)) %>%
+  mutate(Date = as.Date(DateTime),
+         Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
          Temp_C = as.numeric(sub("mb", "0", Temp_C))) %>%
   group_by(Date)  %>%
   filter(length(unique(MIU_VALVE)) == 12) %>%
@@ -149,7 +179,7 @@ plotly::ggplotly(p)
 ```
 
 ```{r}
-quants2 <- ch4 %>%
+quants2_data <- ch4 %>%
   filter(!is.na(CH4_filled)) %>%
   select(-CH4) %>%
   rename(DateTime = TIMESTAMP,
@@ -171,7 +201,9 @@ quants2 <- ch4 %>%
   mutate(ref = mean(value[Temp_C == 0]),
          name = as.numeric(sub("q_", "", name)),
          name_txt = paste0(name, "th quantile"),
-         name_txt = fct_reorder(name_txt, name)) %>%
+         name_txt = fct_reorder(name_txt, name)) 
+
+quants2 <- quants2_data %>%
   ggplot(aes(x = Temp_C, y = value - ref))+
   geom_hline(yintercept = 0, color = "grey50")+
   geom_smooth(color = "black", fill = "grey70", method = "lm")+
@@ -185,6 +217,31 @@ quants2 <- ch4 %>%
   theme(panel.grid.major = element_line(color = "grey95"))
 
 quants2
+
+quants2_data %>%
+  mutate(pct = value/ref*100,
+         dif = value-ref) %>%
+  ungroup() %>%
+  select(-value, -ref, -name) %>%
+  pivot_longer(c(pct, dif)) %>%
+  mutate(name = factor(name, 
+                       levels = c("dif", "pct"),
+                       labels = c("'Difference (ppm'~m^-2~s^-1*`)`", "Percent")),
+         name_txt = paste0("'", name_txt, "'")) %>%
+  ggplot(aes(x = Temp_C, y = value))+
+  geom_hline(yintercept = 0, color = "grey50")+
+  geom_smooth(color = "black", fill = "grey70", method = "lm")+
+  geom_point(aes(fill = MIU_VALVE), color = "black", 
+             shape = 21, size = 2, stroke = 0.5)+
+  scale_fill_manual(values = color.gradient, name = "Chamber")+
+  ylab(expression(CH[4]~"flux relative to ambient"))+
+  xlab("Temperature treatment (ºC above ambient)")+
+  facet_grid(name~name_txt, scales = "free", labeller = "label_parsed", 
+             switch = "y")+
+  egg::theme_article()+
+  theme(strip.placement = "outside")+
+  theme(panel.grid.major = element_line(color = "grey95"))
+
 ```
 
 

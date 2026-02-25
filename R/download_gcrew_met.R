@@ -1,7 +1,7 @@
 #Source
-source("./R/drop_dir.R")
-source("./R/get_dropbox_token.R")
-source("./R/load_file.R")
+source(here::here("R","drop_dir.R"))
+source(here::here("R","get_dropbox_token.R"))
+source(here::here("R","load_file.R"))
 library(tidyverse)
 
 download_gcrew_met <- function(gcrew_met_folder = here::here("Raw_data", "dropbox_met_gcrew")){

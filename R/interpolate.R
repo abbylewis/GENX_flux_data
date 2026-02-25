@@ -63,14 +63,18 @@ for_r2_mod <- for_r2_mod %>%
 x_cutoff <- quantile(for_r2_mod$x_resid, 0.995, na.rm = TRUE)
 
 for_r2_mod <- for_r2_mod %>%
-  mutate(keep = x_resid < x_cutoff)
+  mutate(keep = x_resid < x_cutoff,
+         keep = ifelse(CH4_R2 > 0.95, TRUE, keep))  # Keep all with R² > 0.95 regardless of residual
 
 # visualize
-ggplot(for_r2_mod, aes(x = abs_CH4, y = CH4_R2, color = keep)) +
+p <- ggplot(for_r2_mod, aes(x = CH4, y = CH4_R2, color = keep, label = TIMESTAMP)) +
   geom_point() +
-  labs(x = "log(|CH4 slope|)", y = "R²") +
+  labs(x = "CH4 slope", y = "R²") +
   scale_color_manual(values = c("red", "black")) +
-  theme_minimal()
+  theme_minimal()+
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+plotly::ggplotly(p)
 
 ggplot(for_r2_mod, aes(x = TIMESTAMP, y = CH4, color = keep)) +
   geom_point() +
@@ -241,47 +245,48 @@ ch4 %>%
 
 write_csv(ch4, here::here("processed_data","L2- partitioned_and_gap_filled.csv"))
 
-varImpPlot(rf_ch4_models[[9]])
-
-library(pdp)
-
-vars <- c("Salinity","PAR", "Ta", "evi_predicted", "Depth_cm")
-
-pdp_list <- list()
-
-for (ch in names(rf_ch4_models)) {
-  
-  rf_model <- rf_ch4_models[[ch]]
-  train_ch <- train[MIU_VALVE == ch]
-  
-  for (v in vars) {
-    
-    pdp_obj <- partial(
-      rf_model,
-      pred.var = v,
-      train = train_ch,
-      grid.resolution = 50
-    )
-    
-    pdp_df <- as.data.frame(pdp_obj)
-    
-    names(pdp_df)[1] <- "x"
-    
-    pdp_df$variable <- v
-    pdp_df$MIU_VALVE <- ch
-    
-    pdp_list[[paste(ch, v, sep = "_")]] <- pdp_df
-  }
-}
-
-pdp_all <- bind_rows(pdp_list)
-
-ggplot(pdp_all, aes(x = x, y = yhat)) +
-  geom_line(size = 1) +
-  facet_grid(MIU_VALVE ~ variable, scales = "free_x") +
-  theme_bw() +
-  labs(
-    x = "Predictor value",
-    y = "Partial Dependence (Predicted CH4)",
-    title = "Random Forest Partial Dependence by Chamber"
-  )
+#varImpPlot(rf_ch4_models[[9]])
+#
+#library(pdp)
+#
+#vars <- c("Salinity","PAR", "Ta", "evi_predicted", "Depth_cm")
+#
+#pdp_list <- list()
+#
+#for (ch in names(rf_ch4_models)) {
+#  
+#  rf_model <- rf_ch4_models[[ch]]
+#  train_ch <- train[MIU_VALVE == ch]
+#  
+#  for (v in vars) {
+#    
+#    pdp_obj <- partial(
+#      rf_model,
+#      pred.var = v,
+#      train = train_ch,
+#      grid.resolution = 50
+#    )
+#    
+#    pdp_df <- as.data.frame(pdp_obj)
+#    
+#    names(pdp_df)[1] <- "x"
+#    
+#    pdp_df$variable <- v
+#    pdp_df$MIU_VALVE <- ch
+#    
+#    pdp_list[[paste(ch, v, sep = "_")]] <- pdp_df
+#  }
+#}
+#
+#pdp_all <- bind_rows(pdp_list)
+#
+#ggplot(pdp_all, aes(x = x, y = yhat)) +
+#  geom_line(size = 1) +
+#  facet_grid(MIU_VALVE ~ variable, scales = "free_x") +
+#  theme_bw() +
+#  labs(
+#    x = "Predictor value",
+#    y = "Partial Dependence (Predicted CH4)",
+#    title = "Random Forest Partial Dependence by Chamber"
+#  )
+#

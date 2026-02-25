@@ -237,17 +237,26 @@ grouped_pct_var %>%
   geom_line()+
   scale_color_manual(values = color.gradient)
 
-grouped_pct_var %>%
+scales <- grouped_pct_var %>%
   mutate(MIU_VALVE = factor(MIU_VALVE, 
                             levels = 1:12,
-                            labels = chamber_levels2)) %>%
-  ggplot(aes(x = MIU_VALVE, y = var, group = grouped_scale)) +
+                            labels = chamber_levels2),
+         grouped_scale = factor(grouped_scale,
+                                levels = c("hourly", "daily", "multiday", "seasonal")),
+         Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
+         Temp_C = as.numeric(sub("mb", "0", Temp_C))) %>%
+  ggplot(aes(x = Temp_C, y = sqrt(var), group = grouped_scale)) +
   geom_smooth(method = "lm", color = "black")+
   geom_point(aes(fill = MIU_VALVE), size = 2, shape = 21)+
-  scale_fill_manual(values = color.gradient)+
+  scale_fill_manual(values = color.gradient,
+                    name = "Chamber")+
   facet_wrap(~grouped_scale, scales= "free")+
   egg::theme_article()+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  ylab(expression("Standard deviation (µmol"~m^2~s^-1*")"))+
+  xlab("Temperature treatment (ºC above ambient)")
+scales
+
+ggsave(scales, filename = "../figures/wavelet_variance_by_temp.png", width = 6, height = 4)
 
 grouped_pct_var %>%
   mutate(MIU_VALVE = factor(MIU_VALVE, 
