@@ -16,7 +16,17 @@ library(waveslim)
 library(DescTools)
 source("../R/wavelet_functions.R")
 
-ch4 <- read_csv(here::here("processed_data","L2- partitioned_and_gap_filled.csv"))
+ch4 <- read_csv(here::here("processed_data","L2- partitioned_and_gap_filled.csv")) %>%
+  filter(!TIMESTAMP == as_datetime("2025-08-20 18:10:40"))
+
+chamber_levels2 = c("Ch. 1 (+0 ºC)", "Ch. 2 (+0 ºC)", "Ch. 3 (+0.75 ºC)", 
+                    "Ch. 4 (+1.5 ºC)", "Ch. 5 (+2.25 ºC)", "Ch. 6 (+2.25 ºC)", 
+                    "Ch. 7 (+3.0 ºC)", "Ch. 8 (+3.75 ºC)", "Ch. 9 (+3.75 ºC)",
+                   "Ch. 10 (+4.5 ºC)", "Ch. 11 (+5.25 ºC)", "Ch. 12 (+6.0 ºC)")
+
+color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
+                 'mediumseagreen','limegreen','yellowgreen','yellow2',
+                 'darkgoldenrod2','darkorange2','orangered1','red2')
 ```
 
 Then, we used Mutual Information (I) to find the relative importance of each predictor variable and identify both synchronous and asynchronous interactions (Ruddell et al., 2013). Mutual Information (I) measures the amount of information shared by two variables, X and Y, or the reduction in uncertainty of one variable given the knowledge of the other variable (Fraser & Swinney, 1986). The degree of mutual information between X and Y is increased by adding a time lag (positive or negative) in series Y relative to X, thereby allowing the identification of both synchronous and asynchronous interactions. 
@@ -33,7 +43,8 @@ drivers <- c(
   "Salinity",
   "Barometric_Pressure_PB110B_Avg",
   "WS_ms_RM_Avg",
-  "Reco"
+  "Reco",
+  "Rref_t"
 )
 
 driver_labels <- c(
@@ -43,7 +54,8 @@ driver_labels <- c(
   Salinity = "Salinity",
   Barometric_Pressure_PB110B_Avg = "Barometric~pressure",
   WS_ms_RM_Avg = "Wind~speed",
-  Reco = "Reco"
+  Reco = "Reco",
+  Rref_t = "Rref_t"
 )
 
 driver_colors <- c(
@@ -53,7 +65,8 @@ driver_colors <- c(
   Salinity = "#6A4C93",
   Barometric_Pressure_PB110B_Avg = "#8C8C8C",
   WS_ms_RM_Avg = "#F4A261",
-  Reco = "#264653"
+  Reco = "#264653",
+  Rref_t = "brown"
 )
 
 #Apply across all treatments and sites
@@ -85,7 +98,9 @@ pct_var <- dfs %>%
   group_by(MIU_VALVE, name, var_name) %>%
   summarize(var = mean(var),
             tot_var = mean(tot_var)) %>%
-  ungroup() %>%
+  ungroup() 
+
+pct_var_plot <- pct_var %>%
   ggplot(aes(x = name, y = var/tot_var * 100, 
              color = MIU_VALVE, group = MIU_VALVE)) +
   geom_point() +
@@ -101,7 +116,7 @@ pct_var <- dfs %>%
         panel.grid.minor = element_line(color = "grey95", linewidth = 0.25),
         plot.background = element_rect(fill = "white"))+
   facet_wrap(~var_name, labeller = "label_parsed")
-pct_var
+pct_var_plot
 
 dfs %>%
   group_by(var_name, MIU_VALVE) %>%
@@ -122,12 +137,7 @@ dfs %>%
   ggplot(aes(x = CH4_filled, y = Depth_cm))+
   geom_point()+
   facet_wrap(~MIU_VALVE, scales = "free")
-```
 
-Mutual Information
-
-```{r}
-N_BINS = 10
 
 nas_to_add <- ch4 %>%
   mutate(na_ch4 = ifelse(is.na(CH4), T, F),
@@ -165,6 +175,97 @@ discrete_scales_exp <- discrete_scales %>%
                names_to = "exp_var", values_to = "exp_var_value") %>%
   filter(!is.na(exp_var_value)) %>%
   rename(grouped_scale_exp = grouped_scale)
+
+pct_var %>%
+  filter(var_name == "CH[4]") %>%
+  ggplot(aes(x = name, y = var/tot_var * 100, 
+             color = MIU_VALVE, group = MIU_VALVE)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Wavelet scale",
+       y = "Percentage of total variance") +
+  scale_color_manual(name = "Chamber", 
+                     values = color.gradient,
+                     na.value = "black") +
+  egg::theme_article()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25),
+        plot.background = element_rect(fill = "white"))+
+  facet_wrap(~var_name, labeller = "label_parsed")
+
+pct_var %>%
+  filter(var_name == "CH[4]") %>%
+  ggplot(aes(x = MIU_VALVE, y = var/tot_var * 100, 
+             fill = name)) +
+  geom_col()
+  
+grouped_pct_var <- dfs %>%
+  #mutate(grouped_scale = name) %>%
+  mutate(
+    name = as.character(name),
+    num_value = as.numeric(gsub("[^0-9]", "", name)),
+    grouped_scale = case_when(
+      grepl("days", name) & num_value < 30 ~ "multiday",
+      grepl("hours", name) & num_value < 10 ~ "hourly",
+      grepl("hours", name) & num_value >= 10 ~ "daily",
+      TRUE ~ "seasonal"
+    )
+  ) %>%
+  select(-num_value) %>%
+  group_by(grouped_scale, MIU_VALVE, TIMESTAMP, var_name) %>%
+  summarize(value = sum(value), .groups = "drop") %>%
+  filter(var_name == "CH4_filled") %>%
+  group_by(grouped_scale, MIU_VALVE, var_name) %>%
+  summarize(var = var(value, na.rm = T)) %>%
+  group_by(MIU_VALVE, var_name) %>%
+  mutate(tot_var = sum(var, na.rm = T)) %>%
+  ungroup() 
+
+grouped_pct_var %>%
+  ggplot(aes(x = MIU_VALVE, y = var/tot_var * 100, 
+             fill = grouped_scale)) +
+  geom_col()
+
+grouped_pct_var %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, 
+                            levels = 1:12,
+                            labels = chamber_levels2)) %>%
+  ggplot(aes(color = MIU_VALVE, y = var, 
+             x = grouped_scale, group = MIU_VALVE)) +
+  geom_point()+
+  geom_line()+
+  scale_color_manual(values = color.gradient)
+
+grouped_pct_var %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, 
+                            levels = 1:12,
+                            labels = chamber_levels2)) %>%
+  ggplot(aes(x = MIU_VALVE, y = var, group = grouped_scale)) +
+  geom_smooth(method = "lm", color = "black")+
+  geom_point(aes(fill = MIU_VALVE), size = 2, shape = 21)+
+  scale_fill_manual(values = color.gradient)+
+  facet_wrap(~grouped_scale, scales= "free")+
+  egg::theme_article()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+grouped_pct_var %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, 
+                            levels = 1:12,
+                            labels = chamber_levels2)) %>%
+  
+  ggplot(aes(x = MIU_VALVE, y = var, group = grouped_scale)) +
+  geom_point(aes(fill = MIU_VALVE), shape = 21)+
+  geom_smooth(color = "black", method = "gam")+
+  scale_fill_manual(values = color.gradient)+
+  facet_wrap(~grouped_scale)+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Mutual Information
+
+```{r}
+N_BINS = 10
 
 #Calculate mutual information
 mut_infs <- discrete_scales %>%
@@ -373,9 +474,29 @@ relative_corr %>%
              color = exp_var,
              group = exp_var)) +
   geom_line(alpha = 0.1, aes(group = paste0(MIU_VALVE, exp_var)))+
-  geom_smooth(se = F)+
+  geom_line(data = . %>% group_by(exp_var, grouped_scale) %>%
+              summarize(abs_rho = mean(abs_rho)),
+            linewidth = 1.5)+
   xlab("Wavelet scale of variation") +
   ylab("Relative correlation (proportional |ρ|)") +
+  scale_color_manual(values = driver_colors[drivers],
+                     labels = driver_labels[drivers],
+                     name = "Explanatory variable") +
+  egg::theme_article() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+relative_corr %>%
+  ggplot(aes(x = grouped_scale,
+             y = spearman_rho,
+             color = exp_var,
+             group = exp_var)) +
+  geom_hline(color = "grey50", yintercept = 0)+
+  geom_line(alpha = 0.1, aes(group = paste0(MIU_VALVE, exp_var)))+
+  geom_line(data = . %>% group_by(exp_var, grouped_scale) %>%
+              summarize(spearman_rho = mean(spearman_rho)),
+            linewidth = 1.5)+
+  xlab("Wavelet scale of variation") +
+  ylab("Spearman correlation (ρ)") +
   scale_color_manual(values = driver_colors[drivers],
                      labels = driver_labels[drivers],
                      name = "Explanatory variable") +
@@ -403,13 +524,16 @@ to_plot <- discrete_scales %>%
                                 levels = c("hourly", "daily", "multiday", "seasonal")))
 
 dfs %>%
-  filter(name %in% c("174 days"),
-         var_name == "CH4_filled") %>%
+  filter(name %in% c("16 hours"),
+         var_name == "CH4_filled",
+         month(TIMESTAMP) == 9) %>%
   group_by(MIU_VALVE, TIMESTAMP) %>%
   summarize(value = sum(value)) %>%
   ggplot(aes(x = TIMESTAMP, y = value)) +
   geom_line()+
   facet_wrap(~MIU_VALVE)
+
+unique(dfs$name)
 
 to_plot %>%
   ggplot(aes(x = grouped_scale, y = Freq, color = Var2, group = Var2)) +
@@ -420,17 +544,51 @@ to_plot %>%
   scale_color_manual(name = "Chamber", 
                      values = color.gradient) 
 
+to_plot %>%
+  filter(!Var1 == Var2) %>%
+  ggplot(aes(x = Var1, y = Freq, color = grouped_scale, group = grouped_scale)) +
+  geom_line() +
+  facet_wrap(~Var2)+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 discrete_scales %>%
   pivot_longer(c(drivers, "CH4_filled")) %>%
   filter(!is.na(value)) %>%
   group_by(name, grouped_scale, MIU_VALVE) %>%
-  #mutate(value = bin(value, 20)) %>%
-  filter(as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-03-27"), as.Date("2025-04-06"), by = "1 day"),
+  #mutate(value = bin_ranked(value, 10)) %>%
+  filter(as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-03-01"), as.Date("2025-04-06"), by = "1 day"),
+         grouped_scale == "multiday",
+         name %in% c("CH4_filled", "Depth_cm", "GPP_filled")) %>%
+  ggplot(aes(x = TIMESTAMP, y = value, color = name))+
+  geom_line()+
+  facet_grid(name~MIU_VALVE, scales = "free")
+
+discrete_scales %>%
+  pivot_longer(c(drivers, "CH4_filled")) %>%
+  filter(!is.na(value)) %>%
+  group_by(name, grouped_scale, MIU_VALVE) %>%
+  #mutate(value = bin_ranked(value, 10)) %>%
+  filter(as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-06-01"), as.Date("2025-07-01"), by = "1 day"),
          grouped_scale == "daily",
          name %in% c("CH4_filled", "Depth_cm", "GPP_filled")) %>%
   ggplot(aes(x = TIMESTAMP, y = value, color = name))+
   geom_line()+
   facet_grid(name~MIU_VALVE, scales = "free")
+
+discrete_scales %>%
+  pivot_longer(c(drivers, "CH4_filled")) %>%
+  filter(!is.na(value)) %>%
+  group_by(name, grouped_scale, MIU_VALVE) %>%
+  #mutate(value = bin_ranked(value, 10)) %>%
+  mutate(month = month(TIMESTAMP)) %>%
+  filter(#as.Date(TIMESTAMP) %in% seq.Date(as.Date("2025-03-01"), as.Date("2025-04-06"), by = "1 day"),
+         grouped_scale == "multiday",
+         name %in% c("CH4_filled", "Depth_cm")) %>%
+  pivot_wider(names_from = name, values_from = value) %>%
+  ggplot(aes(x = Depth_cm, y = CH4_filled))+
+  geom_point(shape = 21, alpha = 0.1)+
+  facet_grid(month~MIU_VALVE, scales = "free")
 ```
 
 
@@ -523,22 +681,13 @@ for (chamber in chambers) {
   
 } # end MIU_VALVE loop
 
-# Summarize R² and RMSE
-rf_results_summary <- rf_results %>%
-  group_by(MIU_VALVE, scale) %>%
-  summarize(mean_rsq = mean(rsq),
-            sd_rsq = sd(rsq),
-            mean_rmse = mean(rmse),
-            sd_rmse = sd(rmse),
-            .groups = "drop")
-
 # Plot R2 by scale for all chambers
 #Note I don't think this means anything
 rf_results %>%
   mutate(MIU_VALVE = factor(MIU_VALVE,
                             levels = 1:12,
                             labels = chamber_levels2)) %>%
-  ggplot(aes(x = scale, y = mean_rsq, color = MIU_VALVE)) +
+  ggplot(aes(x = MIU_VALVE, y = mean_rsq, color = MIU_VALVE)) +
   geom_point() +
   geom_line() +
   geom_errorbar(aes(ymin = mean_rsq - sd_rsq, ymax = mean_rsq + sd_rsq), width = 0.2) +
@@ -546,7 +695,8 @@ rf_results %>%
   ylab("Cross-validated R²") +
   xlab("Timescale") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
-  scale_color_manual(name = "Site", values = color.gradient)
+  scale_color_manual(name = "Site", values = color.gradient)+
+  facet_wrap(~scale, scales = "free")
 
 # Variable importance averaged over folds
 rf_importance_summary <- rf_importance %>%
@@ -558,7 +708,7 @@ rf_importance_summary %>%
                             levels = 1:12,
                             labels = chamber_levels2),
          scale = factor(scale,
-                        levels = levels(discrete_scales$grouped_scale))) %>%
+                        levels = unique(discrete_scales$grouped_scale))) %>%
   ggplot(aes(x = variable, y = median_importance, color = MIU_VALVE)) +
   geom_point()+
   facet_wrap(~scale) +

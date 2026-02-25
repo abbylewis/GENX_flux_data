@@ -10,6 +10,7 @@ source("R/download_water_level.R")
 
 # Load slopes
 df <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
+
 # Update met
 download_gcrew_met()
 # Update water level (not used in this script, but part of daily update)
@@ -40,7 +41,7 @@ merged <- met[df, roll = "nearest"] %>% # Rolling join: nearest met to each flux
          N2O = N2O_slope_ppm_per_day * #CONVERT TO umolN2O/m2/s
            265.8 / (0.08206*(Ta + 273.15)) / (60*60*24) / 0.196) %>% 
   ungroup() %>%
-  select(MIU_VALVE, DateTime, NEE, CH4, N2O, PAR, Ta)
+  select(MIU_VALVE, DateTime, NEE, CH4, N2O, PAR, Ta, CH4_R2)
 
 # Identify nighttime
 par_night_thresh <- 5  # µmol m-2 s-1 threshold to define night

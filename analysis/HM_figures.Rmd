@@ -148,6 +148,46 @@ p <- part %>%
 plotly::ggplotly(p)
 ```
 
+```{r}
+quants2 <- ch4 %>%
+  filter(!is.na(CH4_filled)) %>%
+  select(-CH4) %>%
+  rename(DateTime = TIMESTAMP,
+         CH4 = CH4_filled) %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels),
+         Date = as.Date(DateTime),
+         Temp_C = sub("c_[0-9]+_[e|a]", "", MIU_VALVE),
+         Temp_C = as.numeric(sub("mb", "0", Temp_C))) %>%
+  group_by(Date)  %>%
+  filter(length(unique(MIU_VALVE)) == 12) %>%
+  group_by(MIU_VALVE, Temp_C) %>%
+  summarize(q_50 = quantile(CH4, .50),
+            #q_5 = quantile(CH4, .05),
+            q_95 = quantile(CH4, .95),
+            q_99 = quantile(CH4, .99)) %>%
+  pivot_longer(q_50:q_99) %>%
+  group_by(name) %>%
+  mutate(ref = mean(value[Temp_C == 0]),
+         name = as.numeric(sub("q_", "", name)),
+         name_txt = paste0(name, "th quantile"),
+         name_txt = fct_reorder(name_txt, name)) %>%
+  ggplot(aes(x = Temp_C, y = value - ref))+
+  geom_hline(yintercept = 0, color = "grey50")+
+  geom_smooth(color = "black", fill = "grey70", method = "lm")+
+  geom_point(aes(fill = MIU_VALVE), color = "black", 
+             shape = 21, size = 2, stroke = 0.5)+
+  scale_fill_manual(values = color.gradient, name = "Chamber")+
+  ylab(expression(atop(CH[4]~"flux quantile value - ambient","(ppm"~m^-2~s^-1*")")))+
+  xlab("Temperature treatment (ºC above ambient)")+
+  facet_wrap(~name_txt)+
+  egg::theme_article()+
+  theme(panel.grid.major = element_line(color = "grey95"))
+
+quants2
+```
+
+
 Repeating with 2021
 
 ```{r}

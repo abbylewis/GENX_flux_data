@@ -29,14 +29,78 @@ color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
 
 
 # QAQC
+for_r2_mod <- target %>%
+  mutate(
+    abs_CH4 = abs(CH4)
+  ) %>%
+  filter(
+    !is.na(CH4_R2),
+    abs_CH4 > 0,
+    CH4_R2 > 0,
+    CH4_R2 < 1     # avoid log(0) and Inf
+  )
 
+start_k <- 1 / mean(for_r2_mod$abs_CH4)
+
+model <- nls(
+  CH4_R2 ~ 1 - exp(-k * abs_CH4),
+  data = for_r2_mod,
+  start = list(k = start_k),
+  control = nls.control(maxiter = 200)
+)
+
+k_est <- coef(model)[["k"]]
+
+for_r2_mod <- for_r2_mod %>%
+  mutate(
+    pred_R2 = predict(model),
+    resid = CH4_R2 - pred_R2,
+    log_abs_CH4 = log(abs_CH4),
+    expected_log_CH4 = log(-log(1 - CH4_R2) / k_est),
+    x_resid = log_abs_CH4 - expected_log_CH4
+  )
+
+x_cutoff <- quantile(for_r2_mod$x_resid, 0.995, na.rm = TRUE)
+
+for_r2_mod <- for_r2_mod %>%
+  mutate(keep = x_resid < x_cutoff)
+
+# visualize
+ggplot(for_r2_mod, aes(x = abs_CH4, y = CH4_R2, color = keep)) +
+  geom_point() +
+  labs(x = "log(|CH4 slope|)", y = "R²") +
+  scale_color_manual(values = c("red", "black")) +
+  theme_minimal()
+
+ggplot(for_r2_mod, aes(x = TIMESTAMP, y = CH4, color = keep)) +
+  geom_point() +
+  labs(x = "log(|CH4 slope|)", y = "R²") +
+  scale_color_manual(values = c("red", "black")) +
+  theme_minimal()+
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+ggplot(for_r2_mod, aes(x = TIMESTAMP, y = CH4, color = keep)) +
+  geom_point() +
+  scale_color_manual(values = c("red", "black")) +
+  theme_minimal()+
+  ylim(0,0.04)+
+  facet_wrap(~MIU_VALVE)
+
+removal <- for_r2_mod %>%
+  select(MIU_VALVE, TIMESTAMP, keep) %>%
+  distinct()
 
 df <- target %>%
   mutate(
     TIMESTAMP = as.POSIXct(TIMESTAMP),
     CH4 = ifelse(CH4 < 0, NA, CH4)
   ) %>%
-  filter(!is.na(TIMESTAMP))
+  filter(!is.na(TIMESTAMP)) %>%
+  left_join(removal) %>%
+  mutate(CH4 = ifelse(!keep,
+                      NA,
+                      CH4)) %>%
+  select(-keep)
 
 # Consistent timestamp
 
@@ -74,7 +138,7 @@ ch4 %>%
   ggplot(aes(x = TIMESTAMP, y = CH4))+
   geom_point()+
   geom_smooth()+
-  facet_wrap(~MIU_VALVE, scales = "free")
+  facet_wrap(~MIU_VALVE)
 
 #Check GPP params
 ch4 %>%
@@ -169,7 +233,7 @@ ch4 %>%
   summarize(nas = sum(is.na(CH4_filled)))
 
 ch4 %>%
-  filter(MIU_VALVE == 4) %>%
+  filter(MIU_VALVE == 12) %>%
   ggplot(aes(x = TIMESTAMP, y = CH4_filled))+
   geom_point()+
   geom_smooth()+
@@ -177,11 +241,11 @@ ch4 %>%
 
 write_csv(ch4, here::here("processed_data","L2- partitioned_and_gap_filled.csv"))
 
-varImpPlot(rf_ch4_models[[10]])
+varImpPlot(rf_ch4_models[[9]])
 
 library(pdp)
 
-vars <- c("PAR", "Ta", "evi_predicted", "Depth_cm")
+vars <- c("Salinity","PAR", "Ta", "evi_predicted", "Depth_cm")
 
 pdp_list <- list()
 
@@ -210,7 +274,7 @@ for (ch in names(rf_ch4_models)) {
   }
 }
 
-pdp_all <- bind_rows(pdp_list[2:6])
+pdp_all <- bind_rows(pdp_list)
 
 ggplot(pdp_all, aes(x = x, y = yhat)) +
   geom_line(size = 1) +
