@@ -219,14 +219,14 @@ ul.task-list li input[type="checkbox"] {
 <div class="form-group shiny-input-container">
 <label class="control-label" id="raw_date-label" for="raw_date">Date</label>
 <div>
-<select id="raw_date" class="shiny-input-select"><option value="2026-02-17">2026-02-17</option>
-<option value="2026-02-18">2026-02-18</option>
+<select id="raw_date" class="shiny-input-select"><option value="2026-02-18">2026-02-18</option>
 <option value="2026-02-19">2026-02-19</option>
 <option value="2026-02-20">2026-02-20</option>
 <option value="2026-02-21">2026-02-21</option>
 <option value="2026-02-22">2026-02-22</option>
 <option value="2026-02-23">2026-02-23</option>
-<option value="2026-02-24" selected="">2026-02-24</option></select>
+<option value="2026-02-24">2026-02-24</option>
+<option value="2026-02-25" selected="">2026-02-25</option></select>
 <script type="application/json" data-for="raw_date" data-nonempty="">{"plugins":["selectize-plugin-a11y"]}</script>
 </div>
 </div>
@@ -290,7 +290,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-02-24" data-initial-date="2026-02-24" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-02-25" data-initial-date="2026-02-25" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div class="cell-output-display">
@@ -407,6 +407,16 @@ ul.task-list li input[type="checkbox"] {
 </div>
 </div>
 </div>
+<footer style="
+  background-color: #f2f2f2;
+  padding: 1.2em 0;
+  margin-top: 2em;
+  text-align: center;
+  color: #444;
+  font-size: 0.9rem;
+">
+Funding for this project was provided by the US Department of Energy, Office of Science, Office of Biological and Environmental Research Program under Awards DE-SC0021131 and DE-SC0024327 and the Smithsonian Institution.
+</footer>
 <p>
 <script type="application/shiny-prerendered" data-context="server-start">
 library(tidyverse)
