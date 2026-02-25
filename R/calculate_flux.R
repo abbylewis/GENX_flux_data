@@ -142,8 +142,8 @@ calculate_flux <- function(start_date = NULL,
   #Set aside data after the system switched to process differently
   time_split <- split(grouped_data, grouped_data$Format)
   #Process new format
-  start_cutoff <- 200 #Buffer of time after flux window
-  end_cutoff <- 540
+  start_cutoff <- 230 #Buffer of time after flux window
+  end_cutoff <- 520
   filtered_data_new <- time_split$NEW %>%
     group_by(group, MIU_VALVE)  %>%
     mutate(n = sum(Manifold_Timer >= start_cutoff &
@@ -296,6 +296,6 @@ calculate_flux <- function(start_date = NULL,
 #calculate_flux(reprocess = T,
 #               start_date = as.Date("2025-03-01"),
 #               end_date = Sys.Date())
-#
+
 
 #calculate_flux(reprocess = F)
