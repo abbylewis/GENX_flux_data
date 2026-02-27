@@ -21,7 +21,7 @@ Load data and packages
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(ggridges)
-source("../analysis/hm_style.R")
+source("../../analysis/hm_style.R")
 
 part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) %>%
   rename(DateTime = TIMESTAMP) %>%
@@ -31,15 +31,15 @@ part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.cs
          date = as.Date(DateTime)) %>%
   filter(CH4_filled < 1) #Removing n = 1 flux from chamber 12. Probably good to add an si figure showing what happens if we don't do this
 
-all <- read_csv("../processed_data/L0_for_dashboard.csv")
-met <- read_csv("../processed_data/met_2025_dashboard.csv") %>%
+all <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
+met <- read_csv(here::here("processed_data", "met_2025_dashboard.csv")) %>%
   mutate(Salinity = ifelse(TIMESTAMP > as_datetime("2025-07-22 12:00:00") &
                              TIMESTAMP < as_datetime("2025-07-24 12:00:00") , 
                            NA, Salinity),
          Salinity = ifelse(Salinity < 1 , 
                            NA, Salinity))
-wl <- read_csv("../processed_data/water_level_dashboard.csv")
-evi <- read_csv("../processed_data/evi.csv")
+wl <- read_csv(here::here("processed_data", "water_level_dashboard.csv"))
+evi <- read_csv(here::here("processed_data", "evi.csv"))
 
 ```
 

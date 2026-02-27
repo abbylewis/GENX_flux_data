@@ -5,13 +5,16 @@ date: "2026-02-23"
 output: html_document
 ---
 
+Load packages and data
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+#Packages
 library(tidyverse)
 library(readxl)
-```
 
-```{r}
+#Biomass
 files <- list.files("../Raw_data/biomass", full.names = T)
 agb <- files[grepl("aboveground", files)]
 df <- agb %>%
@@ -23,6 +26,36 @@ df <- agb %>%
                               labels = 1:12),
          `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber"))
 
+#Stem width/height
+stem_files <- files[grepl("1-", files)]
+stems <- stem_files %>%
+  map(read_excel, col_types = "text") %>%
+  bind_rows() %>%
+  mutate(chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
+         chamber_ref = factor(chamber_ref,
+                              levels = 1:12,
+                              labels = 1:12),
+         `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber"),
+         Total_Height = as.numeric(Total_Height),
+         Width = as.numeric(Width))
+
+#Stem count
+count_files <- files[grepl("2-", files)]
+counts <- count_files %>%
+  map(read_excel, col_types = "text") %>%
+  bind_rows() %>%
+  mutate(chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
+         chamber_ref = factor(chamber_ref,
+                              levels = 1:12,
+                              labels = 1:12),
+         `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber"),
+         Count = as.numeric(ifelse(is.na(Count), StemCount, Count))) %>%
+  select(-StemCount)
+```
+
+Plot biomass
+
+```{r}
 df %>%
   ggplot(aes(x = chamber_ref, y = Above.g.m2))+
   geom_col(position = "dodge")+
@@ -63,19 +96,9 @@ df %>%
   facet_grid(`Measurement type`~Year)
 ```
 
-```{r}
-stem_files <- files[grepl("1-", files)]
-stems <- stem_files %>%
-  map(read_excel, col_types = "text") %>%
-  bind_rows() %>%
-  mutate(chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
-         chamber_ref = factor(chamber_ref,
-                              levels = 1:12,
-                              labels = 1:12),
-         `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber"),
-         Total_Height = as.numeric(Total_Height),
-         Width = as.numeric(Width))
+Plot stem characteristics
 
+```{r}
 stem_sum <- stems %>%
   group_by(chamber_ref, `Measurement type`, Year) %>%
   summarize(u_height = mean(Total_Height, na.rm = T),
@@ -96,19 +119,9 @@ stems %>%
   facet_grid(`Measurement type`~Year)
 ```
 
-```{r}
-count_files <- files[grepl("2-", files)]
-counts <- count_files %>%
-  map(read_excel, col_types = "text") %>%
-  bind_rows() %>%
-  mutate(chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
-         chamber_ref = factor(chamber_ref,
-                              levels = 1:12,
-                              labels = 1:12),
-         `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber"),
-         Count = as.numeric(ifelse(is.na(Count), StemCount, Count))) %>%
-  select(-StemCount)
+Plot stem counts
 
+```{r}
 counts %>%
   ggplot(aes(x = chamber_ref, y = Count))+
   geom_col(position = "dodge")+

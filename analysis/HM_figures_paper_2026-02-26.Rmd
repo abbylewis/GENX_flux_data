@@ -233,7 +233,7 @@ annual_df <- hot_moments %>%
     Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
     Temp_C = as.numeric(sub("mb", "0", Temp_C)),
     dif = as.numeric(difftime(max, min, "hours")),
-    annual_flux = sum*130/60/1000/1000/dif*365
+    annual_flux = sum*130/60/1000/1000/dif*365 #Convert hourly fluxes to annual
   )
 
 annual_label <- make_lm_label(
@@ -337,3 +337,180 @@ ggpubr::ggarrange(annual + theme(legend.position = "right"),
 ggsave(filename = "../figures/top_pct_comb_annual.jpg", 
        dpi = 300, width = 6, height = 5)
 ```
+
+
+
+
+Variability increases with median (Figure 3- option 3)
+
+```{r}
+hm_df <- part
+
+daily_summaries <- hm_df %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  left_join(met, 
+            by = c("time_join" = "TIMESTAMP")) %>%
+  mutate(CH4_umol_m2_h = ifelse(CH4_umol_m2_h < 0, 0, CH4_umol_m2_h)) %>%
+  group_by(MIU_VALVE, date) %>%
+  summarize(IQR = IQR(CH4_umol_m2_h, na.rm = T),
+            median = median(CH4_umol_m2_h, na.rm = T),
+            max = max(CH4_umol_m2_h, na.rm = T),
+            min = min(CH4_umol_m2_h, na.rm = T),
+            tot = sum(CH4_umol_m2_h, na.rm = T),
+            top = max(CH4_umol_m2_h, na.rm = T),
+            prop = max/tot,
+            q_25 = quantile(CH4_umol_m2_h, probs = 0.25, na.rm = T),
+            q_95 = quantile(CH4_umol_m2_h, probs = 0.95, na.rm = T),
+            GPP = median(GPP_filled, na.rm = T),
+            AirT = median(Ta, na.rm = T))
+
+daily_summaries %>%
+  ggplot(aes(x = median, y = IQR, color = AirT))+
+  geom_point()+
+  facet_wrap(~MIU_VALVE)+
+  theme_hm +
+  scale_color_viridis_c()
+
+daily_summaries %>%
+  ggplot(aes(x = median, y = IQR, color = AirT))+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  theme_hm +
+  scale_color_manual(values = color.gradient, name = "Chamber")
+
+daily_summaries %>%
+  ggplot(aes(x = median, y = IQR))+
+  geom_point()+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  facet_wrap(~MIU_VALVE)+
+  theme_hm +
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme(legend.position = "none")
+
+
+daily_summaries %>%
+  ggplot(aes(x = median, y = IQR))+
+  geom_point(aes(color = MIU_VALVE), shape = 21)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm 
+
+daily_summaries %>%
+  #filter(median > 10) %>%
+  ggplot(aes(x = median, y = prop))+
+  geom_point()+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  facet_wrap(~MIU_VALVE)+
+  theme_hm +
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme(legend.position = "none")
+
+daily_summaries %>%
+  ggplot(aes(x = q_25, y = q_95))+
+  geom_point()+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  facet_wrap(~MIU_VALVE)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(legend.position = "none")
+
+daily_summaries %>%
+  mutate(month = month(date),
+         adj = as.numeric(sub(" ºC", "", str_extract(MIU_VALVE, "[0-9]+\\.*[0-9]* ºC"))),
+         AirT = AirT+adj) %>%
+  ggplot(aes(x = AirT, y = median, color = MIU_VALVE))+
+  geom_point(shape = 21)+
+  geom_smooth(method = "lm")+
+  theme_hm +
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  facet_wrap(~month, scales = "free")
+```
+
+Because of hot moments, manual sampling underestimates fluxes
+
+```{r}
+reps <-  100
+samples_per_week <- 1
+
+df <- hm_df %>%
+  mutate(week = week(date)) 
+
+calc_mean_flux <- function(ch4_vals, n){
+  vals <- sample(ch4_vals, n)
+  return(mean(vals))
+}
+
+df_out_fullday <- df %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>% 
+  mutate(time = "full day")
+
+df_out_rain <- df %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  left_join(met %>%
+              arrange(TIMESTAMP) %>%
+              mutate(
+                Rain_cm_roll =
+                  slider::slide_dbl(Rain_cm_Tot,
+                            sum,
+                            .before = 3,
+                            .complete = TRUE)
+              ), 
+            by = c("time_join" = "TIMESTAMP")) %>%
+  filter(Rain_cm_roll == 0) %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>% 
+  mutate(time = "rain")
+
+df_out_growth <- df %>%
+  filter(month(DateTime) %in% 5:9) %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>%
+  mutate(time = "growth")
+
+df_out_wl <- df %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  filter(Depth_cm < 0) %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>%
+  mutate(time = "wl")
+
+df_out <- df_out_daytime  %>%
+  bind_rows(df_out_fullday) %>%
+  #bind_rows(df_out_rain) %>%
+  bind_rows(df_out_growth) %>%
+  bind_rows(df_out_wl)
+
+to_plot <- df_out %>%
+  group_by(MIU_VALVE, rep, time) %>%
+  summarize(mean = mean(flux, na.rm = T)) %>%
+  left_join(hot_moments %>% 
+              rename(tot_real = sum,
+                     mean_real = mean)) %>%
+  group_by(MIU_VALVE, time) %>%
+  summarize(median = median(mean/mean_real * 100 - 100))
+
+sims <- to_plot %>%
+  mutate(time = factor(time, 
+                       levels = c("full day", "wl", "daytime", "growth"),
+                       labels = c("Weekly (all)", "No standing\nwater",
+                                  "Daytime", "Growing\nseason"))) %>%
+  ggplot(aes(x = time, y = median))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(fill = MIU_VALVE),
+              width = 0.2, shape = 21, color = "black")+
+  scale_fill_manual(values = color.gradient,
+                    name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank(),
+        legend.title.position = "top")+
+  ylab("Percent difference in mean flux\nbetween manual and high-frequency\nsampling (median of 100 simulations)")
+sims
+ggsave("../figures/Figure 4 - Simulations.jpg", dpi = 300, width = 6, height = 3)
