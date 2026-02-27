@@ -1,0 +1,407 @@
+---
+title: "Drivers and CH4"
+author: "Abby Lewis"
+date: "2024-08-22"
+output: html_document
+---
+
+Methods from Ari's paper and this one https://agupubs.onlinelibrary.wiley.com/doi/full/10.1002/2015JG003054
+
+Load data and packages
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(data.table)
+library(waveslim)
+library(DescTools)
+source("../R/wavelet_functions.R")
+source("../R/make_lm_label.R")
+source("../analysis/hm_style.R")
+
+ch4 <- read_csv(here::here("processed_data","L2- partitioned_and_gap_filled.csv")) %>%
+  filter(CH4_filled < 1) %>% #Removing n = 1 flux from chamber 12. Probably good to add an si figure showing what happens if we don't do this
+  mutate(CH4_filled = CH4_filled * (60 * 60)) # h instead of s
+```
+
+Run wavelet
+
+```{r}
+drivers <- c(
+  "AirTC_Avg",
+  "Depth_cm",
+  "GPP_filled",
+  "Salinity",
+  "Reco"
+)
+
+driver_labels <- c(
+  AirTC_Avg = "Air temperature",
+  Depth_cm = "Water depth",
+  GPP_filled = "GPP",
+  GPP_unfilled = "GPP",
+  Salinity = "Salinity",
+  Reco = "Reco"
+)
+
+driver_colors <- c(
+  AirTC_Avg = "#E76D66",
+  Depth_cm = "#2176AB",
+  GPP_filled = "#3BAA5D",
+  GPP_unfilled = "#3BAA5D",
+  Salinity = "#6A4C93",
+  Reco = "#264653"
+)
+
+#Apply across all treatments and sites
+grid <- ch4 %>%
+  pivot_longer(cols = c("CH4_filled", drivers),
+               #NOTE: I've also tried EVI and PAR but they don't add much
+               names_to = "var_name", values_to = "value")
+
+dfs <- map(unique(grid$var_name), 
+           double_map, 
+           ch4 = ch4, 
+           treatment = unique(ch4$MIU_VALVE),
+           timestep_s = 610*12) %>%
+  bind_rows()
+
+#Re-introduce NAs
+nas_to_add <- ch4 %>%
+  mutate(na_ch4 = ifelse(is.na(CH4), T, F),
+         na_gpp = ifelse(is.na(GPP), T, F)) %>%
+  select(TIMESTAMP, MIU_VALVE, na_ch4, na_gpp) %>%
+  distinct()
+
+#Group wavelet scales into interpretable bins
+discrete_scales <- dfs %>%
+  mutate(
+    name = as.character(name),
+    num_value = as.numeric(gsub("[^0-9]", "", name)),
+    grouped_scale = case_when(
+      grepl("days", name) & num_value < 30 ~ "multiday",
+      grepl("hours", name) & num_value < 10 ~ "hourly",
+      grepl("hours", name) & num_value >= 10 ~ "daily",
+      TRUE ~ "seasonal"
+    )
+  ) %>%
+  select(-num_value) %>%
+  group_by(grouped_scale, MIU_VALVE, TIMESTAMP, var_name) %>%
+  summarize(value = sum(value), .groups = "drop") %>%
+  pivot_wider(names_from = var_name, values_from = value) %>%
+  left_join(nas_to_add) %>%
+  mutate(CH4_unfilled = ifelse(na_ch4, NA, CH4_filled),
+         GPP_unfilled = ifelse(na_gpp, NA, GPP_filled)) %>%
+  select(-na_ch4, -na_gpp)
+
+#Separate explanatory variables
+discrete_scales_exp <- discrete_scales %>%
+  dplyr::select(-c(CH4_unfilled, CH4_filled, GPP_unfilled)) %>%
+  pivot_longer(cols = -c(grouped_scale, MIU_VALVE, TIMESTAMP), 
+               names_to = "exp_var", values_to = "exp_var_value") %>%
+  filter(!is.na(exp_var_value)) %>%
+  rename(grouped_scale_exp = grouped_scale)
+```
+
+Plot overall variance
+
+```{r}
+grouped_pct_var <- dfs %>%
+  mutate(
+    name = as.character(name),
+    num_value = as.numeric(gsub("[^0-9]", "", name)),
+    grouped_scale = case_when(
+      grepl("days", name) & num_value < 30 ~ "multiday",
+      grepl("hours", name) & num_value < 10 ~ "hourly",
+      grepl("hours", name) & num_value >= 10 ~ "daily",
+      TRUE ~ "seasonal"
+    )
+  ) %>%
+  select(-num_value) %>%
+  group_by(grouped_scale, MIU_VALVE, TIMESTAMP, var_name) %>%
+  summarize(value = sum(value), .groups = "drop") %>%
+  filter(var_name == "CH4_filled") %>%
+  group_by(grouped_scale, MIU_VALVE, var_name) %>%
+  summarize(var = var(value, na.rm = T)) %>%
+  group_by(MIU_VALVE, var_name) %>%
+  mutate(tot_var = sum(var, na.rm = T)) %>%
+  ungroup() %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, 
+                            levels = 1:12,
+                            labels = chamber_levels2),
+         grouped_scale = factor(grouped_scale,
+                                levels = c("hourly", "daily", "multiday", "seasonal"),
+                                labels = c("Hourly", "Daily", "Multiday", "Seasonal")),
+         Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
+         Temp_C = as.numeric(sub("mb", "0", Temp_C)))
+  
+scale_labels <- make_lm_label(
+  data = grouped_pct_var %>% mutate(sd = sqrt(var)),
+  xvar = "Temp_C",
+  yvar = "sd",
+  group_var = "grouped_scale"
+)
+
+scales <- grouped_pct_var %>%
+  mutate(sd = sqrt(var)) %>%
+  ggplot(aes(x = Temp_C, y = sd)) +
+  geom_smooth(method = "lm", color = "black") +
+  geom_point(aes(fill = MIU_VALVE), size = 2, stroke = 0.5, shape = 21) +
+  geom_text(
+    aes(x = -Inf, y = Inf, label = label),
+    hjust = 0, vjust = 1.1,
+    inherit.aes = FALSE,
+    size = 3, 
+    data = scale_labels
+  ) +
+  scale_fill_manual(values = color.gradient, name = "Chamber") +
+  facet_wrap(~grouped_scale) +
+  theme_hm +
+  ylab(expression("Standard deviation (µmol"~m^2~h^-1*")")) +
+  xlab("Temperature treatment (ºC above ambient)")
+
+d_to_s_data <- grouped_pct_var %>%
+  group_by(MIU_VALVE, Temp_C) %>%
+  summarise(
+    d_to_s = sqrt(var[grouped_scale == "Daily"]) /
+             sqrt(var[grouped_scale == "Seasonal"]),
+    .groups = "drop"
+  )
+
+d_to_s_label <- make_lm_label(
+  data = d_to_s_data,
+  xvar = "Temp_C",
+  yvar = "d_to_s"
+)
+
+d_to_s <- d_to_s_data %>%
+  ggplot(aes(x = Temp_C, y = d_to_s)) +
+  geom_smooth(method = "lm", color = "black") +
+  geom_point(aes(fill = MIU_VALVE), size = 2, stroke = 0.5, shape = 21) +
+  geom_text(
+    aes(x = -Inf, y = Inf, label = label),
+    hjust = 0, vjust = 1.1,
+    inherit.aes = FALSE,
+    size = 3, 
+    data = d_to_s_label
+  ) +
+  scale_fill_manual(values = color.gradient, name = "Chamber") +
+  theme_hm +
+  ylab("Daily : seasonal") +
+  xlab("Temperature treatment\n(ºC above ambient)")
+
+comb <- ggpubr::ggarrange(scales + theme(legend.position = "none"),
+          d_to_s + theme(legend.position = "bottom") +
+            guides(fill = guide_legend(ncol = 2,
+                                       title.position = "top",
+                                       theme = theme(legend.text = element_text(size = 8),
+                                                     legend.key.spacing.y = unit(0, "cm"),
+                                                     legend.key.spacing.x = unit(0, "cm"))))+
+            ylab("Daily : seasonal")+
+            ggtitle(""), 
+          nrow = 1, widths = c(1.6,1), labels = "auto")
+
+comb
+
+ggsave(comb, filename = "../figures/variability_combined.png", width = 7, height = 4)
+```
+
+Figure showing altered variability (maybe for SI?)
+
+```{r}
+scales <- discrete_scales %>%
+  filter(grouped_scale == "seasonal" | 
+           month(TIMESTAMP) == 7 & day(TIMESTAMP) %in% 10:17 & grouped_scale == "multiday" |
+           month(TIMESTAMP) == 7 & day(TIMESTAMP) %in% 10:17 & grouped_scale == "daily" |
+           month(TIMESTAMP) == 7 & day(TIMESTAMP) %in% 10:17 & grouped_scale == "hourly"
+           ) %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+                            levels = 1:12,
+                            labels = chamber_levels2),
+         grouped_scale = factor(grouped_scale,
+                                levels = rev(c("hourly", "daily", "multiday", "seasonal")))) %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4_filled, color = MIU_VALVE))+
+  geom_line()+
+  ylab(expression("Methane flux (µmol"~m^2~h^-1*")"))+
+  facet_wrap(~grouped_scale, scales = "free_x")+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm+
+  scale_x_datetime(
+  labels = function(x) {
+    ifelse(
+      format(x, "%d") == "01",
+      format(x, "%b"),
+      format(x, "%b %d")
+    )
+  }
+)+
+  theme(axis.title.x = element_blank())
+
+scales
+
+ggsave(scales, filename = "../figures/wavelet_example.png", width = 5, height = 3.5)
+```
+
+Spearman
+
+```{r}
+# Calculate Spearman correlation
+spearman_corrs <- discrete_scales %>%
+  dplyr::select(c(grouped_scale, MIU_VALVE, TIMESTAMP, CH4_filled)) %>%
+  left_join(discrete_scales_exp, relationship = "many-to-many") %>%
+  filter(!is.na(exp_var_value),
+         !is.na(CH4_filled)) %>%
+  group_by(MIU_VALVE, grouped_scale, exp_var, grouped_scale_exp) %>%
+  summarize(
+    spearman_rho = cor(exp_var_value, CH4_filled, 
+                       method = "spearman", 
+                       use = "complete.obs"),
+    spearman_rho2 = spearman_rho^2,
+    .groups = "drop"
+  ) %>%
+  mutate(grouped_scale = factor(grouped_scale,
+                                levels = c("hourly", "daily", "multiday", "seasonal")))
+
+relative_corr <- spearman_corrs %>%
+  filter(grouped_scale == grouped_scale_exp,
+         !exp_var == "evi_predicted") %>%
+  mutate(
+    abs_rho = abs(spearman_rho),
+    MIU_VALVE = factor(MIU_VALVE,
+                       levels = 1:12,
+                       labels = chamber_levels2)
+  )
+
+#Maybe for SI
+ggplot(relative_corr,
+       aes(x = grouped_scale,
+           y = abs_rho,
+           color = exp_var,
+           group = exp_var)) +
+  geom_point(size = 0.5) +
+  geom_line() +
+  facet_wrap(~MIU_VALVE) +
+  xlab("Wavelet scale of variation") +
+  ylab("Absolute Spearman correlation (|ρ|)") +
+  scale_color_manual(values = driver_colors[drivers],
+                     labels = driver_labels[drivers],
+                     name = "Explanatory variable") +
+  theme_hm +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+relative_corr %>%
+  ggplot(aes(x = grouped_scale,
+             y = abs_rho,
+             color = exp_var,
+             group = exp_var)) +
+  geom_line(alpha = 0.1, aes(group = paste0(MIU_VALVE, exp_var)))+
+  geom_line(data = . %>% group_by(exp_var, grouped_scale) %>%
+              summarize(abs_rho = mean(abs_rho)),
+            linewidth = 1.5)+
+  xlab("Wavelet scale of variation") +
+  ylab("Spearman correlation |ρ|)") +
+  scale_color_manual(values = driver_colors[drivers],
+                     labels = driver_labels[drivers],
+                     name = "Explanatory variable") +
+  theme_hm + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+spear <- relative_corr %>%
+  ggplot(aes(x = grouped_scale,
+             y = spearman_rho,
+             color = exp_var,
+             group = exp_var)) +
+  geom_hline(color = "grey50", yintercept = 0)+
+  geom_line(alpha = 0.2, aes(group = paste0(MIU_VALVE, exp_var)))+
+  geom_line(data = . %>% group_by(exp_var, grouped_scale) %>%
+              summarize(spearman_rho = mean(spearman_rho)),
+            linewidth = 1.5)+
+  scale_x_discrete(expand = c(0, 0.4))+
+  xlab("Wavelet scale of variation") +
+  ylab("Spearman correlation (ρ)") +
+  scale_color_manual(values = driver_colors[drivers],
+                     labels = driver_labels[drivers],
+                     name = "Explanatory variable") +
+  guides(color = guide_legend(ncol = 2))+
+  theme_hm +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+spear
+
+ggsave(spear, filename = "../figures/spearman_correlations.png", width = 3, height = 4)
+```
+```{r}
+library(mgcv)
+
+discrete_scales %>%
+  mutate(
+    MIU_VALVE = factor(MIU_VALVE, levels = 1:12, labels = chamber_levels2),
+    tod = hour(TIMESTAMP) +
+          minute(TIMESTAMP)/60 +
+          second(TIMESTAMP)/3600
+  ) %>%
+  filter(grouped_scale == "daily") %>%
+  ggplot(aes(x = tod, y = CH4_unfilled, color = MIU_VALVE)) +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ s(x, bs = "cc", k = 12),
+    se = FALSE
+  ) +
+  scale_x_continuous(limits = c(0, 24), breaks = seq(0, 24, 6)) +
+  scale_color_manual(values = color.gradient) +
+  theme_hm
+
+ch4 %>%
+  mutate(
+    MIU_VALVE = factor(MIU_VALVE, levels = 1:12, labels = chamber_levels2),
+    tod = hour(TIMESTAMP) +
+          minute(TIMESTAMP)/60 +
+          second(TIMESTAMP)/3600
+  ) %>%
+  ggplot(aes(x = tod, y = CH4_filled, color = MIU_VALVE)) +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ s(x, bs = "cc", k = 12),
+    se = FALSE
+  ) +
+  scale_x_continuous(limits = c(0, 24), breaks = seq(0, 24, 6)) +
+  scale_color_manual(values = color.gradient) +
+  theme_hm
+
+ch4 %>%
+  mutate(
+    MIU_VALVE = factor(MIU_VALVE, levels = 1:12, labels = chamber_levels2),
+    tod = hour(TIMESTAMP) +
+          minute(TIMESTAMP)/60 +
+          second(TIMESTAMP)/3600
+  ) %>%
+  ggplot(aes(x = tod, y = GPP_filled, color = MIU_VALVE)) +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ s(x, bs = "cc", k = 12),
+    se = FALSE
+  ) +
+  scale_x_continuous(limits = c(0, 24), breaks = seq(0, 24, 6)) +
+  scale_color_manual(values = color.gradient) +
+  theme_hm
+
+discrete_scales %>%
+  mutate(
+    MIU_VALVE = factor(MIU_VALVE, levels = 1:12, labels = chamber_levels2),
+    tod = hour(TIMESTAMP) +
+          minute(TIMESTAMP)/60 +
+          second(TIMESTAMP)/3600
+  ) %>%
+  filter(grouped_scale == "daily") %>%
+  ggplot(aes(x = tod, y = GPP_filled, color = MIU_VALVE)) +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ s(x, bs = "cc", k = 12),
+    se = FALSE
+  ) +
+  scale_x_continuous(limits = c(0, 24), breaks = seq(0, 24, 6)) +
+  scale_color_manual(values = color.gradient) +
+  theme_hm 
+```
+

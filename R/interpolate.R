@@ -9,24 +9,14 @@ library(randomForest)
 target <- read_csv(here::here("processed_data","partitioned_co2.csv")) %>%
   rename(TIMESTAMP = DateTime)
 met <- read_csv(here::here("processed_data","met_2025_dashboard.csv")) %>%
-  mutate(Salinity = ifelse(year(TIMESTAMP) == 2025 & 
-                             as.numeric(Salinity) < 6, 
+  mutate(Salinity = ifelse(TIMESTAMP > as_datetime("2025-07-22 12:00:00") &
+                             TIMESTAMP < as_datetime("2025-07-25 00:00:00") , 
+                           NA, Salinity),
+         Salinity = ifelse(Salinity < 1 , 
                            NA, Salinity))
 wl <- read_csv(here::here("processed_data","water_level_dashboard.csv"))
 evi <- read_csv(here::here("processed_data","evi.csv")) %>%
   filter(!duplicated(Date))
-
-# Plot specifications
-chamber_levels2 = c("Ch. 1 (+0 ºC)", "Ch. 2 (+0 ºC)", "Ch. 3 (+0.75 ºC)", 
-                    "Ch. 4 (+1.5 ºC)", "Ch. 5 (+2.25 ºC)", "Ch. 6 (+2.25 ºC)", 
-                    "Ch. 7 (+3.0 ºC)", "Ch. 8 (+3.75 ºC)", "Ch. 9 (+3.75 ºC)",
-                    "Ch. 10 (+4.5 ºC)", "Ch. 11 (+5.25 ºC)", "Ch. 12 (+6.0 ºC)")
-
-color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
-                 'mediumseagreen','limegreen','yellowgreen','yellow2',
-                 'darkgoldenrod2','darkorange2','orangered1','red2')
-
-
 
 # QAQC
 for_r2_mod <- target %>%

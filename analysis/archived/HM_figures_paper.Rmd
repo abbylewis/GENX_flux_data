@@ -1,0 +1,959 @@
+---
+title: "HM_figures"
+author: "Abby Lewis"
+date: "2026-01-20"
+output: html_document
+---
+
+TO DO: 
+- Interpolate fluxes
+- Bring in EVI
+
+Hot moments are important across all chambers (Figure 2)
+The importance of hot moment events increases with median flux (Figure 3)
+Because of hot moments, manual sampling underestimates fluxes (Figure 4)
+Hot moments occur as water level rises (Figure 2, maybe also another)
+However, the magnitude of methane emitted is poorly predicted by the magnitude of change in water level (Figure 5)
+
+Load data and packages
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggridges)
+source("../analysis/hm_style.R")
+
+part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) %>%
+  rename(DateTime = TIMESTAMP) %>%
+  mutate(CH4_umol_m2_h = CH4_filled * (60 * 60),
+         MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels2),
+         date = as.Date(DateTime)) %>%
+  filter(CH4_filled < 1) #Removing n = 1 flux from chamber 12. Probably good to add an si figure showing what happens if we don't do this
+
+all <- read_csv("../processed_data/L0_for_dashboard.csv")
+met <- read_csv("../processed_data/met_2025_dashboard.csv") %>%
+  mutate(Salinity = ifelse(TIMESTAMP > as_datetime("2025-07-22 12:00:00") &
+                             TIMESTAMP < as_datetime("2025-07-24 12:00:00") , 
+                           NA, Salinity),
+         Salinity = ifelse(Salinity < 1 , 
+                           NA, Salinity))
+wl <- read_csv("../processed_data/water_level_dashboard.csv")
+evi <- read_csv("../processed_data/evi.csv")
+
+```
+
+Check qaqc
+
+```{r}
+p <- all %>%
+  filter(date >= Sys.Date() - days(700)) %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels2)) %>%
+  ggplot(aes(x = flux_start, y = CH4_init, color = MIU_VALVE))+
+  geom_line()
+
+plotly::ggplotly(p)
+
+all %>%
+  filter(date >= Sys.Date() - days(700)) %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels2)) %>%
+  ggplot(aes(x = CH4_init, y = CH4_slope_ppm_per_day, color = MIU_VALVE))+
+  geom_point(size = 0.5)
+
+all %>%
+  arrange(flux_start) %>%
+  mutate(init_change = CH4_init - lag(CH4_init)) %>%
+  filter(date >= Sys.Date() - days(700)) %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels2)) %>%
+  ggplot(aes(x = init_change, y = CH4_slope_ppm_per_day, color = MIU_VALVE))+
+  geom_point(size = 0.5)
+
+```
+
+
+Data summary (Figure 2)
+
+```{r}
+min_annual = min(part$date[!is.na(part$CH4_umol_m2_h)])
+max_annual = max(part$date[!is.na(part$CH4_umol_m2_h)])
+
+annual <- part %>%
+  group_by(date, MIU_VALVE) %>%
+  summarize(CH4_umol_m2_h = mean(CH4_umol_m2_h, na.rm = T)) %>%
+  ggplot(aes(x = date, y = CH4_umol_m2_h, color = MIU_VALVE))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop(CH[4]~"flux","(µmol"~m^-2~h^-1*")")))
+
+annual_AT <- met %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  group_by(date) %>%
+  summarize(AirTC_Avg = mean(AirTC_Avg, na.rm = T)) %>%
+  ggplot(aes(x = date, y = AirTC_Avg))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5, color = "grey20")+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop("Air temp."," (ºC)")))
+
+annual_wl <- wl %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  group_by(date) %>%
+  summarize(Depth_cm = mean(Depth_cm, na.rm = T)) %>%
+  ggplot(aes(x = date, y = Depth_cm))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5, color = "grey20")+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop("Water level"," (cm)")))
+
+gpp <- part %>%
+  group_by(date, MIU_VALVE) %>%
+  summarize(GPP = sum(GPP, na.rm = T)) %>%
+  ggplot(aes(x = date, y = GPP, color = MIU_VALVE))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop("Daily mean"~CH[4]~"flux","(µmol"~m^-2~h^-1*")")))
+
+resp <- part %>%
+  group_by(date, MIU_VALVE) %>%
+  summarize(R = sum(Reco, na.rm = T)) %>%
+  ggplot(aes(x = date, y = R, color = MIU_VALVE))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop("Daily mean"~CH[4]~"flux","(µmol"~m^-2~h^-1*")")))
+
+annual_evi <- evi %>%
+  ggplot(aes(x = Date, y = evi_predicted))+
+  geom_line(size = 0.5)+
+  geom_point(aes(y = evi_observed))+
+  theme_hm +
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop("EVI","")))
+
+start_date <- "2025-03-27"
+end_date <- "2025-04-06"
+
+focal_ch4 <- part %>%
+  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  ggplot(aes(x = DateTime, y = CH4_umol_m2_h, color = MIU_VALVE))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop(CH[4]~"flux ", "(µmol"~m^-2~h^-1*")")))
+
+focal_wl <- wl %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  ggplot(aes(x = TIMESTAMP, y = Depth_cm))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5, color = "grey20")+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop("Water level"," (cm)")))
+
+focal_AT <- met %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  ggplot(aes(x = TIMESTAMP, y = AirTC_Avg))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5, color = "grey20")+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop("Air temp."," (ºC)")))
+
+comb <- ggpubr::ggarrange(
+  annual+
+    guides(color = guide_legend(ncol = 4))+
+    theme(legend.position = "bottom",
+          legend.title.position = "top"), 
+  patchwork::wrap_plots(focal_ch4 +
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(axis.text.x = element_blank(),
+                              axis.ticks.x = element_blank(),
+                              legend.position = "none"), 
+                    focal_wl +
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(axis.text.x = element_blank(),
+                              axis.ticks.x = element_blank(),
+                              legend.position = "none"), 
+                    focal_AT +
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(legend.position = "none"), 
+                    ncol = 1), 
+  ncol = 2, widths = c(1.7,1), labels = c("a", "b"),
+  legend = "bottom", common.legend = T
+)
+comb
+ggsave("../figures/Figure 2 - Data.jpg", dpi = 300, width = 6, height = 4)
+
+comb <- patchwork::wrap_plots(
+  a = patchwork::wrap_plots(
+    annual +
+      guides(color = guide_legend(ncol = 4)) +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            legend.position = "none") +
+      ggtitle("Seasonal (daily average)"), 
+    annual_wl +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            legend.position = "none"), 
+    annual_AT, 
+    ncol = 1, design = c("A
+                          A
+                          B
+                          C")
+  ),
+  b = patchwork::wrap_plots(
+    focal_ch4 +
+      scale_x_datetime(date_breaks = "5 day", date_labels = "%d %b") +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            axis.title.y = element_blank(),
+            legend.position = "none") +
+      ggtitle("Short-term (hourly)"), 
+    focal_wl +
+      scale_x_datetime(date_breaks = "5 day", date_labels = "%d %b") +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            axis.title.y = element_blank(),
+            legend.position = "none"), 
+    focal_AT +
+      scale_x_datetime(date_breaks = "5 day", date_labels = "%d %b") +
+      theme(legend.position = "none",
+            axis.title.y = element_blank()),
+    ncol = 1,
+    design = c("A
+               A
+               B
+               C")
+  ),
+  ncol = 2, widths = c(2,1),
+  guides = "collect"
+) + 
+  patchwork::plot_layout(guides = "collect") +
+  theme(legend.position = "bottom", legend.justification = "center", 
+        legend.title.position = "top")
+
+comb
+
+ggsave("../figures/Figure 2 - Data drivers.jpg", dpi = 300, width = 7, height = 5)
+
+#Why do our fluxes go up as WL goes up
+part %>%
+  filter(MIU_VALVE == "Ch. 11 (+5.25 ºC)",
+         month(DateTime) == 10,
+         day(DateTime) %in% 10:14)%>%
+  select(DateTime, Depth_cm, Salinity, CH4_filled) %>%
+  pivot_longer(c(Depth_cm, Salinity, CH4_filled)) %>%
+  ggplot(aes(x = DateTime, y = value))+
+  geom_line()+
+  facet_wrap(~name, scales = "free_y", ncol = 1)
+
+part %>%
+  filter(MIU_VALVE == "Ch. 11 (+5.25 ºC)",
+         month(DateTime) == 7,
+         day(DateTime) %in% 22:30)%>%
+  select(DateTime, Depth_cm, Salinity, CH4_filled) %>%
+  pivot_longer(c(Depth_cm, Salinity, CH4_filled)) %>%
+  ggplot(aes(x = DateTime, y = value))+
+  geom_line()+
+  facet_wrap(~name, scales = "free_y", ncol = 1)
+
+part %>%
+  filter(MIU_VALVE == "Ch. 11 (+5.25 ºC)")%>%
+  select(DateTime, Depth_cm, Salinity, CH4_filled) %>%
+  pivot_longer(c(Depth_cm, Salinity, CH4_filled)) %>%
+  ggplot(aes(x = DateTime, y = value))+
+  geom_line()+
+  facet_wrap(~name, scales = "free_y", ncol = 1)
+```
+
+Quants
+
+```{r}
+quants2_data <- part %>%
+  filter(!is.na(CH4_filled)) %>%
+  select(-CH4) %>%
+  rename(CH4 = CH4_filled) %>%
+  mutate(Date = as.Date(DateTime),
+         Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
+         Temp_C = as.numeric(sub("mb", "0", Temp_C))) %>%
+  group_by(Date)  %>%
+  filter(length(unique(MIU_VALVE)) == 12) %>%
+  group_by(MIU_VALVE, Temp_C) %>%
+  summarize(q_50 = quantile(CH4, .50),
+            #q_5 = quantile(CH4, .05),
+            q_95 = quantile(CH4, .95),
+            q_99 = quantile(CH4, .99)) %>%
+  pivot_longer(q_50:q_99) %>%
+  group_by(name) %>%
+  mutate(ref = mean(value[Temp_C == 0]),
+         name = as.numeric(sub("q_", "", name)),
+         name_txt = paste0(name, "th quantile"),
+         name_txt = fct_reorder(name_txt, name)) 
+
+quants_plot <- quants2_data %>%
+  mutate(pct = value/ref*100,
+         dif = value-ref) %>%
+  ungroup() %>%
+  select(-value, -ref, -name) %>%
+  pivot_longer(c(pct, dif)) %>%
+  mutate(name = factor(name, 
+                       levels = c("dif", "pct"),
+                       labels = c("'Difference (µmol'~m^-2~h^-1*`)`", "Percent")),
+         name_txt = paste0("'", name_txt, "'")) %>%
+  ggplot(aes(x = Temp_C, y = value))+
+  geom_hline(yintercept = 0, color = "grey50")+
+  geom_smooth(color = "black", fill = "grey70", method = "lm")+
+  geom_point(aes(fill = MIU_VALVE), color = "black", 
+             shape = 21, size = 2, stroke = 0.5)+
+  scale_fill_manual(values = color.gradient, name = "Chamber")+
+  ylab(expression(CH[4]~"flux relative to ambient"))+
+  xlab("Temperature treatment (ºC above ambient)")+
+  guides(fill = guide_legend(ncol = 3))+
+  facet_grid(name~name_txt, scales = "free", labeller = "label_parsed", 
+             switch = "y")+
+  theme_hm +
+  theme(strip.placement = "outside")
+
+quants_plot
+
+ggsave(quants_plot, filename = "../figures/Quants.jpg", dpi = 300, width = 4, height = 5)
+```
+
+
+The importance of hot moment events increases with median flux (Figure 3)
+
+```{r}
+# Tried using R pacakage, but I'm skeptical of this because only a normal 
+# distribution is implemented currently.
+# devtools::install_github("https://github.com/jonathan-walter/hotspomoments")
+#library(hotspomoments)
+#
+#hshmtest(part$CH4_umol_m2_h[!is.na(part$CH4_umol_m2_h)], "skewness")
+#hshm_id <- hshmid(part$CH4_umol_m2_h[!is.na(part$CH4_umol_m2_h)], 
+#                  criteria = "ref.normal", side="upper", thresh=0.95)
+##Plot where in the distribution the HSHM are identified
+#hist(part$CH4_umol_m2_h[!is.na(part$CH4_umol_m2_h)])
+#points(part$CH4_umol_m2_h[!is.na(part$CH4_umol_m2_h)][hshm_id], 
+#       rep(0,sum(hshm_id)), pch=19, col="red")
+#
+##Inspect HSHM observations
+#hshm <- part[!is.na(part$CH4_umol_m2_h),][hshm_id,]
+
+hm_df <- part %>%
+  filter(!is.na(CH4_umol_m2_h)) %>%
+  group_by(date) %>%
+  filter(length(unique(MIU_VALVE)) == 12)
+
+hot_moments <- hm_df %>%
+  group_by(MIU_VALVE) %>%
+  mutate(hot_moment_quant_998 = ifelse(CH4_umol_m2_h >= 
+                                     quantile(CH4_umol_m2_h, 
+                                              probs = 0.998, na.rm = TRUE),
+                                   "hot", "not"),
+         hot_moment_quant_99 = ifelse(CH4_umol_m2_h >= 
+                                     quantile(CH4_umol_m2_h, 
+                                              probs = 0.99, na.rm = TRUE),
+                                   "hot", "not"),
+         hot_moment_quant_95 = ifelse(CH4_umol_m2_h >= 
+                                     quantile(CH4_umol_m2_h, 
+                                              probs = 0.95, na.rm = TRUE),
+                                   "hot", "not"),
+         hot_moment_iqr = ifelse(CH4_umol_m2_h > 
+                                     (1.5 * (quantile(CH4_umol_m2_h, 
+                                              probs = 0.75, na.rm = TRUE) - 
+                                        quantile(CH4_umol_m2_h, 
+                                              probs = 0.25, na.rm = TRUE))),
+                                   "hot", "not")) %>%
+  summarize(median = median(CH4_umol_m2_h, na.rm = T),
+            mean = mean(CH4_umol_m2_h, na.rm = T),
+            sum = sum(CH4_umol_m2_h, na.rm = T),
+            hot_sum_998 = sum(CH4_umol_m2_h[hot_moment_quant_998 == "hot"], na.rm = T),
+            hot_sum_99 = sum(CH4_umol_m2_h[hot_moment_quant_99 == "hot"], na.rm = T),
+            hot_sum_95 = sum(CH4_umol_m2_h[hot_moment_quant_95 == "hot"], na.rm = T),
+            hot_med = median(CH4_umol_m2_h[hot_moment_iqr == "hot"], na.rm = T),
+            quant_95 = quantile(CH4_umol_m2_h, probs = 0.95, na.rm = TRUE),
+            min = min(DateTime),
+            max = max(DateTime))
+
+annual <- hot_moments %>%
+  mutate(Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
+         Temp_C = as.numeric(sub("mb", "0", Temp_C)),
+         dif = as.numeric(difftime(max, min, "hours"))) %>%
+  ggplot(aes(x = Temp_C, 
+             y = sum*130/60/1000/1000/dif*365 #convert umol/m2/h to mol/m2
+             ))+
+  geom_smooth(method = "lm", color = "black")+
+  geom_point(aes(fill = MIU_VALVE), color = "black", shape = 21, stroke = 0.5, size = 2)+
+  scale_fill_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  ggpubr::stat_cor(aes(label = ..p.label..),
+           label.x.npc = "left", label.y.npc = "top")+
+  ylab(expression(atop("Total annual emissions","(mol"~m^-2*")")))+
+  xlab("Temperature treatment (ºC above ambient)")+
+  theme(legend.position = "bottom",
+        legend.title.position = "top")+
+  guides(fill = guide_legend(ncol = 2))
+
+top_pct <- hot_moments %>%
+  mutate(
+    Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
+    Temp_C = as.numeric(sub("mb", "0", Temp_C)),
+    hm_pct_998 = hot_sum_998/sum * 100,
+    hm_pct_99  = hot_sum_99/sum * 100,
+    hm_pct_95  = hot_sum_95/sum * 100
+  ) %>%
+  select(Temp_C, MIU_VALVE, hm_pct_998, hm_pct_99, hm_pct_95) %>%
+  pivot_longer(c(hm_pct_95, hm_pct_99, hm_pct_998)) %>%
+  mutate(
+    name = factor(
+      name,
+      levels = c("hm_pct_95", "hm_pct_99","hm_pct_998"),
+      labels = c("Top 5% of measurements",
+                 "Top 1% of measurements",
+                 "Top 0.2% of measurements")
+    )
+  ) %>%
+  group_by(name) %>%
+  mutate(
+    model  = list(lm(value ~ Temp_C)),
+    p      = summary(model[[1]])$coefficients[2,4],
+    r2     = summary(model[[1]])$r.squared,
+    median = median(value)
+  ) %>%
+  ungroup()
+
+# Create label dataframe (one row per facet)
+label_df <- top_pct %>%
+  group_by(name) %>%
+  summarise(
+    p = first(p),
+    r2 = first(r2),
+    median = first(median),
+    label = paste0(
+      "  Median = ", round(median, 1), " %",
+      "\n  R² = ", round(r2, 2),
+      "\n  p = ", round(p, 3)
+    )
+  )
+
+top_pct_fig <- top_pct %>%
+  ggplot(aes(x = Temp_C, y = value)) +
+  geom_smooth(method = "lm", color = "black",
+              data = ~ subset(.x, p < 0.05)) +
+  geom_smooth(method = "lm", color = "grey70",
+              data = ~ subset(.x, p >= 0.05),
+              lty = "51", alpha = 0.15) +
+  geom_point(aes(fill = MIU_VALVE),
+             color = "black", shape = 21,
+             stroke = 0.5) +
+  geom_text(
+    data = label_df,
+    aes(x = -Inf, y = Inf, label = label),
+    hjust = 0, vjust = 1.1,
+    inherit.aes = FALSE, size = 2.5
+  ) +
+  scale_fill_manual(values = color.gradient, name = "Chamber") +
+  theme_hm +
+  ylab(expression(atop("Percent of annual","emissions"))) +
+  xlab("Temperature treatment (ºC above ambient)") +
+  guides(fill = guide_legend(ncol = 4)) +
+  facet_wrap(~name, scales = "free_y")
+
+top_pct_fig2 <- top_pct %>%
+  ggplot(aes(x = Temp_C, y = value)) +
+  geom_smooth(method = "lm", color = "black",
+              data = ~ subset(.x, p < 0.05)) +
+  geom_smooth(method = "lm", color = "grey70",
+              data = ~ subset(.x, p >= 0.05),
+              lty = "51", alpha = 0.15) +
+  geom_point(aes(fill = MIU_VALVE),
+             color = "black", shape = 21,
+             stroke = 0.5) +
+  geom_text(
+    data = label_df,
+    aes(x = -Inf, y = Inf, label = label),
+    hjust = 0, vjust = 1.1,
+    inherit.aes = FALSE, size = 2.5
+  ) +
+  scale_fill_manual(values = color.gradient, name = "Chamber") +
+  theme_hm +
+  ylab("Percent of annual emissions") +
+  xlab("Temperature treatment\n(ºC above ambient)") +
+  guides(fill = guide_legend(ncol = 4)) +
+  facet_wrap(~name, scales = "free_y", ncol = 1)+
+  theme(legend.position = "none")
+
+top_pct_comb_annual <- ggpubr::ggarrange(annual, top_pct_fig2, widths = c(1.3, 1), labels = "auto")
+
+ggsave(top_pct_comb_annual, filename = "../figures/top_pct_comb_annual.jpg", 
+       dpi = 300, width = 6, height = 4.5)
+
+ggpubr::ggarrange(annual + theme(legend.position = "right"), 
+                  top_pct_fig + theme(legend.position = "none"), 
+                  nrow = 2, ncol = 1,
+                  labels = "auto")
+
+ggsave(filename = "../figures/top_pct_comb_annual.jpg", 
+       dpi = 300, width = 6, height = 5)
+```
+
+```{r}
+hm_df <- part %>%
+  #Re-introduce NAs
+  mutate(CH4_umol_m2_h = ifelse(is.na(CH4), NA, CH4_umol_m2_h)) %>%
+  filter(!is.na(CH4_umol_m2_h)) 
+
+library(slider)
+
+BEFORE <- lubridate::days(15)
+AFTER <- lubridate::days(15)
+
+hm_ident <- hm_df %>%
+  mutate(CH4_umol_m2_h = ifelse(CH4_umol_m2_h < 0, 0, CH4_umol_m2_h)) %>%
+  arrange(MIU_VALVE, DateTime) %>%
+  group_by(MIU_VALVE) %>%
+  mutate(
+    roll_q75 = slide_index_dbl(
+      CH4_umol_m2_h,
+      DateTime,
+      ~ quantile(.x, probs = 0.75, na.rm = TRUE),
+      .before = BEFORE,
+      .after  = AFTER,
+      .complete = T
+    ),
+    roll_q95 = slide_index_dbl(
+      CH4_umol_m2_h,
+      DateTime,
+      ~ quantile(.x, probs = 0.95, na.rm = TRUE),
+      .before = BEFORE,
+      .after  = AFTER,
+      .complete = T
+    ),
+    roll_q99 = slide_index_dbl(
+      CH4_umol_m2_h,
+      DateTime,
+      ~ quantile(.x, probs = 0.95, na.rm = TRUE),
+      .before = BEFORE,
+      .after  = AFTER,
+      .complete = T
+    ),
+    roll_iqr = slide_index_dbl(
+      CH4_umol_m2_h,
+      DateTime,
+      ~ IQR(.x, na.rm = TRUE),
+      .before = BEFORE,
+      .after  = AFTER,
+      .complete = T
+    ),
+    hot_moment_quant_95 = ifelse(
+      CH4_umol_m2_h > roll_q95,
+      "hot", "not"
+    ),
+    hot_moment_quant_99 = ifelse(
+      CH4_umol_m2_h > roll_q99,
+      "hot", "not"
+    ),
+    hot_moment_iqr = ifelse(
+      CH4_umol_m2_h > (roll_q75 + 1.5 * roll_iqr),
+      "hot", "not"
+    ),
+    roll_sum = slide_index_dbl(
+      CH4_umol_m2_h,
+      DateTime,
+      ~ sum(.x, na.rm = TRUE),
+      .before = BEFORE,
+      .after  = AFTER,
+      .complete = T
+    ),
+    hm_quant_99 = ifelse(hot_moment_quant_99 == "hot",
+                      CH4,
+                      0),
+    hm_quant_95 = ifelse(hot_moment_quant_95 == "hot",
+                      CH4_umol_m2_h,
+                      0),
+    hm_iqr = ifelse(hot_moment_iqr == "hot",
+                      CH4_umol_m2_h,
+                      0),
+    roll_sum_iqr = slide_index_dbl(
+      hm_iqr, DateTime,
+      ~ sum(.x, na.rm = TRUE), 
+      .before = BEFORE, .after = AFTER,
+      .complete = T
+    ),
+    roll_sum_quant_99 = slide_index_dbl(
+      hm_quant_99, DateTime,
+      ~ sum(.x, na.rm = TRUE), 
+      .before = BEFORE, .after = AFTER,
+      .complete = T
+    ),
+    roll_sum_quant_95 = slide_index_dbl(
+      hm_quant_95, DateTime,
+      ~ sum(.x, na.rm = TRUE), 
+      .before = BEFORE, .after = AFTER,
+      .complete = T
+    ),
+    roll_prop_iqr = roll_sum_iqr/roll_sum,
+    roll_prop_quant_99 = roll_sum_quant_99/roll_sum,
+    roll_prop_quant_95 = roll_sum_quant_95/roll_sum,
+  ) 
+
+hot_moments <- hm_ident %>%
+  group_by(date) %>%
+  filter(length(unique(MIU_VALVE[!is.na(hot_moment_iqr)])) == 12) %>%
+  group_by(MIU_VALVE) %>%
+  summarize(
+    median   = median(CH4_umol_m2_h, na.rm = TRUE),
+    mean     = mean(CH4_umol_m2_h, na.rm = TRUE),
+    sum      = sum(CH4_umol_m2_h, na.rm = TRUE),
+    hot_sum  = sum(CH4_umol_m2_h[hot_moment_quant_99 == "hot"], na.rm = TRUE),
+    hot_med  = median(CH4_umol_m2_h[hot_moment_quant_99 == "hot"], na.rm = TRUE),
+    quant_95 = quantile(CH4_umol_m2_h, probs = 0.95, na.rm = TRUE)
+  )
+
+hm <- hot_moments %>%
+  ggplot(aes(x = median, y = hot_sum/sum, fill = MIU_VALVE))+
+  geom_point(color = "black", shape = 21, stroke = 0.5, size = 2)+
+  scale_fill_manual(values = color.gradient, name = "Chamber")+
+  egg::theme_article()+
+  ylab("Sum of hot moment fluxes (top 5%)")+
+  xlab("Median flux")+
+  theme(panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
+        panel.grid.minor = element_line(color = "grey95", linewidth = 0.25),
+        legend.position = "bottom",
+        legend.title.position = "top")+
+  guides(fill = guide_legend(ncol = 2))
+
+hm
+
+hm_ident %>%
+  ggplot(aes(x = DateTime, y = CH4_umol_m2_h))+
+  geom_point(size = 0.5, data = . %>% filter(hot_moment_quant_99 == "not"))+
+  geom_point(size = 0.5, data = . %>% filter(hot_moment_quant_99 == "hot"), color = "red")+
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+hm_ident %>%
+  filter(date %in% seq.Date(as.Date("2025-11-01"), as.Date("2025-11-20"), by = "1 day")) %>%
+  ggplot(aes(x = DateTime, y = CH4_umol_m2_h))+
+  geom_point(size = 0.5, data = . %>% filter(hot_moment_quant_99 == "not"))+
+  geom_line()+
+  geom_point(size = 0.5, data = . %>% filter(hot_moment_quant_99 == "hot"), color = "red")+
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+prop <- hm_ident %>%
+  ggplot(aes(x = DateTime, y = roll_sum_quant_95/roll_sum, color = MIU_VALVE))+
+  geom_line(size = 0.3)+
+  ylab("Hot moment fluxes as proportion of total")+
+  #coord_cartesian(ylim = c(0,1))+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  egg::theme_article()+
+  #facet_wrap(~MIU_VALVE)+
+  theme(legend.position = "bottom")
+
+prop
+```
+
+
+Variability increases with median (Figure 3- option 3)
+
+```{r}
+hm_df <- part
+
+daily_summaries <- hm_df %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  left_join(met, 
+            by = c("time_join" = "TIMESTAMP")) %>%
+  mutate(CH4_umol_m2_h = ifelse(CH4_umol_m2_h < 0, 0, CH4_umol_m2_h)) %>%
+  group_by(MIU_VALVE, date) %>%
+  summarize(IQR = IQR(CH4_umol_m2_h, na.rm = T),
+            median = median(CH4_umol_m2_h, na.rm = T),
+            max = max(CH4_umol_m2_h, na.rm = T),
+            min = min(CH4_umol_m2_h, na.rm = T),
+            tot = sum(CH4_umol_m2_h, na.rm = T),
+            top = max(CH4_umol_m2_h, na.rm = T),
+            prop = max/tot,
+            q_25 = quantile(CH4_umol_m2_h, probs = 0.25, na.rm = T),
+            q_95 = quantile(CH4_umol_m2_h, probs = 0.95, na.rm = T),
+            GPP = median(GPP_filled, na.rm = T),
+            AirT = median(Ta, na.rm = T))
+
+daily_summaries %>%
+  ggplot(aes(x = median, y = IQR, color = AirT))+
+  geom_point()+
+  facet_wrap(~MIU_VALVE)+
+  theme_hm +
+  scale_color_viridis_c()
+
+daily_summaries %>%
+  ggplot(aes(x = median, y = IQR, color = AirT))+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  theme_hm +
+  scale_color_manual(values = color.gradient, name = "Chamber")
+
+daily_summaries %>%
+  ggplot(aes(x = median, y = IQR))+
+  geom_point()+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  facet_wrap(~MIU_VALVE)+
+  theme_hm +
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme(legend.position = "none")
+
+
+daily_summaries %>%
+  ggplot(aes(x = median, y = IQR))+
+  geom_point(aes(color = MIU_VALVE), shape = 21)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm 
+
+daily_summaries %>%
+  #filter(median > 10) %>%
+  ggplot(aes(x = median, y = prop))+
+  geom_point()+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  facet_wrap(~MIU_VALVE)+
+  theme_hm +
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme(legend.position = "none")
+
+daily_summaries %>%
+  ggplot(aes(x = q_25, y = q_95))+
+  geom_point()+
+  geom_smooth(aes(color = MIU_VALVE), method = "lm")+
+  facet_wrap(~MIU_VALVE)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(legend.position = "none")
+
+daily_summaries %>%
+  mutate(month = month(date),
+         adj = as.numeric(sub(" ºC", "", str_extract(MIU_VALVE, "[0-9]+\\.*[0-9]* ºC"))),
+         AirT = AirT+adj) %>%
+  ggplot(aes(x = AirT, y = median, color = MIU_VALVE))+
+  geom_point(shape = 21)+
+  geom_smooth(method = "lm")+
+  theme_hm +
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  facet_wrap(~month, scales = "free")
+```
+
+Because of hot moments, manual sampling underestimates fluxes (Figure 4)
+
+```{r}
+reps <-  100
+samples_per_week <- 1
+
+df <- hm_df %>%
+  mutate(week = week(date)) 
+
+calc_mean_flux <- function(ch4_vals, n){
+  vals <- sample(ch4_vals, n)
+  return(mean(vals))
+}
+
+df_out_daytime <- df %>%
+  filter(hour(DateTime) >= 9,
+         hour(DateTime) <= 15) %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>%
+  mutate(time = "daytime")
+
+df_out_fullday <- df %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>% 
+  mutate(time = "full day")
+
+df_out_rain <- df %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  left_join(met %>%
+              arrange(TIMESTAMP) %>%
+              mutate(
+                Rain_cm_roll =
+                  slider::slide_dbl(Rain_cm_Tot,
+                            sum,
+                            .before = 3,
+                            .complete = TRUE)
+              ), 
+            by = c("time_join" = "TIMESTAMP")) %>%
+  filter(Rain_cm_roll == 0) %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>% 
+  mutate(time = "rain")
+
+df_out_growth <- df %>%
+  filter(month(DateTime) %in% 5:9) %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>%
+  mutate(time = "growth")
+
+df_out_wl <- df %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  filter(Depth_cm < 0) %>%
+  group_by(week) %>%
+  cross_join(data.frame(rep = 1:reps)) %>%
+  group_by(week, MIU_VALVE, rep) %>%
+  summarize(flux = calc_mean_flux(CH4_umol_m2_h, samples_per_week)) %>%
+  mutate(time = "wl")
+
+df_out <- df_out_daytime  %>%
+  bind_rows(df_out_fullday) %>%
+  #bind_rows(df_out_rain) %>%
+  bind_rows(df_out_growth) %>%
+  bind_rows(df_out_wl)
+
+to_plot <- df_out %>%
+  group_by(MIU_VALVE, rep, time) %>%
+  summarize(mean = mean(flux, na.rm = T)) %>%
+  left_join(hot_moments %>% 
+              rename(tot_real = sum,
+                     mean_real = mean)) %>%
+  group_by(MIU_VALVE, time) %>%
+  summarize(median = median(mean/mean_real * 100 - 100))
+
+sims <- to_plot %>%
+  mutate(time = factor(time, 
+                       levels = c("full day", "wl", "daytime", "growth"),
+                       labels = c("Weekly (all)", "No standing\nwater",
+                                  "Daytime", "Growing\nseason"))) %>%
+  ggplot(aes(x = time, y = median))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(fill = MIU_VALVE),
+              width = 0.2, shape = 21, color = "black")+
+  scale_fill_manual(values = color.gradient,
+                    name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank(),
+        legend.title.position = "top")+
+  ylab("Percent difference in mean flux\nbetween manual and high-frequency\nsampling (median of 100 simulations)")
+sims
+ggsave("../figures/Figure 4 - Simulations.jpg", dpi = 300, width = 6, height = 3)
+```
+
+Model hm separately
+```{r}
+mod_df <- hm_ident %>%
+  mutate(time_join = round_date(DateTime, "15 minute")) %>%
+  left_join(wl, by = c("time_join" = "TIMESTAMP")) %>%
+  left_join(met, by = c("time_join" = "TIMESTAMP")) %>%
+  group_by(MIU_VALVE) %>%
+  mutate(Depth_change = Depth_cm - lag(Depth_cm))
+
+data_not = mod_df %>%
+  filter(hot_moment_iqr == "not") %>%
+  select(c(CH4_umol_m2_h, Depth_cm, AirTC_Avg, Depth_change)) %>%
+  drop_na() %>%
+  ungroup() %>%
+  filter(MIU_VALVE == "Ch. 12 (+6.0 ºC)") %>%
+  select(-MIU_VALVE)
+
+preds_not <- randomForest::randomForest(CH4_umol_m2_h~Depth_cm + AirTC_Avg + Depth_change,
+                                        data = data_not,
+                                        importance = T)
+randomForest::importance(preds_not)
+preds_not$rsq[length(preds_not$rsq)]
+
+data_hot = mod_df %>%
+  filter(hot_moment_iqr == "hot") %>%
+  select(c(CH4_umol_m2_h, Depth_cm, AirTC_Avg, Depth_change)) %>%
+  drop_na() %>%
+  ungroup() %>%
+  filter(MIU_VALVE == "Ch. 12 (+6.0 ºC)") %>%
+  select(-MIU_VALVE)
+
+preds_hot <- randomForest::randomForest(CH4_umol_m2_h~Depth_cm + AirTC_Avg + Depth_change,
+                                        data = data_hot,
+                                        importance = T)
+randomForest::importance(preds_hot)
+preds_hot$rsq[length(preds_not$rsq)]
+
+data_class = mod_df %>%
+  select(c(Depth_cm, AirTC_Avg, Depth_change, hot_moment_iqr)) %>%
+  drop_na() %>%
+  ungroup() %>%
+  filter(MIU_VALVE == "Ch. 12 (+6.0 ºC)") %>%
+  select(-MIU_VALVE) %>%
+  mutate(hot_moment_iqr = as.factor(hot_moment_iqr))
+preds_class <- randomForest::randomForest(hot_moment_iqr~Depth_cm + AirTC_Avg + Depth_change,
+                                        data = data_class,
+                                        importance = T,
+                                        classwt = c(not = 1, hot = 19))
+randomForest::importance(preds_class)
+preds_class$err.rate[nrow(preds_class$err.rate),]
+
+mod_df %>%
+  filter(hot_moment_iqr == "not") %>%
+  ggplot(aes(x = DateTime, y = CH4_umol_m2_h, color = MIU_VALVE))+
+  geom_point(size = 0.5) +
+  geom_line()
+
+patchwork::wrap_plots(mod_df %>%
+                        filter(hot_moment_iqr == "not") %>%
+                        ggplot(aes(x = DateTime, y = CH4_umol_m2_h, color = MIU_VALVE))+
+                        geom_point(size = 0.5) +
+                        geom_line()+
+                        guides(color = guide_legend(ncol = 4))+
+                        theme_hm +
+                        theme(axis.text.x = element_blank(),
+                              axis.ticks.x = element_blank(),
+                              legend.position = "none"), 
+                        annual_AT +
+                          theme(axis.text.x = element_blank(),
+                                axis.ticks.x = element_blank(),
+                                legend.position = "none"), 
+                        annual_evi +
+                          theme(legend.position = "none"),
+                      ncol = 1)
+
+mod_df %>%
+  filter(!is.na(hot_moment_iqr)) %>%
+  ggplot(aes(x = DateTime, y = MIU_VALVE))+
+  geom_tile(aes(color = hot_moment_iqr,
+                fill = hot_moment_iqr))+
+  theme_hm +
+  scale_color_manual(values = c("hot" = "red", "not" = "grey95"))+
+  scale_fill_manual(values = c("hot" = "red", "not" = "grey95"))
+```
+
+```{r}
+
+```
+

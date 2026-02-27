@@ -173,7 +173,8 @@ plotlyOutput('plot_raw', height = 480)
 
 #Code for plots
 ################ Raw data ####################
-raw_comb <- read_csv(here::here("processed_data","raw_comb.csv")) 
+raw_comb <- read_csv(here::here("processed_data","raw_comb.csv")) %>%
+  mutate(used = ifelse(change_s >= 225 & change_s <= 515, "yes", "no"))
 
 p <- raw_comb %>%
   filter(as.Date(TIMESTAMP) == "2021-04-15",

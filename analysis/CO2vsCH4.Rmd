@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
 library(data.table)
+source(here::here("analysis", "hm_style.R"))
 
 ch4 <- read_csv(here::here("processed_data","L2- partitioned_and_gap_filled.csv"))
 ```
@@ -27,32 +28,40 @@ sums <- ch4 %>%
 
 sums %>%
   ggplot(aes(x = GPP, y = CH4, color = MIU_VALVE))+
-  geom_point()
+  geom_point()+
+  scale_color_manual(values = color.gradient)+
+  theme_hm
 
 sums %>%
   ggplot(aes(x = Reco, y = CH4, color = MIU_VALVE))+
-  geom_point()
+  geom_point()+
+  scale_color_manual(values = color.gradient)+
+  theme_hm
 
 sums %>%
   ggplot(aes(x = GPP, y = Reco))+
   geom_smooth(method = "lm")+
   geom_point(aes(color = MIU_VALVE))+
   geom_abline()+
-  scale_color_manual(values = color.gradient)
+  scale_color_manual(values = color.gradient)+
+  theme_hm
 
 sums %>%
   ggplot(aes(x = MIU_VALVE, y = CH4))+
   geom_point()+
+  theme_hm+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 sums %>%
   ggplot(aes(x = MIU_VALVE, y = Reco))+
   geom_point()+
+  theme_hm+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 sums %>%
   ggplot(aes(x = MIU_VALVE, y = GPP))+
   geom_point()+
+  theme_hm+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 sums %>%

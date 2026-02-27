@@ -1,0 +1,339 @@
+---
+title: "HM_figures"
+author: "Abby Lewis"
+date: "2026-01-20"
+output: html_document
+---
+
+This file makes figure 2 (data) and figure 3 (totals/percents)
+
+Load data and packages
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+source("../analysis/hm_style.R")
+source("../R/make_lm_label.R")
+
+part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) %>%
+  rename(DateTime = TIMESTAMP) %>%
+  mutate(CH4_umol_m2_h = CH4_filled * (60 * 60),
+         MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
+                            labels = chamber_levels2),
+         date = as.Date(DateTime)) %>%
+  filter(CH4_filled < 1) #Removing n = 1 flux from chamber 12. Probably good to add an si figure showing what happens if we don't do this
+
+met <- read_csv("../processed_data/met_2025_dashboard.csv") %>%
+  mutate(Salinity = ifelse(TIMESTAMP > as_datetime("2025-07-22 12:00:00") &
+                             TIMESTAMP < as_datetime("2025-07-24 12:00:00") , 
+                           NA, Salinity),
+         Salinity = ifelse(Salinity < 1 , 
+                           NA, Salinity))
+wl <- read_csv("../processed_data/water_level_dashboard.csv")
+evi <- read_csv("../processed_data/evi.csv")
+```
+
+Data summary (Figure 2)
+
+```{r}
+min_annual = min(part$date[!is.na(part$CH4_umol_m2_h)])
+max_annual = max(part$date[!is.na(part$CH4_umol_m2_h)])
+
+annual <- part %>%
+  group_by(date, MIU_VALVE) %>%
+  summarize(CH4_umol_m2_h = mean(CH4_umol_m2_h, na.rm = T)) %>%
+  ggplot(aes(x = date, y = CH4_umol_m2_h, color = MIU_VALVE))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop(CH[4]~"flux","(µmol"~m^-2~h^-1*")")))
+
+annual_AT <- met %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  group_by(date) %>%
+  summarize(AirTC_Avg = mean(AirTC_Avg, na.rm = T)) %>%
+  ggplot(aes(x = date, y = AirTC_Avg))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5, color = "grey20")+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop("Air temp."," (ºC)")))
+
+annual_wl <- wl %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  group_by(date) %>%
+  summarize(Depth_cm = mean(Depth_cm, na.rm = T)) %>%
+  ggplot(aes(x = date, y = Depth_cm))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5, color = "grey20")+
+  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual)))+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop("Water level"," (cm)")))
+
+start_date <- "2025-03-27"
+end_date <- "2025-04-06"
+
+focal_ch4 <- part %>%
+  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  ggplot(aes(x = DateTime, y = CH4_umol_m2_h, color = MIU_VALVE))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5)+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop(CH[4]~"flux ", "(µmol"~m^-2~h^-1*")")))
+
+focal_wl <- wl %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  ggplot(aes(x = TIMESTAMP, y = Depth_cm))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5, color = "grey20")+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop("Water level"," (cm)")))
+
+focal_AT <- met %>%
+  mutate(date = as.Date(TIMESTAMP)) %>%
+  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  ggplot(aes(x = TIMESTAMP, y = AirTC_Avg))+
+  geom_hline(yintercept = 0, color = "grey80")+
+  geom_line(size = 0.5, color = "grey20")+
+  scale_color_manual(values = color.gradient, name = "Chamber")+
+  theme_hm +
+  theme(axis.title.x = element_blank())+
+  ylab(expression(atop("Air temp."," (ºC)")))
+
+## Still haven't decided how I want this— do I want annual drivers?
+# Try with soil temp then decide
+
+comb <- ggpubr::ggarrange(
+  annual+
+    guides(color = guide_legend(ncol = 4))+
+    theme(legend.position = "bottom",
+          legend.title.position = "top"), 
+  patchwork::wrap_plots(focal_ch4 +
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(axis.text.x = element_blank(),
+                              axis.ticks.x = element_blank(),
+                              legend.position = "none"), 
+                    focal_wl +
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(axis.text.x = element_blank(),
+                              axis.ticks.x = element_blank(),
+                              legend.position = "none"), 
+                    focal_AT +
+                      scale_x_datetime(date_breaks = "5 day",
+                                       date_labels = "%d %b")+
+                        theme(legend.position = "none"), 
+                    ncol = 1), 
+  ncol = 2, widths = c(1.7,1), labels = c("a", "b"),
+  legend = "bottom", common.legend = T
+)
+
+comb
+ggsave("../figures/Figure 2 - Data.jpg", dpi = 300, width = 6, height = 4)
+
+comb <- patchwork::wrap_plots(
+  a = patchwork::wrap_plots(
+    annual +
+      guides(color = guide_legend(ncol = 4)) +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            legend.position = "bottom") +
+      ggtitle("Seasonal (daily average)"), 
+    annual_wl +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            legend.position = "none"), 
+    annual_AT, 
+    ncol = 1, design = c("A
+                          A
+                          B
+                          C")
+  ),
+  b = patchwork::wrap_plots(
+    focal_ch4 +
+      scale_x_datetime(date_breaks = "5 day", date_labels = "%d %b") +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            axis.title.y = element_blank(),
+            legend.position = "bottom") +
+      ggtitle("Short-term (hourly)"), 
+    focal_wl +
+      scale_x_datetime(date_breaks = "5 day", date_labels = "%d %b") +
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank(),
+            axis.title.y = element_blank(),
+            legend.position = "none"), 
+    focal_AT +
+      scale_x_datetime(date_breaks = "5 day", date_labels = "%d %b") +
+      theme(legend.position = "none",
+            axis.title.y = element_blank()),
+    ncol = 1,
+    design = c("A
+               A
+               B
+               C")
+  ),
+  ncol = 2, widths = c(2,1),
+  guides = "collect"
+) + 
+  patchwork::plot_layout(guides = "collect") +
+  patchwork::plot_annotation(theme = theme(legend.position = "bottom", 
+                                           legend.justification = "left", 
+                                           legend.title.position = "top"))
+
+comb
+
+ggsave("../figures/Figure 2 - Data drivers.jpg", dpi = 300, width = 7, height = 5)
+```
+
+The importance of hot moment events increases with temperature (Figure 3)
+
+```{r}
+hm_df <- part %>%
+  filter(!is.na(CH4_umol_m2_h)) %>%
+  group_by(date) %>%
+  filter(length(unique(MIU_VALVE)) == 12)
+
+hot_moments <- hm_df %>%
+  group_by(MIU_VALVE) %>%
+  mutate(hot_moment_quant_998 = ifelse(CH4_umol_m2_h >= 
+                                     quantile(CH4_umol_m2_h, 
+                                              probs = 0.998, na.rm = TRUE),
+                                   "hot", "not"),
+         hot_moment_quant_99 = ifelse(CH4_umol_m2_h >= 
+                                     quantile(CH4_umol_m2_h, 
+                                              probs = 0.99, na.rm = TRUE),
+                                   "hot", "not"),
+         hot_moment_quant_95 = ifelse(CH4_umol_m2_h >= 
+                                     quantile(CH4_umol_m2_h, 
+                                              probs = 0.95, na.rm = TRUE),
+                                   "hot", "not")) %>%
+  summarize(sum = sum(CH4_umol_m2_h, na.rm = T),
+            hot_sum_998 = sum(CH4_umol_m2_h[hot_moment_quant_998 == "hot"], na.rm = T),
+            hot_sum_99 = sum(CH4_umol_m2_h[hot_moment_quant_99 == "hot"], na.rm = T),
+            hot_sum_95 = sum(CH4_umol_m2_h[hot_moment_quant_95 == "hot"], na.rm = T),
+            min = min(DateTime),
+            max = max(DateTime))
+
+annual_df <- hot_moments %>%
+  mutate(
+    Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
+    Temp_C = as.numeric(sub("mb", "0", Temp_C)),
+    dif = as.numeric(difftime(max, min, "hours")),
+    annual_flux = sum*130/60/1000/1000/dif*365
+  )
+
+annual_label <- make_lm_label(
+  data = annual_df,
+  xvar = "Temp_C",
+  yvar = "annual_flux"
+)
+
+annual <- ggplot(annual_df,
+                 aes(x = Temp_C, y = annual_flux)) +
+  geom_smooth(method = "lm", color = "black") +
+  geom_point(aes(fill = MIU_VALVE),
+             color = "black", shape = 21,
+             stroke = 0.5, size = 2) +
+  geom_text(
+    aes(x = -Inf, y = Inf, label = annual_label$label),
+    hjust = 0, vjust = 1.1,
+    inherit.aes = FALSE,
+    size = 3, data = data.frame()
+  ) +
+  scale_fill_manual(values = color.gradient, name = "Chamber") +
+  theme_hm +
+  ylab(expression(atop("Total annual emissions","(mol"~m^-2*")"))) +
+  xlab("Temperature treatment (ºC above ambient)") +
+  theme(
+    legend.position = "bottom",
+    legend.title.position = "top"
+  ) +
+  guides(fill = guide_legend(ncol = 2))
+
+top_pct <- hot_moments %>%
+  mutate(
+    Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
+    Temp_C = as.numeric(sub("mb", "0", Temp_C)),
+    hm_pct_998 = hot_sum_998/sum * 100,
+    hm_pct_99  = hot_sum_99/sum * 100,
+    hm_pct_95  = hot_sum_95/sum * 100
+  ) %>%
+  select(Temp_C, MIU_VALVE, hm_pct_998, hm_pct_99, hm_pct_95) %>%
+  pivot_longer(c(hm_pct_95, hm_pct_99, hm_pct_998)) %>%
+  mutate(
+    name = factor(
+      name,
+      levels = c("hm_pct_95", "hm_pct_99","hm_pct_998"),
+      labels = c("Top 5% of measurements",
+                 "Top 1% of measurements",
+                 "Top 0.2% of measurements")
+    )
+  ) %>%
+  group_by(name) %>%
+  mutate(
+    model  = list(lm(value ~ Temp_C)),
+    p      = summary(model[[1]])$coefficients[2,4],
+    r2     = summary(model[[1]])$r.squared,
+    median = median(value)
+  ) %>%
+  ungroup()
+
+# Create label dataframe (one row per facet)
+label_df <- top_pct %>%
+  group_by(name) %>%
+  summarise(
+    p = first(p),
+    r2 = first(r2),
+    median = first(median),
+    label = paste0(
+      "  Median = ", round(median, 1), " %",
+      "\n  R² = ", round(r2, 2),
+      "\n  p = ", round(p, 3)
+    )
+  )
+
+top_pct_fig <- top_pct %>%
+  ggplot(aes(x = Temp_C, y = value)) +
+  geom_smooth(method = "lm", color = "black",
+              data = ~ subset(.x, p < 0.05)) +
+  geom_smooth(method = "lm", color = "grey70",
+              data = ~ subset(.x, p >= 0.05),
+              lty = "51", alpha = 0.15) +
+  geom_point(aes(fill = MIU_VALVE),
+             color = "black", shape = 21,
+             stroke = 0.5, size = 2) +
+  geom_text(
+    data = label_df,
+    aes(x = -Inf, y = Inf, label = label),
+    hjust = 0, vjust = 1.1,
+    inherit.aes = FALSE, size = 3
+  ) +
+  scale_fill_manual(values = color.gradient, name = "Chamber") +
+  theme_hm +
+  ylab(expression(atop("Percent of annual","emissions"))) +
+  xlab("Temperature treatment (ºC above ambient)") +
+  guides(fill = guide_legend(ncol = 4)) +
+  facet_wrap(~name, scales = "free_y")
+
+ggpubr::ggarrange(annual + theme(legend.position = "right"), 
+                  top_pct_fig + theme(legend.position = "none"), 
+                  nrow = 2, ncol = 1,
+                  labels = "auto")
+
+ggsave(filename = "../figures/top_pct_comb_annual.jpg", 
+       dpi = 300, width = 6, height = 5)
+```
