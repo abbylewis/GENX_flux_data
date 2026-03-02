@@ -5,8 +5,8 @@
 # Load packages
 library(tidyverse)
 library(data.table)
-source(here::here("R","download_gcrew_met.R"))
-source(here::here("R","download_water_level.R"))
+source(here::here("R", "download_gcrew_met.R"))
+source(here::here("R", "download_water_level.R"))
 
 # Load slopes
 df <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
@@ -16,32 +16,33 @@ download_gcrew_met()
 # Update water level
 download_water_level()
 # Load data
-met <- read_csv(here::here("processed_data","met_2025_dashboard.csv"))
-wl <- read_csv(here::here("processed_data","water_level_dashboard.csv"))
+met <- read_csv(here::here("processed_data", "met_2025_dashboard.csv"))
+wl <- read_csv(here::here("processed_data", "water_level_dashboard.csv"))
 
-#Use GENX water level unless it's missing—gap fill with met
+# Use GENX water level unless it's missing—gap fill with met
 driver <- met %>%
-  left_join(wl) %>% 
-  filter(Depth > 25) #One weird point
+  left_join(wl) %>%
+  filter(Depth > 25) # One weird point
 
-#Bit of a messy relationship, but not too bad
+# Bit of a messy relationship, but not too bad
 driver %>%
   filter(Depth > 25) %>%
-  ggplot(aes(x = Depth, y = Depth_cm))+
-  geom_point()+
-  geom_abline()+
+  ggplot(aes(x = Depth, y = Depth_cm)) +
+  geom_point() +
+  geom_abline() +
   geom_smooth(method = "lm")
 
-calc_reg <- lm(Depth_cm~Depth, data = driver)
+calc_reg <- lm(Depth_cm ~ Depth, data = driver)
 
-#Fill
-driver$Depth_cm = ifelse(is.na(driver$Depth_cm),
-                         predict(calc_reg, driver),
-                         driver$Depth_cm)
+# Fill
+driver$Depth_cm <- ifelse(is.na(driver$Depth_cm),
+  predict(calc_reg, driver),
+  driver$Depth_cm
+)
 
-#Check
+# Check
 driver %>%
-  ggplot(aes(x = TIMESTAMP, y = Depth_cm))+
+  ggplot(aes(x = TIMESTAMP, y = Depth_cm)) +
   geom_line()
 
 # Format
@@ -49,34 +50,39 @@ df$DateTime <- as.POSIXct(df$TIMESTAMP, tz = "EST")
 driver$DateTime <- as.POSIXct(driver$TIMESTAMP, tz = "EST")
 
 # Convert to data.table
-setDT(df) 
+setDT(df)
 setDT(driver)
 
 # Set keys: DateTime is what will be used to join fluxes with met
 setkey(df, DateTime)
 setkey(driver, DateTime)
 
-#Join and format
+# Join and format
 merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each flux
-  rename(Ta = AirTC_Avg,
-         PAR = PAR_Den_C_Avg) %>%
-  mutate(Depth_above_surf = ifelse(Depth_cm > 0,
-                                   Depth_cm, 
-                                   0),
-         NEE = CO2_slope_ppm_per_day * #CONVERT TO umolCO2/m2/s
-           (150 - Depth_above_surf)/150 *
-           265.8 / (0.08206*(Ta + 273.15)) / (60*60*24) / 0.196,
-         CH4 = CH4_slope_ppm_per_day * #CONVERT TO umolCH4/m2/s
-           (150 - Depth_above_surf)/150 *
-           265.8 / (0.08206*(Ta + 273.15)) / (60*60*24) / 0.196,
-         N2O = N2O_slope_ppm_per_day * #CONVERT TO umolN2O/m2/s
-           (150 - Depth_above_surf)/150 *
-           265.8 / (0.08206*(Ta + 273.15)) / (60*60*24) / 0.196) %>% 
+  rename(
+    Ta = AirTC_Avg,
+    PAR = PAR_Den_C_Avg
+  ) %>%
+  mutate(
+    Depth_above_surf = ifelse(Depth_cm > 0,
+      Depth_cm,
+      0
+    ),
+    NEE = CO2_slope_ppm_per_day * # CONVERT TO umolCO2/m2/s
+      (150 - Depth_above_surf) / 150 *
+      265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196,
+    CH4 = CH4_slope_ppm_per_day * # CONVERT TO umolCH4/m2/s
+      (150 - Depth_above_surf) / 150 *
+      265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196,
+    N2O = N2O_slope_ppm_per_day * # CONVERT TO umolN2O/m2/s
+      (150 - Depth_above_surf) / 150 *
+      265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196
+  ) %>%
   ungroup() %>%
   select(MIU_VALVE, DateTime, NEE, CH4, N2O, PAR, Ta, CH4_R2, Depth_cm)
 
 # Identify nighttime
-par_night_thresh <- 5  # µmol m-2 s-1 threshold to define night
+par_night_thresh <- 5 # µmol m-2 s-1 threshold to define night
 merged[, is_night := PAR < par_night_thresh]
 
 # For each chamber, fit Q10 using nighttime points
@@ -86,15 +92,22 @@ merged[, is_night := PAR < par_night_thresh]
 # helper function to fit Q10 (log-linear)
 fit_q10_lm <- function(dt_night, Tref = 10, min_night = 40) {
   # dt_night: data.table with columns NEE, Ta; NEE must be > 0
-  if (nrow(dt_night) < min_night) return(NULL)
+  if (nrow(dt_night) < min_night) {
+    return(NULL)
+  }
   dt_night <- dt_night[NEE > 0 & is.finite(Ta)]
-  if (nrow(dt_night) < min_night) return(NULL)
+  if (nrow(dt_night) < min_night) {
+    return(NULL)
+  }
   X <- dt_night[, Ta - Tref]
   Y <- log(dt_night$NEE)
   fit <- try(lm(Y ~ X), silent = TRUE)
-  if (inherits(fit, "try-error")) return(NULL)
+  if (inherits(fit, "try-error")) {
+    return(NULL)
+  }
   coef <- coefficients(fit)
-  a <- coef[1]; b <- coef[2]
+  a <- coef[1]
+  b <- coef[2]
   Rref <- exp(a)
   Q10 <- exp(b * 10)
   return(list(Rref = as.numeric(Rref), Q10 = as.numeric(Q10), n = nrow(dt_night), fit = fit))
@@ -102,34 +115,41 @@ fit_q10_lm <- function(dt_night, Tref = 10, min_night = 40) {
 
 # Function: moving-window parameter estimation per chamber
 estimate_params_moving_window <- function(
-    dt_ch, window_days = 30, step_days = 1, 
-    par_night_thresh = 5, Tref = 10) {
+  dt_ch, window_days = 30, step_days = 1,
+  par_night_thresh = 5, Tref = 10
+) {
   # dt_ch: data.table for one chamber
-  if (nrow(dt_ch) == 0) return(NULL)
+  if (nrow(dt_ch) == 0) {
+    return(NULL)
+  }
   start_time <- min(dt_ch$DateTime, na.rm = TRUE)
-  end_time   <- max(dt_ch$DateTime, na.rm = TRUE)
+  end_time <- max(dt_ch$DateTime, na.rm = TRUE)
   centers <- seq(from = start_time, to = end_time, by = paste0(step_days, " days"))
   res_list <- vector("list", length(centers))
   for (i in seq_along(centers)) {
     center <- centers[i]
-    wstart <- center - as.difftime(window_days/2, units = "days")
-    wend   <- center + as.difftime(window_days/2, units = "days")
+    wstart <- center - as.difftime(window_days / 2, units = "days")
+    wend <- center + as.difftime(window_days / 2, units = "days")
     wnd <- dt_ch[DateTime >= wstart & DateTime <= wend]
     # nighttime points (PAR-based)
     wnd_night <- wnd[PAR < par_night_thresh & is.finite(NEE) & NEE > 0 & is.finite(Ta)]
     fit <- fit_q10_lm(wnd_night, Tref = Tref)
     if (!is.null(fit)) {
-      res_list[[i]] <- data.table(MIU_VALVE = dt_ch$MIU_VALVE[1],
-                                  center = center,
-                                  Rref = fit$Rref,
-                                  Q10 = fit$Q10,
-                                  n_night = fit$n)
+      res_list[[i]] <- data.table(
+        MIU_VALVE = dt_ch$MIU_VALVE[1],
+        center = center,
+        Rref = fit$Rref,
+        Q10 = fit$Q10,
+        n_night = fit$n
+      )
     } else {
-      res_list[[i]] <- data.table(MIU_VALVE = dt_ch$MIU_VALVE[1],
-                                  center = center,
-                                  Rref = NA_real_,
-                                  Q10 = NA_real_,
-                                  n_night = ifelse(is.null(wnd_night), 0, nrow(wnd_night)))
+      res_list[[i]] <- data.table(
+        MIU_VALVE = dt_ch$MIU_VALVE[1],
+        center = center,
+        Rref = NA_real_,
+        Q10 = NA_real_,
+        n_night = ifelse(is.null(wnd_night), 0, nrow(wnd_night))
+      )
     }
   }
   res_dt <- rbindlist(res_list)
@@ -161,7 +181,7 @@ for (ch in chambers) {
   if (nrow(pch) == 0) next
   # ensure unique centers
   pch <- unique(pch, by = "center")
-  x <- as.numeric(pch$center)  # seconds since epoch
+  x <- as.numeric(pch$center) # seconds since epoch
   yR <- pch$Rref
   yQ <- pch$Q10
   targ_idx <- which(merged$MIU_VALVE == ch)
@@ -170,15 +190,15 @@ for (ch in chambers) {
   Rinterp <- approx(x = x, y = yR, xout = xt, rule = 2, ties = "ordered")$y
   Qinterp <- approx(x = x, y = yQ, xout = xt, rule = 2, ties = "ordered")$y
   merged[targ_idx, Rref_t := Rinterp]
-  merged[targ_idx, Q10_t  := Qinterp]
+  merged[targ_idx, Q10_t := Qinterp]
 }
 
 # Predict Reco using time-varying parameters
 # Reco = Rref_t * Q10_t ^ ((Ta - Tref)/10)
 merged[, Reco := NA_real_]
-Tref = 10
+Tref <- 10
 ok_mask <- is.finite(merged$Rref_t) & is.finite(merged$Q10_t) & is.finite(merged$Ta)
-merged[ok_mask, Reco := Rref_t * (Q10_t ^ ((Ta[ok_mask] - Tref)/10))]
+merged[ok_mask, Reco := Rref_t * (Q10_t^((Ta[ok_mask] - Tref) / 10))]
 
 # Compute daytime GPP = Reco - NEE
 merged[, is_day := PAR >= par_night_thresh]
@@ -188,7 +208,6 @@ merged[day_mask, GPP := Reco - NEE]
 # enforce non-negative GPP if desired
 merged[day_mask & GPP < 0, GPP := 0]
 merged[is.na(NEE), GPP := NA]
-#merged[is.na(NEE), Reco := NA]
+# merged[is.na(NEE), Reco := NA]
 
-write_csv(merged, here::here("processed_data","partitioned_co2.csv"))
-
+write_csv(merged, here::here("processed_data", "partitioned_co2.csv"))

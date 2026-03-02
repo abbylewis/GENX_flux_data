@@ -12,136 +12,166 @@ library(tidyverse)
 library(data.table)
 source(here::here("analysis", "hm_style.R"))
 
-ch4 <- read_csv(here::here("processed_data","L2- partitioned_and_gap_filled.csv")) %>%
-  filter(CH4_filled < 1) #Removing n = 1 flux from chamber 12. Probably good to add an si figure showing what happens if we don't do this
+ch4 <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) %>%
+  filter(CH4_filled < 1) # Removing n = 1 flux from chamber 12. Probably good to add an si figure showing what happens if we don't do this
 ```
 
 ```{r}
 sums <- ch4 %>%
-  mutate(MIU_VALVE = factor(MIU_VALVE, levels = 1:12, 
-                            labels = chamber_levels2)) %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+    levels = 1:12,
+    labels = chamber_levels2
+  )) %>%
   group_by(date_join) %>%
   filter(length(unique(MIU_VALVE)) == 12) %>%
   group_by(MIU_VALVE) %>%
-  summarize(GPP = sum(GPP_filled, na.rm = T),
-            CH4 = sum(CH4_filled, na.rm = T),
-            Reco = sum(Reco, na.rm = T),
-            min = min(TIMESTAMP),
-            max = max(TIMESTAMP)) 
+  summarize(
+    GPP = sum(GPP_filled, na.rm = T),
+    CH4 = sum(CH4_filled, na.rm = T),
+    Reco = sum(Reco, na.rm = T),
+    min = min(TIMESTAMP),
+    max = max(TIMESTAMP)
+  )
 
 sums %>%
-  ggplot(aes(x = GPP, y = CH4, color = MIU_VALVE))+
-  geom_point()+
-  scale_color_manual(values = color.gradient)+
+  ggplot(aes(x = GPP, y = CH4, color = MIU_VALVE)) +
+  geom_point() +
+  scale_color_manual(values = color.gradient) +
   theme_hm
 
 sums %>%
-  ggplot(aes(x = Reco, y = CH4, color = MIU_VALVE))+
-  geom_point()+
-  scale_color_manual(values = color.gradient)+
+  ggplot(aes(x = Reco, y = CH4, color = MIU_VALVE)) +
+  geom_point() +
+  scale_color_manual(values = color.gradient) +
   theme_hm
 
 sums %>%
-  ggplot(aes(x = GPP, y = Reco))+
-  geom_smooth(method = "lm")+
-  geom_point(aes(color = MIU_VALVE))+
-  geom_abline()+
-  scale_color_manual(values = color.gradient)+
+  ggplot(aes(x = GPP, y = Reco)) +
+  geom_smooth(method = "lm") +
+  geom_point(aes(color = MIU_VALVE)) +
+  geom_abline() +
+  scale_color_manual(values = color.gradient) +
   theme_hm
 
 sums %>%
-  ggplot(aes(x = MIU_VALVE, y = CH4))+
-  geom_point()+
-  theme_hm+
+  ggplot(aes(x = MIU_VALVE, y = CH4)) +
+  geom_point() +
+  theme_hm +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 sums %>%
-  ggplot(aes(x = MIU_VALVE, y = Reco))+
-  geom_point()+
-  theme_hm+
+  ggplot(aes(x = MIU_VALVE, y = Reco)) +
+  geom_point() +
+  theme_hm +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 sums %>%
-  ggplot(aes(x = MIU_VALVE, y = GPP))+
-  geom_point()+
-  theme_hm+
+  ggplot(aes(x = MIU_VALVE, y = GPP)) +
+  geom_point() +
+  theme_hm +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 sums %>%
-  ggplot(aes(x = MIU_VALVE, y = GPP, color = Reco))+
-  geom_point()+
+  ggplot(aes(x = MIU_VALVE, y = GPP, color = Reco)) +
+  geom_point() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 sums %>%
-  ggplot(aes(x = MIU_VALVE, y = Reco/GPP))+
-  geom_point()+
+  ggplot(aes(x = MIU_VALVE, y = Reco / GPP)) +
+  geom_point() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 sums %>%
-  ggplot(aes(x = MIU_VALVE, y = (CH4*30)/(Reco)*100))+
-  geom_point()+
+  ggplot(aes(x = MIU_VALVE, y = (CH4 * 30) / (Reco) * 100)) +
+  geom_point() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 bar_chart <- sums %>%
-  mutate(GPP = -GPP,
-         CH4 = CH4 * 30,
-         net = CH4 + GPP + Reco,
-         net_wo_ch4 = GPP + Reco) %>%
+  mutate(
+    GPP = -GPP,
+    CH4 = CH4 * 30,
+    net = CH4 + GPP + Reco,
+    net_wo_ch4 = GPP + Reco
+  ) %>%
   pivot_longer(c(GPP, CH4, Reco)) %>%
-  mutate(dif = as.numeric(difftime(max, min, "hours")),
-         net = net*130/60/1000/1000/dif*365,
-         net_wo_ch4 = net_wo_ch4*130/60/1000/1000/dif*365,
-         annual_flux = value*130/60/1000/1000/dif*365) %>%
-  ggplot(aes(x = MIU_VALVE, y = annual_flux, fill = name, color = name))+
-  geom_col()+
-  geom_point(aes(y = net_wo_ch4), color = "black")+
-  geom_point(aes(y = net), color = "red4")+
-  ylab("GWP (CO2e/m2; negative = uptake) ")+
-  theme_hm+
-  theme(axis.text.x = element_text(hjust = 1,
-                                   angle = 45),
-        axis.title.x = element_blank())+
-  scale_fill_manual(values = c("GPP" = "#30694B",
-                                "Reco" = "#7F7053",
-                                "CH4" = "red"))+
-  scale_color_manual(values = c("GPP" = "#30694B",
-                                "Reco" = "#7F7053",
-                                "CH4" = "red"))
+  mutate(
+    dif = as.numeric(difftime(max, min, "hours")),
+    net = net * 130 / 60 / 1000 / 1000 / dif * 365,
+    net_wo_ch4 = net_wo_ch4 * 130 / 60 / 1000 / 1000 / dif * 365,
+    annual_flux = value * 130 / 60 / 1000 / 1000 / dif * 365
+  ) %>%
+  ggplot(aes(x = MIU_VALVE, y = annual_flux, fill = name, color = name)) +
+  geom_col() +
+  geom_point(aes(y = net_wo_ch4), color = "black") +
+  geom_point(aes(y = net), color = "red4") +
+  ylab("GWP (CO2e/m2; negative = uptake) ") +
+  theme_hm +
+  theme(
+    axis.text.x = element_text(
+      hjust = 1,
+      angle = 45
+    ),
+    axis.title.x = element_blank()
+  ) +
+  scale_fill_manual(values = c(
+    "GPP" = "#30694B",
+    "Reco" = "#7F7053",
+    "CH4" = "red"
+  )) +
+  scale_color_manual(values = c(
+    "GPP" = "#30694B",
+    "Reco" = "#7F7053",
+    "CH4" = "red"
+  ))
 
 pct_fig <- sums %>%
-  mutate(GPP = -GPP,
-         CH4 = CH4 * 30,
-         net = CH4 + GPP + Reco,
-         net_wo_ch4 = GPP + Reco) %>%
-  mutate(dif = as.numeric(difftime(max, min, "hours")),
-         net = net*130/60/1000/1000/dif*365,
-         net_wo_ch4 = net_wo_ch4*130/60/1000/1000/dif*365,
-         annual_CH4 = CH4*130/60/1000/1000/dif*365) %>%
-  ggplot(aes(x = MIU_VALVE, y = annual_CH4 / -net_wo_ch4 * 100))+
-  geom_smooth(aes(group = "group"), method = "gam")+
-  geom_point()+
-  ylab("GWP of CH4 (% of annual NEE)")+
-  theme_hm+
-  theme(axis.text.x = element_text(hjust = 1,
-                                   angle = 45),
-        axis.title.x = element_blank())
+  mutate(
+    GPP = -GPP,
+    CH4 = CH4 * 30,
+    net = CH4 + GPP + Reco,
+    net_wo_ch4 = GPP + Reco
+  ) %>%
+  mutate(
+    dif = as.numeric(difftime(max, min, "hours")),
+    net = net * 130 / 60 / 1000 / 1000 / dif * 365,
+    net_wo_ch4 = net_wo_ch4 * 130 / 60 / 1000 / 1000 / dif * 365,
+    annual_CH4 = CH4 * 130 / 60 / 1000 / 1000 / dif * 365
+  ) %>%
+  ggplot(aes(x = MIU_VALVE, y = annual_CH4 / -net_wo_ch4 * 100)) +
+  geom_smooth(aes(group = "group"), method = "gam") +
+  geom_point() +
+  ylab("GWP of CH4 (% of annual NEE)") +
+  theme_hm +
+  theme(
+    axis.text.x = element_text(
+      hjust = 1,
+      angle = 45
+    ),
+    axis.title.x = element_blank()
+  )
 
 sums %>%
-  mutate(GPP = -GPP,
-         CH4 = CH4 * 30,
-         net = CH4 + GPP + Reco,
-         net_wo_ch4 = GPP + Reco) %>%
-  mutate(dif = as.numeric(difftime(max, min, "hours")),
-         net = net*130/60/1000/1000/dif*365,
-         net_wo_ch4 = net_wo_ch4*130/60/1000/1000/dif*365,
-         annual_CH4 = CH4*130/60/1000/1000/dif*365) %>%
+  mutate(
+    GPP = -GPP,
+    CH4 = CH4 * 30,
+    net = CH4 + GPP + Reco,
+    net_wo_ch4 = GPP + Reco
+  ) %>%
+  mutate(
+    dif = as.numeric(difftime(max, min, "hours")),
+    net = net * 130 / 60 / 1000 / 1000 / dif * 365,
+    net_wo_ch4 = net_wo_ch4 * 130 / 60 / 1000 / 1000 / dif * 365,
+    annual_CH4 = CH4 * 130 / 60 / 1000 / 1000 / dif * 365
+  ) %>%
   pivot_longer(c(annual_CH4, net_wo_ch4)) %>%
-  ggplot(aes(x = MIU_VALVE, y = value, color = name, fill = name))+
-  geom_col()+
-  ylab("GWP (CO2e/m2; negative = uptake) ")+
-  theme_hm+
-  theme(axis.text.x = element_text(hjust = 1,
-                                   angle = 45))
+  ggplot(aes(x = MIU_VALVE, y = value, color = name, fill = name)) +
+  geom_col() +
+  ylab("GWP (CO2e/m2; negative = uptake) ") +
+  theme_hm +
+  theme(axis.text.x = element_text(
+    hjust = 1,
+    angle = 45
+  ))
 
 ggpubr::ggarrange(bar_chart, pct_fig, common.legend = T, legend = "bottom")
 ```

@@ -98,19 +98,23 @@ server: shiny
 
 library(tidyverse)
 library(plotly)
-source(here::here("R","group_fun.R"))
+source(here::here("R", "group_fun.R"))
 
-chamber_levels = c("c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
-                   "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
-                   "c_10_e4.5", "c_11_e5.25", "c_12_e6.0")
+chamber_levels <- c(
+  "c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
+  "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
+  "c_10_e4.5", "c_11_e5.25", "c_12_e6.0"
+)
 
-color.gradient=c('blue4','blue3','turquoise4','lightseagreen',
-                 'mediumseagreen','limegreen','yellowgreen','yellow2',
-                 'darkgoldenrod2','darkorange2','orangered1','red2')
+color.gradient <- c(
+  "blue4", "blue3", "turquoise4", "lightseagreen",
+  "mediumseagreen", "limegreen", "yellowgreen", "yellow2",
+  "darkgoldenrod2", "darkorange2", "orangered1", "red2"
+)
 
-#For testing
+# For testing
 input <- list()
-input$gases <- c("CH₄","CO₂","N₂O")
+input$gases <- c("CH₄", "CO₂", "N₂O")
 input$today <- Sys.Date()
 input$days_to_plot <- 3
 input$daily <- "Hourly"
@@ -131,18 +135,17 @@ input$raw_date <- "2021-05-08"
 #| panel: fill
 splitLayout(
   cellWidths = c("50%", "50%"),
-  
-  dateInput("time_date","Date",
-            value = "2021-07-01",
-            min = "2021-04-14",
-            max = "2025-12-31"),
-  
-  sliderInput("time_hour","Hour",
-              min = 0, max = 24,
-              value = 11)
+  dateInput("time_date", "Date",
+    value = "2021-07-01",
+    min = "2021-04-14",
+    max = "2025-12-31"
+  ),
+  sliderInput("time_hour", "Hour",
+    min = 0, max = 24,
+    value = 11
+  )
 )
-plotlyOutput('plot_time', height = 480)
-
+plotlyOutput("plot_time", height = 480)
 ```
 
 ## By chamber
@@ -151,17 +154,16 @@ plotlyOutput('plot_time', height = 480)
 #| panel: fill
 splitLayout(
   cellWidths = c("50%", "50%"),
-  
-  dateInput("raw_date","Date",
-            value = "2021-07-01",
-            min = "2021-04-14",
-            max = "2025-12-31"),
-  
+  dateInput("raw_date", "Date",
+    value = "2021-07-01",
+    min = "2021-04-14",
+    max = "2025-12-31"
+  ),
   selectInput("raw_chamber", "Chamber",
-              choices = chamber_levels)
+    choices = chamber_levels
+  )
 )
-plotlyOutput('plot_raw', height = 480)
-
+plotlyOutput("plot_raw", height = 480)
 ```
 
 :::
@@ -171,74 +173,103 @@ plotlyOutput('plot_raw', height = 480)
 ```{r}
 #| context: server
 
-#Code for plots
+# Code for plots
 ################ Raw data ####################
-raw_comb <- read_csv(here::here("processed_data","raw_comb.csv")) %>%
+raw_comb <- read_csv(here::here("processed_data", "raw_comb.csv")) %>%
   mutate(used = ifelse(change_s >= 225 & change_s <= 515, "yes", "no"))
 
 p <- raw_comb %>%
-  filter(as.Date(TIMESTAMP) == "2021-04-15",
-         hour(TIMESTAMP) == 3)
+  filter(
+    as.Date(TIMESTAMP) == "2021-04-15",
+    hour(TIMESTAMP) == 3
+  )
 
 output$plot_raw <- renderPlotly({
   raw_plot <- raw_comb %>%
-    filter(as.Date(TIMESTAMP) == input$raw_date,
-           Chamber == input$raw_chamber)
-  
+    filter(
+      as.Date(TIMESTAMP) == input$raw_date,
+      Chamber == input$raw_chamber
+    )
+
   p1 <- raw_plot %>%
-    ggplot(aes(x = change_s, y = value, 
-               color = used)) +
+    ggplot(aes(
+      x = change_s, y = value,
+      color = used
+    )) +
     geom_point(size = .9) +
-    geom_smooth(method = "lm", se = F, color = "red",
-                data = . %>% filter(used == "yes"), 
-                linewidth = 0.5) +
-    scale_color_manual(values = c("black", "grey80"),
-                       breaks = c("yes", "no"))+
-    ylab("Value")+
-    facet_grid(gas~label, scales = "free") +
-    theme_bw()+
-    theme(axis.title.x = element_blank(),
-          axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
-          legend.position = "none",
-          strip.background = element_rect(fill = "grey95", color = "grey"))+
+    geom_smooth(
+      method = "lm", se = F, color = "red",
+      data = . %>% filter(used == "yes"),
+      linewidth = 0.5
+    ) +
+    scale_color_manual(
+      values = c("black", "grey80"),
+      breaks = c("yes", "no")
+    ) +
+    ylab("Value") +
+    facet_grid(gas ~ label, scales = "free") +
+    theme_bw() +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      legend.position = "none",
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    ) +
     ggtitle(unique(raw_plot$Chamber))
-  
-  plotly::ggplotly(p1, tooltip=c("TIMESTEP", "value"))
+
+  plotly::ggplotly(p1, tooltip = c("TIMESTEP", "value"))
 })
 
 output$plot_time <- renderPlotly({
   raw_plot <- raw_comb %>%
-    filter(as.Date(TIMESTAMP) == input$time_date,
-           hour(TIMESTAMP) == as.numeric(input$time_hour))
-  
+    filter(
+      as.Date(TIMESTAMP) == input$time_date,
+      hour(TIMESTAMP) == as.numeric(input$time_hour)
+    )
+
   p1 <- raw_plot %>%
     ungroup() %>%
-    mutate(min_TS = min(TIMESTAMP),
-           secs = as.numeric(difftime(TIMESTAMP, min_TS, units = "secs"))) %>%
-    ggplot(aes(x = secs, y = value, 
-               alpha = used, shape = used,
-               color = Chamber)) +
+    mutate(
+      min_TS = min(TIMESTAMP),
+      secs = as.numeric(difftime(TIMESTAMP, min_TS, units = "secs"))
+    ) %>%
+    ggplot(aes(
+      x = secs, y = value,
+      alpha = used, shape = used,
+      color = Chamber
+    )) +
     geom_point(size = .9) +
-    geom_smooth(aes(group = paste(gas, Chamber), 
-                    x = secs, y = value), 
-                method = "lm", se = F, color = "black",
-                data = . %>% filter(used == "yes"), 
-                linewidth = 0.5) +
-    scale_alpha_manual(values = c(1,0.2),
-                       breaks = c("yes", "no"))+
-    scale_color_manual(values = color.gradient,
-                       breaks = chamber_levels)+
-    scale_shape_manual(values = c(21, 19),
-                      breaks = c("no", "yes"))+
-    ylab("Value")+
+    geom_smooth(
+      aes(
+        group = paste(gas, Chamber),
+        x = secs, y = value
+      ),
+      method = "lm", se = F, color = "black",
+      data = . %>% filter(used == "yes"),
+      linewidth = 0.5
+    ) +
+    scale_alpha_manual(
+      values = c(1, 0.2),
+      breaks = c("yes", "no")
+    ) +
+    scale_color_manual(
+      values = color.gradient,
+      breaks = chamber_levels
+    ) +
+    scale_shape_manual(
+      values = c(21, 19),
+      breaks = c("no", "yes")
+    ) +
+    ylab("Value") +
     xlab("Seconds since start time") +
     facet_wrap(~gas, scales = "free_y", ncol = 1) +
-    theme_bw()+
-    theme(#axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
-          legend.position = "none",
-          strip.background = element_rect(fill = "grey95", color = "grey"))+
+    theme_bw() +
+    theme( # axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      legend.position = "none",
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    ) +
     ggtitle(input$time_date)
-  
-  plotly::ggplotly(p1, tooltip=c("TIMESTEP", "value", "Chamber"))
+
+  plotly::ggplotly(p1, tooltip = c("TIMESTEP", "value", "Chamber"))
 })
 ```

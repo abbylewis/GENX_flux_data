@@ -1,10 +1,14 @@
-load_file <- function(path_display, output_dir){
+load_file <- function(path_display, output_dir) {
   url <- "https://content.dropboxapi.com/2/files/download"
-  name <- sub("/GCREW_LOGGERNET_DATA/archive_data/", "", 
-              sub("/SERC_Tower_MET/SERC_Tower_Rawdata_Loggernet/SERC_Tower_Rawdata_Archive/",
-                  "",path_display))
-  if(grepl("current", name)) name <- "current.dat"
-  
+  name <- sub(
+    "/GCREW_LOGGERNET_DATA/archive_data/", "",
+    sub(
+      "/SERC_Tower_MET/SERC_Tower_Rawdata_Loggernet/SERC_Tower_Rawdata_Archive/",
+      "", path_display
+    )
+  )
+  if (grepl("current", name)) name <- "current.dat"
+
   httr::POST(
     url = url,
     httr::config(token = get_dropbox_token()),
