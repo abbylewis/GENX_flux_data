@@ -13,35 +13,67 @@ df <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
 
 # Update met
 download_gcrew_met()
-# Update water level (not used in this script, but part of daily update)
+# Update water level
 download_water_level()
-# Load met
+# Load data
 met <- read_csv(here::here("processed_data","met_2025_dashboard.csv"))
+wl <- read_csv(here::here("processed_data","water_level_dashboard.csv"))
+
+#Use GENX water level unless it's missing—gap fill with met
+driver <- met %>%
+  left_join(wl) %>% 
+  filter(Depth > 25) #One weird point
+
+#Bit of a messy relationship, but not too bad
+driver %>%
+  filter(Depth > 25) %>%
+  ggplot(aes(x = Depth, y = Depth_cm))+
+  geom_point()+
+  geom_abline()+
+  geom_smooth(method = "lm")
+
+calc_reg <- lm(Depth_cm~Depth, data = driver)
+
+#Fill
+driver$Depth_cm = ifelse(is.na(driver$Depth_cm),
+                         predict(calc_reg, driver),
+                         driver$Depth_cm)
+
+#Check
+driver %>%
+  ggplot(aes(x = TIMESTAMP, y = Depth_cm))+
+  geom_line()
 
 # Format
 df$DateTime <- as.POSIXct(df$TIMESTAMP, tz = "EST")
-met$DateTime <- as.POSIXct(met$TIMESTAMP, tz = "EST")
+driver$DateTime <- as.POSIXct(driver$TIMESTAMP, tz = "EST")
 
 # Convert to data.table
 setDT(df) 
-setDT(met)
+setDT(driver)
 
 # Set keys: DateTime is what will be used to join fluxes with met
 setkey(df, DateTime)
-setkey(met, DateTime)
+setkey(driver, DateTime)
 
 #Join and format
-merged <- met[df, roll = "nearest"] %>% # Rolling join: nearest met to each flux
+merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each flux
   rename(Ta = AirTC_Avg,
          PAR = PAR_Den_C_Avg) %>%
-  mutate(NEE = CO2_slope_ppm_per_day * #CONVERT TO umolCO2/m2/s
+  mutate(Depth_above_surf = ifelse(Depth_cm > 0,
+                                   Depth_cm, 
+                                   0),
+         NEE = CO2_slope_ppm_per_day * #CONVERT TO umolCO2/m2/s
+           (150 - Depth_above_surf)/150 *
            265.8 / (0.08206*(Ta + 273.15)) / (60*60*24) / 0.196,
          CH4 = CH4_slope_ppm_per_day * #CONVERT TO umolCH4/m2/s
+           (150 - Depth_above_surf)/150 *
            265.8 / (0.08206*(Ta + 273.15)) / (60*60*24) / 0.196,
          N2O = N2O_slope_ppm_per_day * #CONVERT TO umolN2O/m2/s
+           (150 - Depth_above_surf)/150 *
            265.8 / (0.08206*(Ta + 273.15)) / (60*60*24) / 0.196) %>% 
   ungroup() %>%
-  select(MIU_VALVE, DateTime, NEE, CH4, N2O, PAR, Ta, CH4_R2)
+  select(MIU_VALVE, DateTime, NEE, CH4, N2O, PAR, Ta, CH4_R2, Depth_cm)
 
 # Identify nighttime
 par_night_thresh <- 5  # µmol m-2 s-1 threshold to define night

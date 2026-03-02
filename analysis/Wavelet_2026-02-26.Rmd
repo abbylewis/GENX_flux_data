@@ -350,7 +350,7 @@ spear
 ggsave(spear, filename = "../figures/spearman_correlations.png", width = 3, height = 4)
 ```
 ```{r}
-library(mgcv)
+#library(mgcv)
 
 discrete_scales %>%
   mutate(

@@ -14,7 +14,6 @@ met <- read_csv(here::here("processed_data","met_2025_dashboard.csv")) %>%
                            NA, Salinity),
          Salinity = ifelse(Salinity < 1 , 
                            NA, Salinity))
-wl <- read_csv(here::here("processed_data","water_level_dashboard.csv"))
 evi <- read_csv(here::here("processed_data","evi.csv")) %>%
   filter(!duplicated(Date))
 
@@ -124,7 +123,6 @@ flux_reg <- flux_reg %>%
 
 ch4 <- flux_reg %>%
   left_join(met %>% rename(time_join = TIMESTAMP), by = "time_join") %>%
-  left_join(wl  %>% rename(time_join = TIMESTAMP), by = "time_join") %>%
   left_join(evi %>% rename(date_join = Date), by = "date_join")
 
 #Confirm CH4 looks reasonable
