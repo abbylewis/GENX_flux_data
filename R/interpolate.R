@@ -6,100 +6,88 @@ library(data.table)
 library(randomForest)
 
 target <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
-  rename(TIMESTAMP = DateTime)
-met <- read_csv(here::here("processed_data", "met_2025_dashboard.csv")) %>%
-  mutate(
-    Salinity = ifelse(TIMESTAMP > as_datetime("2025-07-22 12:00:00") &
-      TIMESTAMP < as_datetime("2025-07-25 00:00:00"),
-    NA, Salinity
-    ),
-    Salinity = ifelse(Salinity < 1,
-      NA, Salinity
-    )
-  )
+  select(-TIMESTAMP) %>%
+  rename(TIMESTAMP = DateTime) %>%
+  filter(!is.na(TIMESTAMP))
+
 evi <- read_csv(here::here("processed_data", "evi.csv")) %>%
   filter(!duplicated(Date))
 
 # QAQC
-for_r2_mod <- target %>%
+filt <- target %>%
+  group_by(MIU_VALVE) %>%
   mutate(
-    abs_CH4 = abs(CH4)
-  ) %>%
-  filter(
-    !is.na(CH4_R2),
-    abs_CH4 > 0,
-    CH4_R2 > 0,
-    CH4_R2 < 1 # avoid log(0) and Inf
+    #cutoff = quantile(CH4_se, 0.99, na.rm = TRUE),
+    cutoff = mean(CH4_se, na.rm = TRUE)+3*sd(CH4_se, na.rm = TRUE),
+    keep = ifelse(!is.na(CH4_se) & CH4_se < cutoff, TRUE, F),
+    keep = ifelse(as.Date(TIMESTAMP) == "2025-07-29" & MIU_VALVE == 8 & !is.na(CH4) & CH4 > 0.2,
+                  F,
+                  keep)
   )
-
-start_k <- 1 / mean(for_r2_mod$abs_CH4)
-
-model <- nls(
-  CH4_R2 ~ 1 - exp(-k * abs_CH4),
-  data = for_r2_mod,
-  start = list(k = start_k),
-  control = nls.control(maxiter = 200)
-)
-
-k_est <- coef(model)[["k"]]
-
-for_r2_mod <- for_r2_mod %>%
-  mutate(
-    pred_R2 = predict(model),
-    resid = CH4_R2 - pred_R2,
-    log_abs_CH4 = log(abs_CH4),
-    expected_log_CH4 = log(-log(1 - CH4_R2) / k_est),
-    x_resid = log_abs_CH4 - expected_log_CH4
-  )
-
-x_cutoff <- quantile(for_r2_mod$x_resid, 0.995, na.rm = TRUE)
-
-for_r2_mod <- for_r2_mod %>%
-  mutate(
-    keep = x_resid < x_cutoff,
-    keep = ifelse(CH4_R2 > 0.95, TRUE, keep)
-  ) # Keep all with R² > 0.95 regardless of residual
 
 # visualize
-p <- ggplot(for_r2_mod, aes(x = CH4, y = CH4_R2, color = keep, label = TIMESTAMP)) +
-  geom_point() +
-  labs(x = "CH4 slope", y = "R²") +
+p <- filt %>%
+  ggplot(aes(x = CH4, y = CH4_se, color = keep, label = paste(TIMESTAMP, CH4_se))) +
+  geom_point(data = . %>% filter(keep == T)) +
+  geom_point(data = . %>% filter(keep == F)) +
   scale_color_manual(values = c("red", "black")) +
   theme_minimal() +
   facet_wrap(~MIU_VALVE, scales = "free")
 
 plotly::ggplotly(p)
 
-ggplot(for_r2_mod, aes(x = TIMESTAMP, y = CH4, color = keep)) +
-  geom_point() +
-  labs(x = "log(|CH4 slope|)", y = "R²") +
+p <- filt %>%
+  ggplot(aes(x = CH4, y = CH4_R2, color = keep, label = paste(TIMESTAMP, CH4_se))) +
+  geom_point(data = . %>% filter(keep == T)) +
+  geom_point(data = . %>% filter(keep == F)) +
   scale_color_manual(values = c("red", "black")) +
   theme_minimal() +
   facet_wrap(~MIU_VALVE, scales = "free")
 
-ggplot(for_r2_mod, aes(x = TIMESTAMP, y = CH4, color = keep)) +
+plotly::ggplotly(p)
+
+filt %>%
+  ggplot(aes(x = abs(NEE), y = CO2_R2, color = keep, label = TIMESTAMP)) +
+  geom_point() +
+  labs(x = "CO2 slope", y = "R²") +
+  scale_color_manual(values = c("red", "black")) +
+  theme_minimal() +
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+p <- filt %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4, color = keep, label = CH4_se)) +
+  geom_point() +
+  scale_color_manual(values = c("red", "black")) +
+  theme_minimal() +
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+plotly::ggplotly(p)
+
+filt %>%
+  ggplot(aes(x = TIMESTAMP, y = CH4, color = keep)) +
   geom_point() +
   scale_color_manual(values = c("red", "black")) +
   theme_minimal() +
   ylim(0, 0.04) +
   facet_wrap(~MIU_VALVE)
 
-removal <- for_r2_mod %>%
+removal <- filt %>%
   select(MIU_VALVE, TIMESTAMP, keep) %>%
   distinct()
 
 df <- target %>%
-  mutate(
-    TIMESTAMP = as.POSIXct(TIMESTAMP),
-    CH4 = ifelse(CH4 < 0, NA, CH4)
-  ) %>%
-  filter(!is.na(TIMESTAMP)) %>%
   left_join(removal) %>%
   mutate(CH4 = ifelse(!keep,
     NA,
     CH4
   )) %>%
   select(-keep)
+
+target %>%
+  group_by(MIU_VALVE) %>%
+  left_join(removal) %>%
+  summarize(n_removed = sum(!keep & !is.na(CH4), na.rm = T),
+            pct = n_removed/sum(!is.na(keep) & !is.na(CH4))*100)
 
 # Consistent timestamp
 
@@ -124,13 +112,19 @@ flux_reg <- df[grid, roll = 7200] # allow 2-hour carry
 
 flux_reg <- flux_reg %>%
   mutate(
-    time_join = round_date(TIMESTAMP, "15 minutes"),
+    #time_join = round_date(TIMESTAMP, "15 minutes"),
     date_join = as.Date(TIMESTAMP)
   )
 
 ch4 <- flux_reg %>%
-  left_join(met %>% rename(time_join = TIMESTAMP), by = "time_join") %>%
-  left_join(evi %>% rename(date_join = Date), by = "date_join")
+  #left_join(met %>% rename(time_join = TIMESTAMP), by = "time_join") %>%
+  left_join(evi %>% rename(date_join = Date), by = "date_join") %>%
+  mutate(is_day = ifelse(is.na(is_day) & !is.na(PAR) & PAR > 5,
+                         T,
+                         is_day),
+         is_day = ifelse(is.na(is_day) & !is.na(PAR) & PAR < 5,
+                         F,
+                         is_day))
 
 # Confirm CH4 looks reasonable
 ch4 %>%
@@ -158,11 +152,11 @@ ch4 %>%
   group_by(MIU_VALVE) %>%
   summarize(
     gpp_nas = sum(is.na(GPP)[!is_night], na.rm = T),
-    gpp_pct = gpp_nas / sum(!is.na(is_night) & !is_night),
+    gpp_pct = gpp_nas / sum(!is.na(is_night) & !is_night) * 100,
     reco_nas = sum(is.na(Reco)),
-    reco_pct = reco_nas / n(),
+    reco_pct = reco_nas / n() * 100,
     ch4_nas = sum(is.na(CH4)),
-    ch4_pct = ch4_nas / n()
+    ch4_pct = ch4_nas / n() * 100
   )
 
 
@@ -194,7 +188,7 @@ ch4 %>%
   facet_wrap(~MIU_VALVE)
 
 ch4[, GPP_filled := GPP]
-ch4[is.na(GPP) & is_day == TRUE, GPP_filled := GPP_rf]
+ch4[is.na(GPP_filled) & is_day == TRUE, GPP_filled := GPP_rf]
 ch4[is_day == FALSE, GPP_filled := 0]
 
 ch4 %>%
@@ -207,7 +201,8 @@ train <- ch4[!is.na(CH4)]
 
 rf_ch4_models <- lapply(split(train, train$MIU_VALVE), function(dt_ch) {
   randomForest(
-    CH4 ~ Ta + PAR + GPP_filled + Reco + evi_predicted + Depth_cm + Salinity,
+    CH4 ~ Ta + PAR + GPP_filled + Reco +
+      evi_predicted + Depth_cm + Salinity,
     data = dt_ch,
     na.action = na.omit,
     ntree = 500
@@ -239,6 +234,9 @@ ch4 %>%
   geom_point() +
   geom_smooth() +
   facet_wrap(~MIU_VALVE, scales = "free")
+
+ch4 %>%
+  filter(is.na(GPP_filled))
 
 write_csv(ch4, here::here("processed_data", "L2- partitioned_and_gap_filled.csv"))
 

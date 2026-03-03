@@ -217,7 +217,7 @@ calculate_flux <- function(start_date = NULL,
   #  geom_point()+
   #  facet_wrap(~Year, scales = "free_x")+
   #  ggtitle(paste0("July ",day,", ", hour,":00"))
-
+  
   # Run lm
   slopes <- filtered_data %>%
     pivot_longer(c(CH4d_ppm, CO2d_ppm, N2Od_ppm), names_to = "gas", values_to = "conc") %>%
@@ -232,6 +232,7 @@ calculate_flux <- function(start_date = NULL,
       slope_ppm_per_day = model[[1]]$coefficients[[2]],
       R2 = summary(model[[1]])$r.squared,
       p = summary(model[[1]])$coefficients[, 4][2],
+      se = summary(model[[1]])$coefficients[, 2][2],
       rmse = sqrt(mean(model[[1]]$residuals^2)),
       max = max(conc),
       min = min(conc),
@@ -253,7 +254,7 @@ calculate_flux <- function(start_date = NULL,
     )) %>%
     pivot_wider(
       names_from = gas,
-      values_from = c(slope_ppm_per_day, R2, p, rmse, init, max, min),
+      values_from = c(slope_ppm_per_day, R2, p, se, rmse, init, max, min),
       names_glue = "{gas}_{.value}"
     ) %>%
     full_join(flags, by = c("TIMESTAMP" = "start", "MIU_VALVE", "date", "group")) %>%

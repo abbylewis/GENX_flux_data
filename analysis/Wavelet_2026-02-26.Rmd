@@ -21,8 +21,8 @@ source("../R/make_lm_label.R")
 source("../analysis/hm_style.R")
 
 ch4 <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) %>%
-  filter(CH4_filled < 1) %>% # Removing n = 1 flux from chamber 12. Probably good to add an si figure showing what happens if we don't do this
-  mutate(CH4_filled = CH4_filled * (60 * 60)) # h instead of s
+  mutate(CH4_filled = CH4_filled * (60 * 60)) %>%# h instead of s
+  rename(AirTC_Avg = Ta)
 ```
 
 Run wavelet
@@ -93,7 +93,7 @@ discrete_scales <- dfs %>%
   ) %>%
   select(-num_value) %>%
   group_by(grouped_scale, MIU_VALVE, TIMESTAMP, var_name) %>%
-  summarize(value = sum(value), .groups = "drop") %>%
+  summarize(value = sum(value, na.rm = T), .groups = "drop") %>%
   pivot_wider(names_from = var_name, values_from = value) %>%
   left_join(nas_to_add) %>%
   mutate(
@@ -118,6 +118,8 @@ discrete_scales_exp <- discrete_scales %>%
   ) %>%
   filter(!is.na(exp_var_value)) %>%
   rename(grouped_scale_exp = grouped_scale)
+
+unique(dfs$name)
 ```
 
 Plot overall variance
@@ -177,7 +179,7 @@ scales <- grouped_pct_var %>%
   scale_fill_manual(values = color.gradient, name = "Chamber") +
   facet_wrap(~grouped_scale) +
   theme_hm +
-  ylab(expression("Standard deviation (µmol" ~ m^2 ~ h^-1 * ")")) +
+  ylab(expression("Standard deviation (µmol" ~ m^-2 ~ h^-1 * ")")) +
   xlab("Temperature treatment (ºC above ambient)")
 
 h_to_s_data <- grouped_pct_var %>%
@@ -288,13 +290,13 @@ Figure showing altered variability (maybe for SI?)
 ```{r}
 example <- discrete_scales %>%
   filter(grouped_scale == "Seasonal" |
-    month(TIMESTAMP) == 7 & day(TIMESTAMP) %in% 10:17 & grouped_scale == "Weekly" |
-    month(TIMESTAMP) == 7 & day(TIMESTAMP) %in% 10:17 & grouped_scale == "Daily" |
-    month(TIMESTAMP) == 7 & day(TIMESTAMP) %in% 10:17 & grouped_scale == "Hourly") %>%
+    month(TIMESTAMP) == 7 & day(TIMESTAMP) %in% 8:14 & grouped_scale == "Weekly" |
+    month(TIMESTAMP) == 7 & day(TIMESTAMP) %in% 8:14 & grouped_scale == "Daily" |
+    month(TIMESTAMP) == 7 & day(TIMESTAMP) %in% 8:14 & grouped_scale == "Hourly") %>%
   mutate(grouped_scale = factor(grouped_scale, levels = rev(levels(grouped_scale)))) %>%
   ggplot(aes(x = TIMESTAMP, y = CH4_filled, color = MIU_VALVE)) +
   geom_line() +
-  ylab(expression("Methane flux (µmol" ~ m^2 ~ h^-1 * ")")) +
+  ylab(expression("Methane flux (µmol" ~ m^-2 ~ h^-1 * ")")) +
   facet_wrap(~grouped_scale, scales = "free_x") +
   scale_color_manual(values = color.gradient, name = "Chamber") +
   theme_hm +
@@ -323,7 +325,7 @@ discrete_scales %>%
   ) %>%
   ggplot(aes(x = TIMESTAMP, y = CH4_filled, color = MIU_VALVE)) +
   geom_line() +
-  ylab(expression("Methane flux (µmol" ~ m^2 ~ h^-1 * ")")) +
+  ylab(expression("Methane flux (µmol" ~ m^-2 ~ h^-1 * ")")) +
   facet_grid(grouped_scale ~ MIU_VALVE, scales = "free") +
   scale_color_manual(values = color.gradient, name = "Chamber") +
   theme_hm +

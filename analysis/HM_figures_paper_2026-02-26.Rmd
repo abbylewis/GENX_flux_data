@@ -24,19 +24,9 @@ part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.cs
       labels = chamber_levels2
     ),
     date = as.Date(DateTime)
-  ) %>%
-  filter(CH4_filled < 1) # Removing n = 1 flux from chamber 12. Probably good to add an si figure showing what happens if we don't do this
-
-met <- read_csv("../processed_data/met_2025_dashboard.csv") %>%
-  mutate(
-    Salinity = ifelse(TIMESTAMP > as_datetime("2025-07-22 12:00:00") &
-      TIMESTAMP < as_datetime("2025-07-24 12:00:00"),
-    NA, Salinity
-    ),
-    Salinity = ifelse(Salinity < 1,
-      NA, Salinity
-    )
   )
+
+met <- read_csv("../processed_data/met_2025_gapfilled.csv")
 evi <- read_csv("../processed_data/evi.csv")
 ```
 
@@ -172,7 +162,7 @@ comb <- patchwork::wrap_plots(
         axis.ticks.x = element_blank(),
         legend.position = "bottom"
       ) +
-      ggtitle("Seasonal (daily average)"),
+      ggtitle("Daily mean"),
     annual_wl +
       theme(
         axis.text.x = element_blank(),
@@ -194,7 +184,7 @@ comb <- patchwork::wrap_plots(
         axis.title.y = element_blank(),
         legend.position = "bottom"
       ) +
-      ggtitle("Short-term (hourly)"),
+      ggtitle("Measured"),
     focal_wl +
       scale_x_datetime(date_breaks = "5 day", date_labels = "%d %b") +
       theme(
@@ -219,11 +209,14 @@ comb <- patchwork::wrap_plots(
   guides = "collect"
 ) +
   patchwork::plot_layout(guides = "collect") +
-  patchwork::plot_annotation(theme = theme(
-    legend.position = "bottom",
-    legend.justification = "left",
-    legend.title.position = "top"
-  ))
+  patchwork::plot_annotation(
+    tag_levels = list(c("a","","", "b")),
+    theme = theme(
+      legend.position = "bottom",
+      legend.justification = "left",
+      legend.title.position = "top"
+    )) &
+  theme(plot.tag = element_text(face = "bold"))
 
 comb
 

@@ -9,20 +9,33 @@ source(here::here("R", "download_gcrew_met.R"))
 source(here::here("R", "download_water_level.R"))
 
 # Load slopes
-df <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
+df <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
+  filter(!duplicated(TIMESTAMP))
 
 # Update met
 download_gcrew_met()
 # Update water level
 download_water_level()
 # Load data
-met <- read_csv(here::here("processed_data", "met_2025_dashboard.csv"))
+met <- read_csv(here::here("processed_data", "met_2025_dashboard.csv")) %>%
+  mutate(
+    Salinity = ifelse(TIMESTAMP > as_datetime("2025-07-22 12:00:00") &
+                        TIMESTAMP < as_datetime("2025-07-25 00:00:00"),
+                      NA, Salinity
+    ),
+    Salinity = ifelse(Salinity < 1,
+                      NA, Salinity
+    )
+  ) %>%
+  filter(!is.na(TIMESTAMP),
+         !duplicated(TIMESTAMP))
 wl <- read_csv(here::here("processed_data", "water_level_dashboard.csv"))
 
 # Use GENX water level unless it's missing—gap fill with met
+# Depth is from met, Depth_cm is from wl
 driver <- met %>%
   left_join(wl) %>%
-  filter(Depth > 25) # One weird point
+  filter(Depth > 25) # One weird point in met data
 
 # Bit of a messy relationship, but not too bad
 driver %>%
@@ -35,15 +48,15 @@ driver %>%
 calc_reg <- lm(Depth_cm ~ Depth, data = driver)
 
 # Fill
-driver$Depth_cm <- ifelse(is.na(driver$Depth_cm),
-  predict(calc_reg, driver),
-  driver$Depth_cm
-)
+driver$Depth_cm[is.na(driver$Depth_cm)] <-
+  predict(calc_reg, driver[is.na(driver$Depth_cm), ])
 
 # Check
 driver %>%
   ggplot(aes(x = TIMESTAMP, y = Depth_cm)) +
   geom_line()
+
+write_csv(driver, here::here("processed_data", "met_2025_gapfilled.csv"))
 
 # Format
 df$DateTime <- as.POSIXct(df$TIMESTAMP, tz = "EST")
@@ -79,7 +92,7 @@ merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each f
       265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196
   ) %>%
   ungroup() %>%
-  select(MIU_VALVE, DateTime, NEE, CH4, N2O, PAR, Ta, CH4_R2, Depth_cm)
+  select(MIU_VALVE, DateTime, NEE, CH4, N2O, PAR, Ta, CH4_R2, CO2_R2, CH4_se)
 
 # Identify nighttime
 par_night_thresh <- 5 # µmol m-2 s-1 threshold to define night
@@ -148,7 +161,7 @@ estimate_params_moving_window <- function(
         center = center,
         Rref = NA_real_,
         Q10 = NA_real_,
-        n_night = ifelse(is.null(wnd_night), 0, nrow(wnd_night))
+        n_night = nrow(wnd_night)
       )
     }
   }
@@ -176,6 +189,38 @@ params_dt <- params_dt[!is.na(center)]
 merged[, Rref_t := NA_real_]
 merged[, Q10_t := NA_real_]
 
+make_grid <- function(g) {
+  data.table(
+    DateTime = seq(min(g$DateTime),
+                    max(g$DateTime),
+                    by = "130 min"
+    ),
+    MIU_VALVE = g$MIU_VALVE[1]
+  )
+}
+
+grid <- merged[, make_grid(.SD), by = MIU_VALVE]
+
+setkey(merged, MIU_VALVE, DateTime)
+setkey(grid, MIU_VALVE, DateTime)
+merged_grid <- merged[grid, roll = 7200] # allow 2-hour carry
+merged_grid[, c("Ta", "PAR") := NULL]
+
+setkey(merged_grid, DateTime)
+setDT(driver)
+setkey(driver, DateTime)
+
+merged_grid <- driver[
+  merged_grid,
+  roll = "nearest"
+]
+
+setnames(
+  merged_grid,
+  old = c("AirTC_Avg", "PAR_Den_C_Avg"),
+  new = c("Ta", "PAR")
+)
+
 for (ch in chambers) {
   pch <- params_dt[MIU_VALVE == ch & !is.na(Rref) & !is.na(Q10)]
   if (nrow(pch) == 0) next
@@ -184,30 +229,31 @@ for (ch in chambers) {
   x <- as.numeric(pch$center) # seconds since epoch
   yR <- pch$Rref
   yQ <- pch$Q10
-  targ_idx <- which(merged$MIU_VALVE == ch)
-  xt <- as.numeric(merged$DateTime[targ_idx])
+  targ_idx <- which(merged_grid$MIU_VALVE == ch)
+  xt <- as.numeric(merged_grid$DateTime[targ_idx])
   # approx with rule=2: use nearest outside range
   Rinterp <- approx(x = x, y = yR, xout = xt, rule = 2, ties = "ordered")$y
   Qinterp <- approx(x = x, y = yQ, xout = xt, rule = 2, ties = "ordered")$y
-  merged[targ_idx, Rref_t := Rinterp]
-  merged[targ_idx, Q10_t := Qinterp]
+  merged_grid[targ_idx, Rref_t := Rinterp]
+  merged_grid[targ_idx, Q10_t := Qinterp]
 }
 
 # Predict Reco using time-varying parameters
 # Reco = Rref_t * Q10_t ^ ((Ta - Tref)/10)
-merged[, Reco := NA_real_]
+merged_grid[, Reco := NA_real_]
 Tref <- 10
-ok_mask <- is.finite(merged$Rref_t) & is.finite(merged$Q10_t) & is.finite(merged$Ta)
-merged[ok_mask, Reco := Rref_t * (Q10_t^((Ta[ok_mask] - Tref) / 10))]
+merged_grid[!is.na(Rref_t) & !is.na(Q10_t) & !is.na(Ta),
+            Reco := Rref_t * (Q10_t^((Ta - Tref) / 10))]
 
 # Compute daytime GPP = Reco - NEE
-merged[, is_day := PAR >= par_night_thresh]
-merged[, GPP := NA_real_]
-day_mask <- merged$is_day & is.finite(merged$Reco) & is.finite(merged$NEE)
-merged[day_mask, GPP := Reco - NEE]
+merged_grid[, is_day := PAR >= par_night_thresh]
+merged_grid[, GPP := NA_real_]
+day_mask <- merged_grid$is_day & is.finite(merged_grid$Reco) & is.finite(merged_grid$NEE)
+merged_grid[day_mask, GPP := Reco - NEE]
 # enforce non-negative GPP if desired
-merged[day_mask & GPP < 0, GPP := 0]
-merged[is.na(NEE), GPP := NA]
-# merged[is.na(NEE), Reco := NA]
+merged_grid[day_mask & GPP < 0, GPP := 0]
+merged_grid[is.na(NEE), GPP := NA]
+# merged_grid[is.na(NEE), Reco := NA]
 
-write_csv(merged, here::here("processed_data", "partitioned_co2.csv"))
+write_csv(merged_grid, here::here("processed_data", "partitioned_co2.csv"))
+
