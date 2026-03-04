@@ -101,8 +101,8 @@ discrete_scales <- dfs %>%
     CH4_unfilled = ifelse(na_ch4, NA, CH4_filled),
     GPP_unfilled = ifelse(na_gpp, NA, GPP_filled),
     MIU_VALVE = factor(MIU_VALVE,
-      levels = 1:12,
-      labels = chamber_levels2
+      levels = chamber_levels,
+      labels = chamber_labels2
     ),
     grouped_scale = factor(grouped_scale,
       levels = c("Hourly", "Daily", "Weekly", "Seasonal")
@@ -148,8 +148,8 @@ grouped_pct_var <- dfs %>%
   ungroup() %>%
   mutate(
     MIU_VALVE = factor(MIU_VALVE,
-      levels = 1:12,
-      labels = chamber_levels2
+      levels = chamber_levels,
+      labels = chamber_labels2
     ),
     grouped_scale = factor(grouped_scale,
       levels = c("Hourly", "Daily", "Weekly", "Seasonal")
@@ -474,7 +474,9 @@ discrete_scales %>%
 
 ch4 %>%
   mutate(
-    MIU_VALVE = factor(MIU_VALVE, levels = 1:12, labels = chamber_levels2),
+    MIU_VALVE = factor(MIU_VALVE, 
+                       levels = chamber_levels, 
+                       labels = chamber_labels2),
     tod = hour(TIMESTAMP) +
       minute(TIMESTAMP) / 60 +
       second(TIMESTAMP) / 3600
@@ -491,7 +493,9 @@ ch4 %>%
 
 ch4 %>%
   mutate(
-    MIU_VALVE = factor(MIU_VALVE, levels = 1:12, labels = chamber_levels2),
+    MIU_VALVE = factor(MIU_VALVE, 
+                       levels = chamber_levels, 
+                       labels = chamber_labels2),
     tod = hour(TIMESTAMP) +
       minute(TIMESTAMP) / 60 +
       second(TIMESTAMP) / 3600

@@ -20,14 +20,20 @@ part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.cs
   mutate(
     CH4_umol_m2_h = CH4_filled * (60 * 60),
     MIU_VALVE = factor(MIU_VALVE,
-      levels = 1:12,
-      labels = chamber_levels2
+      levels = chamber_levels,
+      labels = chamber_labels2
     ),
     date = as.Date(DateTime)
   ) %>%
   filter(DateTime <= "2025-11-15")
 
 met <- read_csv("../processed_data/met_2025_gapfilled.csv")
+
+soil_temp <- read_csv(here::here("processed_data", "soil_temp.csv"))  %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+                            levels = chamber_levels,
+                            labels = chamber_labels2
+  ))
 ```
 
 Summary stats
@@ -68,6 +74,18 @@ annual_AT <- met %>%
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5, color = "grey20") +
   coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual))) +
+  theme_hm +
+  theme(axis.title.x = element_blank()) +
+  ylab(expression(atop("Air temp.", " (ºC)")))
+
+annual_ST <- soil_temp %>%
+  mutate(date = as.Date(timestamp)) %>%
+  group_by(date, MIU_VALVE) %>%
+  summarize(Temp_C = mean(Temp_C, na.rm = T)) %>%
+  ggplot(aes(x = date, y = Temp_C, color = MIU_VALVE)) +
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_line(size = 0.5) +
+  #coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual))) +
   scale_color_manual(values = color.gradient, name = "Chamber") +
   theme_hm +
   theme(axis.title.x = element_blank()) +
@@ -80,7 +98,6 @@ annual_wl <- part %>%
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5, color = "grey20") +
   coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual))) +
-  scale_color_manual(values = color.gradient, name = "Chamber") +
   theme_hm +
   theme(axis.title.x = element_blank()) +
   ylab(expression(atop("Water level", " (cm)")))
@@ -103,7 +120,6 @@ focal_wl <- part %>%
   ggplot(aes(x = DateTime, y = Depth_cm)) +
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5, color = "grey20") +
-  scale_color_manual(values = color.gradient, name = "Chamber") +
   theme_hm +
   theme(axis.title.x = element_blank()) +
   ylab(expression(atop("Water level", " (cm)")))
@@ -114,7 +130,6 @@ focal_AT <- met %>%
   ggplot(aes(x = TIMESTAMP, y = AirTC_Avg)) +
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5, color = "grey20") +
-  scale_color_manual(values = color.gradient, name = "Chamber") +
   theme_hm +
   theme(axis.title.x = element_blank()) +
   ylab(expression(atop("Air temp.", " (ºC)")))

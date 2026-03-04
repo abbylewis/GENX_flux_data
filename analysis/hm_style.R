@@ -1,9 +1,13 @@
-chamber_levels2 <- c(
-  "Ch. 1 (+0 ºC)", "Ch. 2 (+0 ºC)", "Ch. 3 (+0.75 ºC)",
-  "Ch. 4 (+1.5 ºC)", "Ch. 5 (+2.25 ºC)", "Ch. 6 (+2.25 ºC)",
-  "Ch. 7 (+3.0 ºC)", "Ch. 8 (+3.75 ºC)", "Ch. 9 (+3.75 ºC)",
-  "Ch. 10 (+4.5 ºC)", "Ch. 11 (+5.25 ºC)", "Ch. 12 (+6.0 ºC)"
-)
+soil_temps <- read_csv(here::here("processed_data", "soil_temp.csv")) %>%
+  group_by(MIU_VALVE) %>%
+  summarize(mean = mean(Temp_C, na.rm = T), .groups = "drop") %>%
+  arrange(mean) %>%
+  mutate(new_name = row_number(),
+         dif = mean - mean[new_name == 1],
+         label = paste0("Ch. ", new_name, " (+", round(dif,1), " ºC)"))
+
+chamber_labels2 <- soil_temps$label
+chamber_levels <- soil_temps$MIU_VALVE
 
 color.gradient <- c(
   "blue4", "blue3", "turquoise4", "lightseagreen",
