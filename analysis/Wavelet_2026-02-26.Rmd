@@ -22,7 +22,8 @@ source("../analysis/hm_style.R")
 
 ch4 <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) %>%
   mutate(CH4_filled = CH4_filled * (60 * 60)) %>%# h instead of s
-  rename(AirTC_Avg = Ta)
+  rename(AirTC_Avg = Ta) %>%
+  filter(as.Date(TIMESTAMP) <= "2025-11-15")
 ```
 
 Run wavelet

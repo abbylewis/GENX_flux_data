@@ -236,6 +236,17 @@ ch4 %>%
   facet_wrap(~MIU_VALVE, scales = "free")
 
 ch4 %>%
+  ggplot(aes(x = TIMESTAMP)) +
+  geom_point(aes(y = CH4_rf), color = "red")+
+  geom_point(aes(y = CH4), shape = 21) +
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+ch4 %>%
+  ggplot(aes(x = TIMESTAMP)) +
+  geom_point(aes(y = CH4_rf), color = "red")+
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+ch4 %>%
   filter(is.na(GPP_filled))
 
 write_csv(ch4, here::here("processed_data", "L2- partitioned_and_gap_filled.csv"))

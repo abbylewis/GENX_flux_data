@@ -24,10 +24,22 @@ part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.cs
       labels = chamber_levels2
     ),
     date = as.Date(DateTime)
-  )
+  ) %>%
+  filter(DateTime <= "2025-11-15")
 
 met <- read_csv("../processed_data/met_2025_gapfilled.csv")
-evi <- read_csv("../processed_data/evi.csv")
+```
+
+Summary stats
+
+```{r}
+part %>%
+  mutate(filled = ifelse(is.na(CH4) & !is.na(CH4_filled), T, F)) %>%
+  group_by(MIU_VALVE) %>%
+  summarize(n = sum(filled),
+            pct = n/sum(!is.na(CH4_filled))*100) %>%
+  summarize(min(pct),
+            max(pct))
 ```
 
 Data summary (Figure 2)
@@ -293,7 +305,7 @@ annual <- ggplot(
   ) +
   scale_fill_manual(values = color.gradient, name = "Chamber") +
   theme_hm +
-  ylab(expression(atop("Total annual emissions", "(mol" ~ m^-2 * ")"))) +
+  ylab(expression(atop("Growing season", "emissions (mol" ~ m^-2 ~ yr^-1 * ")"))) +
   xlab("Temperature treatment (ºC above ambient)") +
   theme(
     legend.position = "bottom",
@@ -368,7 +380,7 @@ top_pct_fig <- top_pct %>%
   ) +
   scale_fill_manual(values = color.gradient, name = "Chamber") +
   theme_hm +
-  ylab(expression(atop("Percent of annual", "emissions"))) +
+  ylab(expression(atop("Percent of growing season", "emissions"))) +
   xlab("Temperature treatment (ºC above ambient)") +
   guides(fill = guide_legend(ncol = 4)) +
   facet_wrap(~name, scales = "free_y")
