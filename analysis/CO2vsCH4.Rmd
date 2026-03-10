@@ -12,15 +12,15 @@ library(tidyverse)
 library(data.table)
 source(here::here("analysis", "hm_style.R"))
 
-ch4 <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) %>%
-  filter(CH4_filled < 1) # Removing n = 1 flux from chamber 12. Probably good to add an si figure showing what happens if we don't do this
+ch4 <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) 
 ```
 
 ```{r}
 sums <- ch4 %>%
+  filter(TIMESTAMP <= "2025-11-15")%>%
   mutate(MIU_VALVE = factor(MIU_VALVE,
-    levels = 1:12,
-    labels = chamber_levels2
+    levels = chamber_levels,
+    labels = chamber_labels2
   )) %>%
   group_by(date_join) %>%
   filter(length(unique(MIU_VALVE)) == 12) %>%
