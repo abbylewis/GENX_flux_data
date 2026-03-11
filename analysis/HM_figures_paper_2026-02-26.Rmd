@@ -433,6 +433,18 @@ df_out_fullday <- df %>%
     time = "full day"
   )
 
+df_out_daytime <- df %>%
+  group_by(week, MIU_VALVE) %>%
+  filter(hour(DateTime) %in% 9:4) %>%
+  reframe(
+    rep = seq_len(reps),
+    flux = replicate(
+      reps,
+      mean(sample(CH4_umol_m2_h, samples_per_week))
+    ),
+    time = "full day"
+  )
+
 df_out <- df_out_fullday
 
 to_plot <- df_out %>%

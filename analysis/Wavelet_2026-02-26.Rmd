@@ -121,6 +121,10 @@ discrete_scales_exp <- discrete_scales %>%
   rename(grouped_scale_exp = grouped_scale)
 
 unique(dfs$name)
+
+ch4 %>%
+  ggplot(aes(x = TIMESTAMP, y = Salinity))+
+  geom_line()
 ```
 
 Plot overall variance
@@ -344,6 +348,34 @@ discrete_scales %>%
   )
 
 ggsave(filename = "../figures/wavelet_comprehensive.png", width = 10, height = 3.5)
+
+discrete_scales %>%
+  mutate(
+    grouped_scale = factor(grouped_scale, levels = rev(levels(grouped_scale))),
+    MIU_VALVE = factor(MIU_VALVE,
+      levels = levels(MIU_VALVE),
+      labels = sub(" \\(.+\\)", "", levels(MIU_VALVE))
+    )
+  ) %>%
+  ggplot(aes(x = TIMESTAMP, y = Salinity, color = MIU_VALVE)) +
+  geom_line() +
+  ylab(expression("Methane flux (µmol" ~ m^-2 ~ h^-1 * ")")) +
+  facet_grid(grouped_scale ~ MIU_VALVE, scales = "free") +
+  scale_color_manual(values = color.gradient, name = "Chamber") +
+  theme_hm +
+  scale_x_datetime(
+    breaks = seq(
+      from = as.POSIXct("2020-04-01"),
+      to   = max(discrete_scales$TIMESTAMP, na.rm = TRUE),
+      by   = "6 months"
+    ),
+    date_labels = "%b"
+  ) +
+  theme(
+    axis.title.x = element_blank(),
+    legend.position = "none"
+  )
+
 ```
 
 Spearman

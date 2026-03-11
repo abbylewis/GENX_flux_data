@@ -29,32 +29,12 @@ met <- read_csv(here::here("processed_data", "met_2025_dashboard.csv")) %>%
   ) %>%
   filter(!is.na(TIMESTAMP),
          !duplicated(TIMESTAMP))
-wl <- read_csv(here::here("processed_data", "water_level_dashboard.csv"))
 
-# Use GENX water level unless it's missing—gap fill with met
-# Depth is from met, Depth_cm is from wl
+# Use met water level
 driver <- met %>%
-  left_join(wl) %>%
-  filter(Depth > 25) # One weird point in met data
-
-# Bit of a messy relationship, but not too bad
-driver %>%
-  filter(Depth > 25) %>%
-  ggplot(aes(x = Depth, y = Depth_cm)) +
-  geom_point() +
-  geom_abline() +
-  geom_smooth(method = "lm")
-
-calc_reg <- lm(Depth_cm ~ Depth, data = driver)
-
-# Fill
-driver$Depth_cm[is.na(driver$Depth_cm)] <-
-  predict(calc_reg, driver[is.na(driver$Depth_cm), ])
-
-# Check
-driver %>%
-  ggplot(aes(x = TIMESTAMP, y = Depth_cm)) +
-  geom_line()
+  filter(Depth > 25) %>% # One weird point in met data
+  mutate(Depth = Depth - 58) %>%
+  rename(Depth_cm = Depth)
 
 write_csv(driver, here::here("processed_data", "met_2025_gapfilled.csv"))
 
