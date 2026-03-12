@@ -5,10 +5,10 @@ date: "2026-02-23"
 output: html_document
 ---
 
-Load packages and data
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+# Load packages and data
 
 # Packages
 library(tidyverse)
@@ -106,6 +106,62 @@ df %>%
   facet_grid(`Measurement type` ~ Year)
 ```
 
+Map
+
+```{r}
+lat_lon <- read_csv(here::here("Raw_data", "GENX_RTK_11mar2026.csv")) %>%
+  filter(!is.na(Elev_m),
+         !is.na(Chamber_ID)) %>%
+  mutate(
+    lat_dd = as.numeric(sub("N", "", Lat)),
+    lon_dd = -as.numeric(sub("W", "", Lon))
+  ) %>%
+  group_by(Chamber_ID) %>%
+  summarize(across(c(lat_dd, lon_dd, Elev_m), mean)) %>%
+  rename(chamber_ref = Chamber_ID)
+
+library(sf)
+
+df_map_sf <- df %>%
+  mutate(chamber_ref = as.numeric(chamber_ref)) %>%
+  left_join(lat_lon) %>%
+  st_as_sf(coords = c("lon_dd", "lat_dd"), crs = 4326)
+
+veg_map <- df_map_sf %>%
+  pivot_longer(c(SPPA.g.m2, DISP.g.m2, SCAM.g.m2)) %>%
+  mutate(name = ifelse(name %in% c("SPPA.g.m2", "DISP.g.m2"),
+                       "grass", "sedge")) %>%
+  group_by(`Measurement type`, Year, chamber_ref, name) %>%
+  summarize(value = sum(value))
+
+ggplot(veg_map) +
+  geom_sf(aes(color = value), size = 3) +
+  facet_grid(`Measurement type`+name ~ Year) +
+  scale_color_viridis_c(name = "Biomass (g)")+
+  egg::theme_article()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+veg_map %>%
+  filter(`Measurement type` == "Chamber") %>%
+  ggplot() +
+  geom_sf(aes(color = value), size = 3) +
+  facet_grid(name ~ Year) +
+  scale_color_viridis_c(name = "Biomass (g)")+
+  egg::theme_article()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("In chambers")
+
+veg_map %>%
+  filter(`Measurement type` == "Reference") %>%
+  ggplot() +
+  geom_sf(aes(color = value), size = 3) +
+  facet_grid(name ~ Year) +
+  scale_color_viridis_c(name = "Biomass (g)")+
+  egg::theme_article()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Reference")
+```
+
 Plot stem characteristics
 
 ```{r}
@@ -117,7 +173,8 @@ stem_sum <- stems %>%
     sd_height = sd(Total_Height, na.rm = T),
     u_width = mean(Width, na.rm = T),
     med_width = median(Width, na.rm = T),
-    sd_width = sd(Width, na.rm = T)
+    sd_width = sd(Width, na.rm = T),
+    .groups = "drop"
   )
 
 stems %>%

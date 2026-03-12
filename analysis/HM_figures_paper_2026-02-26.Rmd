@@ -410,6 +410,36 @@ ggsave(
   filename = "../figures/top_pct_comb_annual.jpg",
   dpi = 300, width = 6, height = 5
 )
+
+top_pct_pres <- top_pct %>%
+  filter(name == "Top 1% of measurements") %>%
+  ggplot(aes(x = Temp_C, y = value)) +
+  geom_smooth(
+    method = "lm", color = "black",
+    data = ~ subset(.x, p < 0.05)
+  ) +
+  geom_point(aes(fill = MIU_VALVE),
+    color = "black", shape = 21,
+    stroke = 0.5, size = 2
+  ) +
+  geom_text(
+    data = label_df %>%
+      filter(name == "Top 1% of measurements"),
+    aes(x = -Inf, y = Inf, label = label),
+    hjust = 0, vjust = 1.1,
+    inherit.aes = FALSE, size = 4
+  ) +
+  scale_fill_manual(values = color.gradient, name = "Chamber") +
+  theme_hm +
+  ylab(expression(atop("Top 1% of fluxes", "(% of growing season emissions)"))) +
+  xlab("Temperature treatment (ºC above ambient)") +
+  guides(fill = guide_legend(ncol = 3))
+
+ggsave(
+  top_pct_pres,
+  filename = "../figures/top_pct_pres.jpg",
+  dpi = 300, width = 4, height = 5
+)
 ```
 
 Manual sampling underestimates

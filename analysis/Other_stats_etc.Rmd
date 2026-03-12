@@ -26,5 +26,27 @@ ch4 %>%
 ch4 %>%
   summarize(n_flooded = sum(Depth_cm > 0, na.rm = T)/sum(!is.na(Depth_cm)))
 ```
+```{r}
+library("sf")
+library("rnaturalearth")
+library("rnaturalearthdata")
+
+rtk <- read_csv(here::here("Raw_Data", "GENX_RTK_11mar2026.csv"))
+
+rtk_sf <- rtk %>%
+  filter(!is.na(Elev_m),
+         !is.na(Chamber_ID)) %>%
+  mutate(
+    lat_dd = as.numeric(sub("N", "", Lat)),
+    lon_dd = -as.numeric(sub("W", "", Lon))
+  ) %>%
+  st_as_sf(coords = c("lon_dd", "lat_dd"), crs = 4326)
+
+ggplot(rtk_sf) +
+  geom_sf(aes(color = Elev_m))+
+  scale_color_viridis_c()+
+  egg::theme_article()
+```
+
 
 
