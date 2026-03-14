@@ -19,6 +19,7 @@ part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.cs
   rename(DateTime = TIMESTAMP) %>%
   mutate(
     CH4_umol_m2_h = CH4_filled * (60 * 60),
+    CO2_umol_m2_h = NEE * (60 * 60),
     MIU_VALVE = factor(MIU_VALVE,
       levels = chamber_levels,
       labels = chamber_labels2
@@ -114,6 +115,17 @@ focal_ch4 <- part %>%
   theme_hm +
   theme(axis.title.x = element_blank()) +
   ylab(expression(atop(CH[4] ~ "flux ", "(µmol" ~ m^-2 ~ h^-1 * ")")))
+
+focal_co2 <-part %>%
+  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  mutate(CO2_umol_m2_h  =ifelse(hour(DateTime) %in% 8:19, CO2_umol_m2_h, NA)) %>%
+  ggplot(aes(x = DateTime, y = CO2_umol_m2_h, color = MIU_VALVE)) +
+  geom_hline(yintercept = 0, color = "grey80") +
+  geom_line(size = 0.5) +
+  scale_color_manual(values = color.gradient, name = "Chamber") +
+  theme_hm +
+  theme(axis.title.x = element_blank()) +
+  ylab(expression(atop(CO[2] ~ "flux ", "(µmol" ~ m^-2 ~ h^-1 * ")")))
 
 focal_wl <- part %>%
   filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
