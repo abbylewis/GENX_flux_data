@@ -175,3 +175,30 @@ sums %>%
 
 ggpubr::ggarrange(bar_chart, pct_fig, common.legend = T, legend = "bottom")
 ```
+
+```{r}
+param <- ch4 %>%
+  filter(TIMESTAMP <= "2025-11-15")%>%
+  mutate(MIU_VALVE = factor(MIU_VALVE,
+    levels = chamber_levels,
+    labels = chamber_labels2
+  )) %>%
+  group_by(date_join) %>%
+  filter(length(unique(MIU_VALVE)) == 12) %>%
+  group_by(MIU_VALVE) %>%
+  summarize(
+    Rref_t = mean(Rref_t, na.rm = T),
+    Q10_t = mean(Q10_t, na.rm = T)
+  )
+param %>%
+  ggplot(aes(x = MIU_VALVE, y = Rref_t)) +
+  geom_point() +
+  theme_hm +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+param %>%
+  ggplot(aes(x = MIU_VALVE, y = Q10_t)) +
+  geom_point() +
+  theme_hm +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+

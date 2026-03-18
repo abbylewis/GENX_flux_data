@@ -140,6 +140,15 @@ ch4 %>%
   geom_smooth() +
   facet_wrap(~MIU_VALVE)
 
+p <- ch4 %>%
+  mutate(MIU_VALVE = factor(MIU_VALVE)) %>%
+  ggplot(aes(x = TIMESTAMP, y = Rref_t, 
+             color = MIU_VALVE, label = MIU_VALVE)) +
+  geom_smooth()+
+  geom_point()
+
+plotly::ggplotly(p)
+
 ch4 %>%
   ggplot(aes(x = TIMESTAMP, y = Q10_t)) +
   geom_point() +

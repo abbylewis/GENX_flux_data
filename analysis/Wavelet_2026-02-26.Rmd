@@ -24,6 +24,14 @@ ch4 <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv
   mutate(CH4_filled = CH4_filled * (60 * 60)) %>%# h instead of s
   rename(AirTC_Avg = Ta) %>%
   filter(as.Date(TIMESTAMP) <= "2025-11-15")
+
+soil_temp <- read_csv(here::here("processed_data", "soil_temp.csv")) %>%
+  rename(time_join = timestamp,
+         SoilTC_Avg = Temp_C)
+
+ch4 = ch4 %>%
+  mutate(time_join = round_date(TIMESTAMP, "15 minutes")) %>%
+  left_join(soil_temp)
 ```
 
 Run wavelet
@@ -31,6 +39,7 @@ Run wavelet
 ```{r}
 drivers <- c(
   "AirTC_Avg",
+  "SoilTC_Avg",
   "Depth_cm",
   "GPP_filled",
   "Salinity",
@@ -39,6 +48,7 @@ drivers <- c(
 
 driver_labels <- c(
   AirTC_Avg = "Air temperature",
+  SoilTC_Avg = "Soil temperature",
   Depth_cm = "Water depth",
   GPP_filled = "GPP",
   GPP_unfilled = "GPP",
@@ -48,6 +58,7 @@ driver_labels <- c(
 
 driver_colors <- c(
   AirTC_Avg = "#E76D66",
+  SoilTC_Avg = "brown4",
   Depth_cm = "#2176AB",
   GPP_filled = "#3BAA5D",
   GPP_unfilled = "#3BAA5D",
@@ -462,7 +473,7 @@ spear <- relative_corr %>%
     group = exp_var
   )) +
   geom_hline(color = "grey50", yintercept = 0) +
-  geom_line(alpha = 0.2, aes(group = paste0(MIU_VALVE, exp_var))) +
+  geom_line(alpha = 0.1, aes(group = paste0(MIU_VALVE, exp_var))) +
   geom_line(
     data = . %>% group_by(exp_var, grouped_scale) %>%
       summarize(spearman_rho = mean(spearman_rho)),
@@ -483,7 +494,17 @@ spear <- relative_corr %>%
 spear
 
 ggsave(spear, filename = "../figures/spearman_correlations.png", width = 3, height = 4)
+
+relative_corr %>%
+  mutate(Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
+    Temp_C = as.numeric(sub("mb", "0", Temp_C))) %>%
+  ggplot(aes(x = Temp_C, y = spearman_rho,
+         color = MIU_VALVE))+
+  geom_point()+
+  facet_grid(exp_var~grouped_scale)
 ```
+
+
 ```{r}
 # library(mgcv)
 
