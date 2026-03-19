@@ -45,7 +45,7 @@ analyze_wavelets <- function(ch4, treatment, var_name, timestep_s) {
   # Run wavelet transformation
   data <- zoo::na.approx(test_data[[var_name]])
   wavelet <- waveslim::modwt(data, "la8", n.levels = 11)
-
+  
   meshed <- data.frame(
     TIMESTAMP = test_data$TIMESTAMP,
     data,
@@ -69,14 +69,62 @@ analyze_wavelets <- function(ch4, treatment, var_name, timestep_s) {
         labels = parse_time(2^(1:11) * timestep_s)
       )
     )
+  
+  recon <- data.frame(
+    TIMESTAMP = test_data$TIMESTAMP,
+    data,
+    l_1 = inverse_by_level(wavelet, 1),
+    l_2 = inverse_by_level(wavelet, 2),
+    l_3 = inverse_by_level(wavelet, 3),
+    l_4 = inverse_by_level(wavelet, 4),
+    l_5 = inverse_by_level(wavelet, 5),
+    l_6 = inverse_by_level(wavelet, 6),
+    l_7 = inverse_by_level(wavelet, 7),
+    l_8 = inverse_by_level(wavelet, 8),
+    l_9 = inverse_by_level(wavelet, 9),
+    l_10 = inverse_by_level(wavelet, 10),
+    l_11 = inverse_by_level(wavelet, 11)
+  ) %>%
+    pivot_longer(cols = -c(data, TIMESTAMP),
+                 values_to = "reconstructed") %>%
+    mutate(
+      name = as.numeric(sub("l_", "", name)),
+      name = factor(name,
+                    levels = 1:11,
+                    labels = parse_time(2^(1:11) * timestep_s)
+      )
+    )
 
   df <- meshed %>%
+    left_join(recon, by = join_by(TIMESTAMP, data, name)) %>%
     mutate(
       MIU_VALVE = treatment,
       var_name = var_name
     )
 
   return(df)
+}
+
+inverse_by_level <- function(wavelet, level) {
+  wt_selected <- wavelet
+  
+  # Get number of levels from object
+  detail_names <- grep("^d[0-9]+$", names(wt_selected), value = TRUE)
+  
+  for (name in detail_names) {
+    l <- as.numeric(sub("d", "", name))
+    
+    if (l != level) {
+      wt_selected[[name]] <- rep(0, length(wt_selected[[name]]))
+    }
+  }
+  
+  # Zero scaling coefficients
+  s_name <- names(wt_selected)[!names(wt_selected) %in% detail_names]
+  wt_selected[[s_name]] <- rep(0, length(wt_selected[[s_name]]))
+  
+  reconstructed <- imodwt(wt_selected)
+  return(reconstructed)
 }
 
 parse_time <- function(s_list) {

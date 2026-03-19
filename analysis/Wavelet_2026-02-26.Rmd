@@ -21,9 +21,10 @@ source("../R/make_lm_label.R")
 source("../analysis/hm_style.R")
 
 ch4 <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) %>%
-  mutate(CH4_filled = CH4_filled * (60 * 60)) %>%# h instead of s
+  mutate(CH4_filled = CH4_filled * (60 * 60), # h instead of s
+         TIMESTAMP = with_tz(TIMESTAMP, "EST")) %>%
   rename(AirTC_Avg = Ta) %>%
-  filter(as.Date(TIMESTAMP) <= "2025-11-15")
+  filter(as_date(TIMESTAMP) <= "2025-11-15")
 
 soil_temp <- read_csv(here::here("processed_data", "soil_temp.csv")) %>%
   rename(time_join = timestamp,
@@ -78,7 +79,7 @@ dfs <- map(unique(grid$var_name),
   double_map,
   ch4 = ch4,
   treatment = unique(ch4$MIU_VALVE),
-  timestep_s = 610 * 12
+  timestep_s = 7800
 ) %>%
   bind_rows()
 
@@ -105,8 +106,11 @@ discrete_scales <- dfs %>%
   ) %>%
   select(-num_value) %>%
   group_by(grouped_scale, MIU_VALVE, TIMESTAMP, var_name) %>%
-  summarize(value = sum(value, na.rm = T), .groups = "drop") %>%
-  pivot_wider(names_from = var_name, values_from = value) %>%
+  summarize(value = sum(value, na.rm = T),
+            reconstructed = sum(reconstructed, na.rm = T), 
+            .groups = "drop") %>%
+  pivot_wider(names_from = var_name, values_from = c(value, reconstructed)) %>%
+  rename_with(~ gsub("value_", "", .x)) %>%
   left_join(nas_to_add) %>%
   mutate(
     CH4_unfilled = ifelse(na_ch4, NA, CH4_filled),
@@ -123,19 +127,13 @@ discrete_scales <- dfs %>%
 
 # Separate explanatory variables
 discrete_scales_exp <- discrete_scales %>%
-  dplyr::select(-c(CH4_unfilled, CH4_filled, GPP_unfilled)) %>%
+  dplyr::select(-matches("CH4_unfilled|CH4_filled|GPP_unfilled|recon")) %>%
   pivot_longer(
     cols = -c(grouped_scale, MIU_VALVE, TIMESTAMP),
     names_to = "exp_var", values_to = "exp_var_value"
   ) %>%
   filter(!is.na(exp_var_value)) %>%
   rename(grouped_scale_exp = grouped_scale)
-
-unique(dfs$name)
-
-ch4 %>%
-  ggplot(aes(x = TIMESTAMP, y = Salinity))+
-  geom_line()
 ```
 
 Plot overall variance
@@ -154,7 +152,8 @@ grouped_pct_var <- dfs %>%
   ) %>%
   select(-num_value) %>%
   group_by(grouped_scale, MIU_VALVE, TIMESTAMP, var_name) %>%
-  summarize(value = sum(value), .groups = "drop") %>%
+  summarize(value = sum(value),
+            .groups = "drop") %>%
   filter(var_name == "CH4_filled") %>%
   group_by(grouped_scale, MIU_VALVE, var_name) %>%
   summarize(var = var(value, na.rm = T)) %>%
@@ -310,7 +309,7 @@ example <- discrete_scales %>%
     month(TIMESTAMP) == 7 & day(TIMESTAMP) %in% 8:14 & grouped_scale == "Daily" |
     month(TIMESTAMP) == 7 & day(TIMESTAMP) %in% 8:14 & grouped_scale == "Hourly") %>%
   mutate(grouped_scale = factor(grouped_scale, levels = rev(levels(grouped_scale)))) %>%
-  ggplot(aes(x = TIMESTAMP, y = CH4_filled, color = MIU_VALVE)) +
+  ggplot(aes(x = TIMESTAMP, y = reconstructed_CH4_filled, color = MIU_VALVE)) +
   geom_line() +
   ylab(expression("Methane flux (µmol" ~ m^-2 ~ h^-1 * ")")) +
   facet_wrap(~grouped_scale, scales = "free_x") +
@@ -339,7 +338,7 @@ discrete_scales %>%
       labels = sub(" \\(.+\\)", "", levels(MIU_VALVE))
     )
   ) %>%
-  ggplot(aes(x = TIMESTAMP, y = CH4_filled, color = MIU_VALVE)) +
+  ggplot(aes(x = TIMESTAMP, y = reconstructed_CH4_filled, color = MIU_VALVE)) +
   geom_line() +
   ylab(expression("Methane flux (µmol" ~ m^-2 ~ h^-1 * ")")) +
   facet_grid(grouped_scale ~ MIU_VALVE, scales = "free") +
@@ -359,34 +358,6 @@ discrete_scales %>%
   )
 
 ggsave(filename = "../figures/wavelet_comprehensive.png", width = 10, height = 3.5)
-
-discrete_scales %>%
-  mutate(
-    grouped_scale = factor(grouped_scale, levels = rev(levels(grouped_scale))),
-    MIU_VALVE = factor(MIU_VALVE,
-      levels = levels(MIU_VALVE),
-      labels = sub(" \\(.+\\)", "", levels(MIU_VALVE))
-    )
-  ) %>%
-  ggplot(aes(x = TIMESTAMP, y = Salinity, color = MIU_VALVE)) +
-  geom_line() +
-  ylab(expression("Methane flux (µmol" ~ m^-2 ~ h^-1 * ")")) +
-  facet_grid(grouped_scale ~ MIU_VALVE, scales = "free") +
-  scale_color_manual(values = color.gradient, name = "Chamber") +
-  theme_hm +
-  scale_x_datetime(
-    breaks = seq(
-      from = as.POSIXct("2020-04-01"),
-      to   = max(discrete_scales$TIMESTAMP, na.rm = TRUE),
-      by   = "6 months"
-    ),
-    date_labels = "%b"
-  ) +
-  theme(
-    axis.title.x = element_blank(),
-    legend.position = "none"
-  )
-
 ```
 
 Spearman
@@ -514,8 +485,8 @@ discrete_scales %>%
       minute(TIMESTAMP) / 60 +
       second(TIMESTAMP) / 3600
   ) %>%
-  filter(grouped_scale == "Daily") %>%
-  ggplot(aes(x = tod, y = CH4_unfilled, color = MIU_VALVE)) +
+  filter(grouped_scale == "Hourly") %>%
+  ggplot(aes(x = tod, y = reconstructed_CH4_filled, color = MIU_VALVE)) +
   geom_smooth(
     method = "gam",
     formula = y ~ s(x, bs = "cc", k = 12),
@@ -570,7 +541,23 @@ discrete_scales %>%
       second(TIMESTAMP) / 3600
   ) %>%
   filter(grouped_scale == "Daily") %>%
-  ggplot(aes(x = tod, y = GPP_filled, color = MIU_VALVE)) +
+  ggplot(aes(x = tod, y = reconstructed_GPP_filled, color = MIU_VALVE)) +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ s(x, bs = "cc", k = 12),
+    se = FALSE
+  ) +
+  scale_x_continuous(limits = c(0, 24), breaks = seq(0, 24, 6)) +
+  scale_color_manual(values = color.gradient) +
+  theme_hm
+
+part %>%
+  mutate(
+    tod = hour(DateTime) +
+      minute(DateTime) / 60 +
+      second(DateTime) / 3600
+  ) %>%
+  ggplot(aes(x = tod, y = NEE, color = MIU_VALVE)) +
   geom_smooth(
     method = "gam",
     formula = y ~ s(x, bs = "cc", k = 12),

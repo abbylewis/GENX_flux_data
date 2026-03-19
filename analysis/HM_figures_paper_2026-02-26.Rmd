@@ -19,24 +19,25 @@ part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.cs
   rename(DateTime = TIMESTAMP) %>%
   mutate(
     CH4_umol_m2_h = CH4_filled * (60 * 60),
-    CO2_umol_m2_h = NEE * (60 * 60),
+    CO2_umol_m2_h = NEE * (60 * 60), # h instead of s
+    DateTime = with_tz(DateTime, "EST"),
     MIU_VALVE = factor(MIU_VALVE,
       levels = chamber_levels,
       labels = chamber_labels2
     ),
-    date = as.Date(DateTime)
+    date = as_date(DateTime)
   ) %>%
   filter(DateTime <= "2025-11-15")
 
-met <- read_csv("../processed_data/met_2025_gapfilled.csv")
+met <- read_csv("../processed_data/met_2025_gapfilled.csv") %>%
+  mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"))
 
 soil_temp <- read_csv(here::here("processed_data", "soil_temp.csv"))  %>%
   mutate(MIU_VALVE = factor(MIU_VALVE,
                             levels = chamber_levels,
                             labels = chamber_labels2
-  ))
-
-unique(soil_temp$MIU_VALVE)
+  )) %>%
+  mutate(timestamp = with_tz(timestamp, "EST"))
 
 n_days = as.numeric(difftime(max(part$DateTime),min(part$DateTime), units = "days"))
 ```
@@ -65,20 +66,20 @@ annual <- part %>%
   ggplot(aes(x = date, y = CH4_umol_m2_h, color = MIU_VALVE)) +
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5) +
-  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual))) +
+  coord_cartesian(xlim = c(as_date(min_annual), as_date(max_annual))) +
   scale_color_manual(values = color.gradient, name = "Chamber") +
   theme_hm +
   theme(axis.title.x = element_blank()) +
   ylab(expression(atop(CH[4] ~ "flux", "(µmol" ~ m^-2 ~ h^-1 * ")")))
 
 annual_AT <- met %>%
-  mutate(date = as.Date(TIMESTAMP)) %>%
+  mutate(date = as_date(TIMESTAMP)) %>%
   group_by(date) %>%
   summarize(AirTC_Avg = mean(AirTC_Avg, na.rm = T)) %>%
   ggplot(aes(x = date, y = AirTC_Avg)) +
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5, color = "grey20") +
-  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual))) +
+  coord_cartesian(xlim = c(as_date(min_annual), as_date(max_annual))) +
   theme_hm +
   theme(axis.title.x = element_blank()) +
   ylab(expression(atop("Air temp.", " (ºC)")))
@@ -89,19 +90,19 @@ annual_evi <- part %>%
   ggplot(aes(x = date, y = evi_predicted)) +
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5, color = "grey20") +
-  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual))) +
+  coord_cartesian(xlim = c(as_date(min_annual), as_date(max_annual))) +
   theme_hm +
   theme(axis.title.x = element_blank()) +
   ylab(expression(atop("EVI", " (ºC)")))
 
 annual_ST <- soil_temp %>%
-  mutate(date = as.Date(timestamp)) %>%
+  mutate(date = as_date(timestamp)) %>%
   group_by(date, MIU_VALVE) %>%
   summarize(Temp_C = mean(Temp_C, na.rm = T)) %>%
   ggplot(aes(x = date, y = Temp_C, color = MIU_VALVE)) +
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5) +
-  #coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual))) +
+  #coord_cartesian(xlim = c(as_date(min_annual), as_date(max_annual))) +
   scale_color_manual(values = color.gradient, name = "Chamber") +
   theme_hm +
   theme(axis.title.x = element_blank()) +
@@ -113,7 +114,7 @@ annual_wl <- part %>%
   ggplot(aes(x = date, y = Depth_cm)) +
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5, color = "grey20") +
-  coord_cartesian(xlim = c(as.Date(min_annual), as.Date(max_annual))) +
+  coord_cartesian(xlim = c(as_date(min_annual), as_date(max_annual))) +
   theme_hm +
   theme(axis.title.x = element_blank()) +
   ylab(expression(atop("Water level", " (cm)")))
@@ -122,7 +123,7 @@ start_date <- "2025-03-27"
 end_date <- "2025-04-06"
 
 focal_ch4 <- part %>%
-  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  filter(date %in% seq.Date(as_date(start_date), as_date(end_date), by = "1 day")) %>%
   ggplot(aes(x = DateTime, y = CH4_umol_m2_h, color = MIU_VALVE)) +
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5) +
@@ -132,7 +133,7 @@ focal_ch4 <- part %>%
   ylab(expression(atop(CH[4] ~ "flux ", "(µmol" ~ m^-2 ~ h^-1 * ")")))
 
 focal_co2 <-part %>%
-  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  filter(date %in% seq.Date(as_date(start_date), as_date(end_date), by = "1 day")) %>%
   mutate(CO2_umol_m2_h  =ifelse(hour(DateTime) %in% 8:19, CO2_umol_m2_h, NA)) %>%
   ggplot(aes(x = DateTime, y = CO2_umol_m2_h, color = MIU_VALVE)) +
   geom_hline(yintercept = 0, color = "grey80") +
@@ -143,7 +144,7 @@ focal_co2 <-part %>%
   ylab(expression(atop(CO[2] ~ "flux ", "(µmol" ~ m^-2 ~ h^-1 * ")")))
 
 focal_wl <- part %>%
-  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  filter(date %in% seq.Date(as_date(start_date), as_date(end_date), by = "1 day")) %>%
   ggplot(aes(x = DateTime, y = Depth_cm)) +
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5, color = "grey20") +
@@ -152,8 +153,8 @@ focal_wl <- part %>%
   ylab(expression(atop("Water level", " (cm)")))
 
 focal_AT <- met %>%
-  mutate(date = as.Date(TIMESTAMP)) %>%
-  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  mutate(date = as_date(TIMESTAMP)) %>%
+  filter(date %in% seq.Date(as_date(start_date), as_date(end_date), by = "1 day")) %>%
   ggplot(aes(x = TIMESTAMP, y = AirTC_Avg)) +
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5, color = "grey20") +
@@ -162,8 +163,8 @@ focal_AT <- met %>%
   ylab(expression(atop("Air temp.", " (ºC)")))
 
 focal_ST <- soil_temp %>%
-  mutate(date = as.Date(timestamp)) %>%
-  filter(date %in% seq.Date(as.Date(start_date), as.Date(end_date), by = "1 day")) %>%
+  mutate(date = as_date(timestamp)) %>%
+  filter(date %in% seq.Date(as_date(start_date), as_date(end_date), by = "1 day")) %>%
   ggplot(aes(x = timestamp, y = Temp_C, color = MIU_VALVE)) +
   geom_hline(yintercept = 0, color = "grey80") +
   geom_line(size = 0.5) +
@@ -529,10 +530,11 @@ df_out_daytime <- df %>%
       reps,
       mean(sample(CH4_umol_m2_h, samples_per_week))
     ),
-    time = "full day"
+    time = "daytime"
   )
 
-df_out <- df_out_fullday
+df_out <- df_out_fullday #%>%
+ #bind_rows(df_out_daytime)
 
 to_plot <- df_out %>%
   group_by(MIU_VALVE, rep, time) %>%

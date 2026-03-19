@@ -7,7 +7,8 @@ library(randomForest)
 
 target <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
   rename(TIMESTAMP = DateTime) %>%
-  filter(!is.na(TIMESTAMP))
+  filter(!is.na(TIMESTAMP)) %>%
+  mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"))
 
 evi <- read_csv(here::here("processed_data", "evi.csv")) %>%
   filter(!duplicated(Date))
@@ -19,7 +20,7 @@ filt <- target %>%
     #cutoff = quantile(CH4_se, 0.99, na.rm = TRUE),
     cutoff = mean(CH4_se, na.rm = TRUE)+3*sd(CH4_se, na.rm = TRUE),
     keep = ifelse(!is.na(CH4_se) & CH4_se < cutoff, TRUE, F),
-    keep = ifelse(as.Date(TIMESTAMP) == "2025-07-29" & 
+    keep = ifelse(as_date(TIMESTAMP) == "2025-07-29" & 
                     MIU_VALVE == 8 & 
                     !is.na(CH4) & 
                     CH4 > 0.2,
@@ -115,7 +116,7 @@ flux_reg <- df[grid, roll = 7200] # allow 2-hour carry
 flux_reg <- flux_reg %>%
   mutate(
     #time_join = round_date(TIMESTAMP, "15 minutes"),
-    date_join = as.Date(TIMESTAMP)
+    date_join = as_date(TIMESTAMP)
   )
 
 ch4 <- flux_reg %>%
