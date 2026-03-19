@@ -7,10 +7,12 @@ library(tidyverse)
 library(data.table)
 source(here::here("R", "download_gcrew_met.R"))
 source(here::here("R", "download_water_level.R"))
-
+Sys.setenv(TZ = "America/New_York")
 # Load slopes
 df <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
-  filter(!duplicated(TIMESTAMP))
+  mutate(flux_start = force_tz(flux_start, tzone = "EST"),
+         flux_end = force_tz(flux_end, tzone = "EST"),
+         TIMESTAMP = force_tz(TIMESTAMP, tzone = "EST"))
 
 # Update met
 download_gcrew_met()
@@ -19,6 +21,7 @@ download_water_level()
 # Load data
 met <- read_csv(here::here("processed_data", "met_2025_dashboard.csv")) %>%
   mutate(
+    TIMESTAMP = force_tz(TIMESTAMP, tzone = "EST"),
     Salinity = ifelse(TIMESTAMP > as_datetime("2025-07-22 12:00:00") &
                         TIMESTAMP < as_datetime("2025-07-25 00:00:00"),
                       NA, Salinity
@@ -72,7 +75,8 @@ merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each f
       265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196
   ) %>%
   ungroup() %>%
-  select(MIU_VALVE, DateTime, NEE, CH4, N2O, PAR, Ta, CH4_R2, CO2_R2, CH4_se)
+  select(all_of(c("MIU_VALVE", "DateTime", "NEE", "CH4", "N2O", "PAR", "Ta", 
+                  "CH4_R2", "CO2_R2", "CH4_se")))
 
 # Identify nighttime
 par_night_thresh <- 5 # µmol m-2 s-1 threshold to define night
