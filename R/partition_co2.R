@@ -12,7 +12,8 @@ Sys.setenv(TZ = "America/New_York")
 df <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
   mutate(flux_start = force_tz(flux_start, tzone = "EST"),
          flux_end = force_tz(flux_end, tzone = "EST"),
-         TIMESTAMP = force_tz(TIMESTAMP, tzone = "EST"))
+         TIMESTAMP = force_tz(TIMESTAMP, tzone = "EST")) %>%
+  rename(flux_time = TIMESTAMP)
 
 # Update met
 download_gcrew_met()
@@ -42,8 +43,10 @@ driver <- met %>%
 write_csv(driver, here::here("processed_data", "met_2025_gapfilled.csv"))
 
 # Format
-df$DateTime <- as.POSIXct(df$TIMESTAMP, tz = "EST")
-driver$DateTime <- as.POSIXct(driver$TIMESTAMP, tz = "EST")
+driver <- driver %>%
+  rename(driver_time = TIMESTAMP)
+df$DateTime <- as.POSIXct(df$flux_time, tz = "EST")
+driver$DateTime <- as.POSIXct(driver$driver_time, tz = "EST")
 
 # Convert to data.table
 setDT(df)
@@ -75,7 +78,7 @@ merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each f
       265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196
   ) %>%
   ungroup() %>%
-  select(all_of(c("MIU_VALVE", "DateTime", "NEE", "CH4", "N2O", "PAR", "Ta", 
+  select(all_of(c("MIU_VALVE", "DateTime", "flux_time", "NEE", "CH4", "N2O", "PAR", "Ta", 
                   "CH4_R2", "CO2_R2", "CH4_se")))
 
 # Identify nighttime
@@ -187,7 +190,11 @@ grid <- merged[, make_grid(.SD), by = MIU_VALVE]
 
 setkey(merged, MIU_VALVE, DateTime)
 setkey(grid, MIU_VALVE, DateTime)
-merged_grid <- merged[grid, roll = 7200] # allow 2-hour carry
+merged_grid <- merged[grid, roll = "nearest"] #grab nearest observation
+#has to be within 65 min
+merged_grid[, time_diff := abs(DateTime - flux_time)]
+cols <- setdiff(names(merged_grid), c("DateTime", "MIU_VALVE"))
+merged_grid[time_diff > 3900, (cols) := NA]
 merged_grid[, c("Ta", "PAR") := NULL]
 
 setkey(merged_grid, DateTime)
