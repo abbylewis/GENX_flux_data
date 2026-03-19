@@ -6,7 +6,6 @@ library(data.table)
 library(randomForest)
 
 target <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
-  select(-TIMESTAMP) %>%
   rename(TIMESTAMP = DateTime) %>%
   filter(!is.na(TIMESTAMP))
 
@@ -20,7 +19,10 @@ filt <- target %>%
     #cutoff = quantile(CH4_se, 0.99, na.rm = TRUE),
     cutoff = mean(CH4_se, na.rm = TRUE)+3*sd(CH4_se, na.rm = TRUE),
     keep = ifelse(!is.na(CH4_se) & CH4_se < cutoff, TRUE, F),
-    keep = ifelse(as.Date(TIMESTAMP) == "2025-07-29" & MIU_VALVE == 8 & !is.na(CH4) & CH4 > 0.2,
+    keep = ifelse(as.Date(TIMESTAMP) == "2025-07-29" & 
+                    MIU_VALVE == 8 & 
+                    !is.na(CH4) & 
+                    CH4 > 0.2,
                   F,
                   keep)
   )

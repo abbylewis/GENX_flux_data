@@ -1,20 +1,50 @@
-ch_temp_names <- c(
-  `1` = "btemp_avg.1.",
-  `2` = "btemp_avg.6.",
-  `3` = "btemp_avg.8.",
-  `4` = "btemp_avg.10.",
-  `5` = "btemp_avg.15.",
-  `6` = "btemp_avg.14.",
-  `7` = "btemp_avg.16.",
-  `8` = "btemp_avg.21.",
-  `9` = "btemp_avg.20.",
-  `10` = "btemp_avg.22.",
-  `11` = "btemp_avg.27.",
-  `12` = "btemp_avg.29."
-)
+source(here::here("R", "drop_dir.R"))
+source(here::here("R", "load_file.R"))
+source(here::here("R", "get_dropbox_token.R"))
+library(tidyverse)
 
-soil_temp <- read_csv(here::here("processed_data", "GENX_Export_2025-01.csv")) %>%
-  select(all_of(c("timestamp", ch_temp_names))) %>%
-  pivot_longer(-timestamp, names_to = "MIU_VALVE", values_to = "Temp_C")
+#Save files to computer
+files <- drop_dir(path = "Hiremutt Projects/GENX Heating/GENX_data/NormalizedData/genx_export/2025_combined")%>%
+  filter(.tag == "file")
+all_data <- files$path_display %>%
+  map(load_file, output_dir = here::here("Raw_data/soil_temp"))
 
+#Load and format
+soil_temp <- list.files(here::here("Raw_data/soil_temp"), 
+                        full.names = T,
+                        pattern = "Export") %>%
+  map(read_csv, show_col_type = F) %>%
+  bind_rows() %>%
+  mutate(chamber = ifelse(plot_id == "c1", NA, chamber),
+         chamber = ifelse(plot_id == "c0", 2, chamber),
+         chamber = ifelse(plot_id == "b9", NA, chamber),
+         chamber = ifelse(plot_id == "a9", 12, chamber),
+         chamber = ifelse(plot_id == "b6", NA, chamber),
+         chamber = ifelse(plot_id == "b7", 9, chamber)
+         ) %>%
+  filter(!is.na(chamber)) %>%
+  select(timestamp, chamber, btemp_avg) %>%
+  rename(MIU_VALVE = chamber, Temp_C = btemp_avg)
+
+#Save
 write_csv(soil_temp, here::here("processed_data", "soil_temp.csv"))
+
+## REPEAT WITH IN-CHAMBER DATA
+#Save files to computer
+files <- drop_dir(path = "Hiremutt Projects/GENX Heating/GENX_data/NormalizedData/genx_ardlog")%>%
+  filter(.tag == "file")
+all_data <- files$path_display[grepl("norm_GENX_ARD_LOG_2025", files$path_display)] %>%
+  map(load_file, output_dir = here::here("Raw_data/soil_temp"))
+
+#Load and format
+soil_temp_chamber <- list.files(here::here("Raw_data/soil_temp"), 
+                        full.names = T,
+                        pattern = "ARD_LOG") %>%
+  map(read_csv, show_col_type = F) %>%
+  bind_rows() %>%
+  filter(chamber %in% 1:12) %>%
+  select(timestamp, chamber, therm10c) %>%
+  rename(MIU_VALVE = chamber, Temp_C = therm10c)
+
+#Save
+write_csv(soil_temp, here::here("processed_data", "soil_temp_chamber.csv"))
