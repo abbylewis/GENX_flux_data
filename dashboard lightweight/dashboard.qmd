@@ -132,6 +132,7 @@ input$smooth <- "Measured"
 #| panel: fill
 
 plotlyOutput("plot_flux", height = 420)
+div(style = "color: #808080; font-size: 0.85em; ", "All times are EST")
 ```
 
 ## Partitioned CO~2~
@@ -140,6 +141,7 @@ plotlyOutput("plot_flux", height = 420)
 #| panel: fill
 
 plotlyOutput("plot_co2", height = 420)
+div(style = "color: #808080; font-size: 0.85em; ", "All times are EST")
 ```
 
 ## Water level
@@ -148,6 +150,7 @@ plotlyOutput("plot_co2", height = 420)
 #| panel: fill
 
 plotlyOutput("plot_wl", height = 420)
+div(style = "color: #808080; font-size: 0.85em; ", "All times are EST")
 ```
 
 ## CH₄/WL Comparison
@@ -156,6 +159,7 @@ plotlyOutput("plot_wl", height = 420)
 #| panel: fill
 
 plotlyOutput("flux_wl", height = 420)
+div(style = "color: #808080; font-size: 0.85em; ", "All times are EST")
 ```
 
 ## Forecasts
@@ -271,7 +275,10 @@ partitioned <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_d
   mutate(
     GPP = ifelse(!is_day & !is.na(NEE), 0, GPP),
     CH4 = ifelse(CH4 < -0.2, NA, CH4)
-  )
+  ) %>%
+  mutate(DateTime = with_tz(DateTime, "EST"),
+         flux_time = with_tz(flux_time, "EST"),
+         driver_time = with_tz(driver_time, "EST"))
 
 updateDateInput(
   inputId = "today",

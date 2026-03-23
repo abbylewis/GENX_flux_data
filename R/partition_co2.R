@@ -178,11 +178,11 @@ merged[, Q10_t := NA_real_]
 
 make_grid <- function(g) {
   data.table(
-    DateTime = seq(min(g$DateTime),
-                    max(g$DateTime),
-                    by = "130 min"
+    DateTime = seq(max(g$DateTime),
+                       min(g$DateTime),
+                    by = "-130 min"
     ),
-    MIU_VALVE = g$MIU_VALVE[1]
+    MIU_VALVE = unique(g$MIU_VALVE)
   )
 }
 
@@ -246,5 +246,8 @@ merged_grid[day_mask & GPP < 0, GPP := 0]
 merged_grid[is.na(NEE), GPP := NA]
 # merged_grid[is.na(NEE), Reco := NA]
 
-write_csv(merged_grid, here::here("processed_data", "partitioned_co2.csv"))
+merged_export <- merged_grid %>%
+  as_tibble()
+
+write_csv(merged_export, here::here("processed_data", "partitioned_co2.csv"))
 

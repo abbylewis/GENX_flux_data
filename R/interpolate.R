@@ -8,7 +8,9 @@ library(randomForest)
 target <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
   rename(TIMESTAMP = DateTime) %>%
   filter(!is.na(TIMESTAMP)) %>%
-  mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"))
+  mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"),
+         flux_time = with_tz(flux_time, "EST"),
+         driver_time = with_tz(driver_time, "EST"))
 
 evi <- read_csv(here::here("processed_data", "evi.csv")) %>%
   filter(!duplicated(Date))
