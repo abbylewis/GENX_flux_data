@@ -78,57 +78,8 @@ calculate_flux <- function(start_date = NULL,
     filter(
       !is.na(MIU_VALVE),
       MIU_VALVE %in% 1:12
-    ) %>%
-    mutate(Flag = "No issues")
-
-  # Remove data as specified in maintenance log
-  googlesheets4::gs4_deauth() # No authentication needed
-  today <- Sys.time()
-  maint_log <- googlesheets4::read_sheet("http://docs.google.com/spreadsheets/d/1_uk8-335NDJOdVU6OjLcxWx4MamNJeVEbVkSmdb9oRs/edit?gid=0#gid=0",
-    col_types = "c"
-  ) %>%
-    mutate(
-      Start_time = as_datetime(Start_time, tz = "America/New_York"),
-      End_time = as_datetime(End_time, tz = "America/New_York"),
-      End_time = ifelse(is.na(End_time), today, End_time),
-      End_time = as_datetime(End_time, tz = "America/New_York")
     )
-  for (i in 1:nrow(maint_log)) {
-    data_numeric <- data_numeric %>%
-      mutate(
-        Flag = ifelse(TIMESTAMP <= maint_log$End_time[i] &
-          TIMESTAMP >= maint_log$Start_time[i] &
-          MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
-        maint_log$Flag[i],
-        Flag
-        ),
-        CH4d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] &
-          TIMESTAMP >= maint_log$Start_time[i] &
-          maint_log$Remove[i] == "y" &
-          maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
-          MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
-        NA,
-        CH4d_ppm
-        ),
-        CO2d_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] &
-          TIMESTAMP >= maint_log$Start_time[i] &
-          maint_log$Remove[i] == "y" &
-          maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
-          MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
-        NA,
-        CO2d_ppm
-        ),
-        N2Od_ppm = ifelse(TIMESTAMP <= maint_log$End_time[i] &
-          TIMESTAMP >= maint_log$Start_time[i] &
-          maint_log$Remove[i] == "y" &
-          maint_log$Analyzer[i] %in% c("N2O", "all") &
-          MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i])),
-        NA,
-        N2Od_ppm
-        )
-      )
-  }
-
+  
   # Group flux intervals, prep for slopes
   grouped_data <- data_numeric %>%
     # Group flux intervals
@@ -143,22 +94,14 @@ calculate_flux <- function(start_date = NULL,
       change = as.numeric(difftime(TIMESTAMP, start, units = "days")),
       change_s = as.numeric(difftime(TIMESTAMP, start, units = "secs")),
       max_s = ifelse(sum(!is.na(CH4d_ppm) > 0),
-        change_s[which.max(CH4d_ppm)],
-        NA
+                     change_s[which.max(CH4d_ppm)],
+                     NA
       ),
       min_s = ifelse(sum(!is.na(CH4d_ppm) > 0),
-        change_s[which.min(CH4d_ppm)],
-        NA
+                     change_s[which.min(CH4d_ppm)],
+                     NA
       ),
     )
-
-  # Save flags for data that will be removed in the next step
-  flags <- grouped_data %>%
-    ungroup() %>%
-    select(start, MIU_VALVE, Flag, date, group) %>%
-    distinct() %>%
-    group_by(MIU_VALVE, start, date, group) %>%
-    filter(n() == 1 | !Flag == "No issues")
 
   # Set aside data after the system switched to process differently
   time_split <- split(grouped_data, grouped_data$Format)
@@ -199,6 +142,7 @@ calculate_flux <- function(start_date = NULL,
       Flag_CH4_slope = ifelse(sum(!is.na(CH4d_ppm)) > 5,
         "No issues", "Insufficient data"
       ),
+      TIMESTAMP = unique(start),
       cutoff_removed = unique(cutoff),
       n_removed = unique(n),
       .groups = "drop"
@@ -257,8 +201,7 @@ calculate_flux <- function(start_date = NULL,
       values_from = c(slope_ppm_per_day, R2, p, se, rmse, init, max, min),
       names_glue = "{gas}_{.value}"
     ) %>%
-    full_join(flags, by = c("TIMESTAMP" = "start", "MIU_VALVE", "date", "group")) %>%
-    full_join(data_flags, by = c("group", "MIU_VALVE", "date")) %>%
+    full_join(data_flags, by = c("group", "MIU_VALVE", "date", "TIMESTAMP")) %>%
     mutate(
       cutoff = ifelse(is.na(cutoff), cutoff_removed, cutoff),
       n = ifelse(is.na(n), n_removed, n)
@@ -268,29 +211,103 @@ calculate_flux <- function(start_date = NULL,
   if (!reprocess | !is.null(start_date)) {
     # Load previously calculated slopes
     old_slopes <- read_csv(here::here("processed_data", "L0.csv"),
-      col_types = "nnDcccnnnnnnnnnnnnnnnnnnnnnnncccc",
       show_col_types = F
     ) %>%
       mutate(
-        TIMESTAMP = as_datetime(TIMESTAMP, tz = "EST"),
-        flux_start = as_datetime(flux_start, tz = "EST"),
-        flux_end = as_datetime(flux_end, tz = "EST")
+        TIMESTAMP = force_tz(TIMESTAMP, tz = "EST"),
+        flux_start = force_tz(flux_start, tz = "EST"),
+        flux_end = force_tz(flux_end, tz = "EST")
       ) %>%
       filter(TIMESTAMP < min(slopes$TIMESTAMP) |
         TIMESTAMP > max(slopes$TIMESTAMP))
+    #Combine
     slopes_comb <- bind_rows(old_slopes, slopes)
   } else {
     slopes_comb <- slopes
-    # Whenever we reprocess everything, save the raw output for QAQC efforts
-    # Update: this file is insanely big and I don't want it any more
-    # round_comb <- function(x){round(as.numeric(x), 2)}
-    # write.csv(data_small %>%
-    #            mutate(across(c(CO2d_ppm), round_comb)),
-    #          here::here("processed_data","raw_small.csv"), row.names = FALSE)
   }
-
+  
+  # Remove data as specified in maintenance log
+  googlesheets4::gs4_deauth() # No authentication needed
+  today <- Sys.time()
+  maint_log <- googlesheets4::read_sheet("http://docs.google.com/spreadsheets/d/1_uk8-335NDJOdVU6OjLcxWx4MamNJeVEbVkSmdb9oRs/edit?gid=0#gid=0",
+                                         col_types = "c"
+  ) %>%
+    mutate(
+      Start_time = as_datetime(Start_time, tz = "America/New_York"),
+      End_time = as_datetime(End_time, tz = "America/New_York"),
+      End_time = ifelse(is.na(End_time), today, End_time),
+      End_time = as_datetime(End_time, tz = "America/New_York")
+    )
+  
+  for (i in 1:nrow(maint_log)) {
+    condition <- slopes_comb$TIMESTAMP <= maint_log$End_time[i] &
+      slopes_comb$TIMESTAMP >= maint_log$Start_time[i] &
+      slopes_comb$MIU_VALVE %in% eval(parse(text = maint_log$Chambers[i]))
+    
+    condition <- ifelse(is.na(condition),
+                        FALSE,
+                        condition)
+    
+    remove_this_row <- condition & maint_log$Remove[i] == "y"
+    
+    slopes_comb <- slopes_comb %>%
+      mutate(
+        # All CO2 and CH4 columns
+        across(
+          matches("CH4|CO2") & !contains("Flag"),
+          ~ ifelse(
+            remove_this_row &
+              maint_log$Analyzer[i] %in% c("CO2/CH4", "all"),
+            NA,
+            .
+          )
+        ),
+        
+        # All N2O columns
+        across(
+          contains("N2O") & !contains("Flag"),
+          ~ ifelse(
+            remove_this_row &
+              maint_log$Analyzer[i] %in% c("N2O", "all"),
+            NA,
+            .
+          )
+        ),
+        
+        # Reset N2O flag
+        across(
+          contains("Flag_N"),
+          ~case_when(condition & 
+                         maint_log$Analyzer[i] %in% c("N2O", "all") &
+                         (. == "No issues" |is.na(.)) ~ maint_log$Flag[i],
+                       condition & 
+                         maint_log$Analyzer[i] %in% c("N2O", "all") &
+                         grepl(maint_log$Flag[i], .) ~ .,
+                       condition & 
+                         maint_log$Analyzer[i] %in% c("N2O", "all") ~ 
+                         paste(., maint_log$Flag[i], sep = "; "),
+                       TRUE ~ .)
+        ),
+        
+        # Reset CO2 and CH4 flag
+        across(
+          contains("Flag_C"),
+          ~case_when(condition & 
+                       maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
+                       (. == "No issues" |is.na(.)) ~ maint_log$Flag[i],
+                     condition & 
+                       maint_log$Analyzer[i] %in% c("CO2/CH4", "all") &
+                       grepl(maint_log$Flag[i], .) ~ .,
+                     condition & 
+                       maint_log$Analyzer[i] %in% c("CO2/CH4", "all") ~ 
+                       paste(., maint_log$Flag[i], sep = "; "),
+                     TRUE ~ .)
+        )
+      )
+  }
+  
   # Output
-  write.csv(slopes_comb %>% select(-max_s),
+  write.csv(slopes_comb %>% select(-max_s), 
     here::here("processed_data", "L0.csv"),
     row.names = FALSE
   )
@@ -305,7 +322,8 @@ calculate_flux <- function(start_date = NULL,
 
   recent_raw <- grouped_data %>%
     filter(date >= Sys.Date() - days(7)) %>%
-    select(TIMESTAMP, Manifold_Timer, change, MIU_VALVE, group, CH4d_ppm, CO2d_ppm, N2Od_ppm)
+    select(TIMESTAMP, Manifold_Timer, change, MIU_VALVE, group, CH4d_ppm, 
+           CO2d_ppm, N2Od_ppm)
 
   write.csv(recent_raw,
     here::here("processed_data", "raw_for_dashboard.csv"),
