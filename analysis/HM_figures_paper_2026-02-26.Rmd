@@ -287,6 +287,35 @@ comb <- patchwork::wrap_plots(
 comb
 
 ggsave("../figures/Figure 2 - Data drivers.jpg", dpi = 300, width = 7, height = 5)
+
+patchwork::wrap_plots(
+    annual +
+      guides(color = guide_legend(ncol = 4)) +
+      theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "bottom"
+      ) +
+      ggtitle("Daily mean"),
+    annual_ST +
+      theme(
+        legend.position = "none"
+      ),
+    ncol = 1, design = c("A
+                          A
+                          B")
+  ) +
+  patchwork::plot_layout(guides = "collect") +
+  patchwork::plot_annotation(
+    tag_levels = list(c("a","","", "b")),
+    theme = theme(
+      legend.position = "bottom",
+      legend.justification = "left",
+      legend.title.position = "top"
+    )) &
+  theme(plot.tag = element_text(face = "bold"))
+
+ggsave("../figures/Figure 2 - Data drivers pres.jpg", dpi = 300, width = 7, height = 5)
 ```
 
 The importance of hot moment events increases with temperature (Figure 3)
@@ -504,68 +533,99 @@ Manual sampling underestimates
 
 ```{r}
 reps <- 10000
-samples_per_week <- 1
 set.seed(4700)
 
 df <- part %>%
-  mutate(week = month(date))
+  mutate(day = yday(date),
+         month = month(date),
+         week = week(date),
+         fortnight = week %/% 2)
 
-df_out_fullday <- df %>%
-  group_by(week, MIU_VALVE) %>%
-  reframe(
-    rep = seq_len(reps),
-    flux = replicate(
-      reps,
-      mean(sample(CH4_umol_m2_h, samples_per_week))
-    ),
-    time = "full day"
-  )
+intervals <- c("daily", "twice weekly", "weekly", "fortnightly", "monthly")
 
-df_out_daytime <- df %>%
-  group_by(week, MIU_VALVE) %>%
-  filter(hour(DateTime) %in% 9:4) %>%
-  reframe(
-    rep = seq_len(reps),
-    flux = replicate(
-      reps,
-      mean(sample(CH4_umol_m2_h, samples_per_week))
-    ),
-    time = "daytime"
-  )
+calc_bias <- function(interval){
+  samples_per_bin <- case_when(grepl("twice", interval)~2,
+                              .default = 1)
+  bin_dur <- str_extract(interval, "daily|week|month|fortnight")
+  bin_dur <- ifelse(bin_dur == "daily", "day", bin_dur)
+  message(paste0("Running ",interval, ": \nBin: ",bin_dur,"\nSamples per bin: ", samples_per_bin))
 
-df_out <- df_out_fullday #%>%
- #bind_rows(df_out_daytime)
+  out <- df %>%
+    group_by(get(bin_dur), MIU_VALVE) %>%
+    reframe(
+      n = n(),
+      rep = seq_len(reps),
+      flux = replicate(
+        reps,
+        mean(sample(CH4_umol_m2_h, samples_per_bin))
+      ),
+      interval = interval
+    )
+}
+
+df_out <- purrr::map(intervals, calc_bias) %>%
+  bind_rows()
 
 to_plot <- df_out %>%
-  group_by(MIU_VALVE, rep, time) %>%
+  group_by(MIU_VALVE, rep, interval) %>%
   summarize(
-    mean_hourly = mean(flux, na.rm = T),
-    tot_hourly = mean_hourly / 1000 / 1000 * (n_days * 24)
-  ) %>% # Convert hourly fluxes to annual)
-  left_join(annual_df %>%
-    rename(tot_real = annual_flux)) %>%
-  group_by(MIU_VALVE, time) %>%
-  summarize(median = median(tot_hourly / tot_real * 100 - 100)) %>%
+    mean_hourly = sum(flux*n/sum(n), na.rm = TRUE),
+    tot_hourly = mean_hourly / 1e6 * (n_days * 24),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    annual_df %>% rename(tot_real = annual_flux),
+    by = "MIU_VALVE"
+  ) %>%
+  mutate(percent_bias = tot_hourly / tot_real * 100 - 100) %>%
+  group_by(MIU_VALVE, interval) %>%
+  summarize(
+    median_bias = median(percent_bias, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
   mutate(
-    time = factor(time,
-      levels = c("full day", "wl", "daytime", "growth"),
-      labels = c(
-        "Weekly (all)", "No standing\nwater",
-        "Daytime", "Growing\nseason"
-      )
-    ),
     Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
     Temp_C = as.numeric(sub("mb", "0", Temp_C))
   )
 
+sims <- to_plot %>%
+  mutate(interval = factor(interval, levels = intervals),
+         int_num = as.numeric(interval)) %>%
+  ggplot(aes(color = MIU_VALVE, x = int_num, y = median_bias)) +
+  geom_hline(yintercept = 0, color = "grey85") +
+  geom_line(size = 0.5) +
+  geom_point(aes(fill = MIU_VALVE), shape = 21, size = 2, stroke = 0.5) +
+  scale_x_continuous(breaks = 1:length(intervals),
+                     labels = intervals)+
+  scale_fill_manual(
+    values = color.gradient,
+    name = "Chamber"
+  ) +
+  scale_color_manual(
+    values = color.gradient,
+    name = "Chamber"
+  ) +
+  theme_hm +
+  theme(legend.title.position = "top") +
+  ylab("Manual sampling bias (%)") +
+  xlab("Sampling interval") +
+  guides(fill = guide_legend(ncol = 2))+
+  theme(axis.text.x = element_text(hjust = 1, 
+                                   angle = 45))
+
+sims
+ggsave(sims, filename = "../figures/Figure 4 - Simulations multiple intervals.jpg", dpi = 300, width = 3, height = 4)
+
 sims_label <- make_lm_label(
-  data = to_plot,
+  data = to_plot %>%
+    filter(interval == "monthly"),
   xvar = "Temp_C",
-  yvar = "median"
+  yvar = "median_bias"
 )
 
-sims <- to_plot %>%
-  ggplot(aes(x = as.numeric(Temp_C), y = median, group = "group")) +
+sims_month <- to_plot %>%
+  filter(interval == "monthly") %>%
+  ggplot(aes(x = as.numeric(Temp_C), y = median_bias, group = "group")) +
   geom_hline(yintercept = 0, color = "grey85") +
   geom_smooth(method = "lm", color = "black") +
   geom_point(aes(fill = MIU_VALVE), shape = 21, size = 2, stroke = 0.5) +
@@ -589,27 +649,21 @@ sims <- to_plot %>%
   xlab("Temperature treatment (ºC above ambient)") +
   guides(fill = guide_legend(ncol = 2))
 
-sims
-ggsave(sims, filename = "../figures/Figure 4 - Simulations.jpg", dpi = 300, width = 3, height = 4)
+sims_month
+ggsave(sims_month, filename = "../figures/Figure 4 - Simulations.jpg", dpi = 300, width = 3, height = 4)
 
 to_plot_dist <- df_out %>%
-  group_by(MIU_VALVE, rep, time) %>%
+  filter(interval == "monthly") %>%
+  group_by(MIU_VALVE, rep) %>%
   summarize(
-    mean_hourly = mean(flux, na.rm = T),
+    mean_hourly = sum(flux*n/sum(n)),
     tot_hourly = mean_hourly / 1000 / 1000 * (n_days * 24)
   ) %>% # Convert hourly fluxes to annual)
   left_join(annual_df %>%
     rename(tot_real = annual_flux)) %>%
-  group_by(MIU_VALVE, time) %>%
+  group_by(MIU_VALVE) %>%
   mutate(
     pct = (tot_hourly / tot_real * 100 - 100),
-    time = factor(time,
-      levels = c("full day", "wl", "daytime", "growth"),
-      labels = c(
-        "Weekly (all)", "No standing\nwater",
-        "Daytime", "Growing\nseason"
-      )
-    ),
     Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
     Temp_C = as.numeric(sub("mb", "0", Temp_C))
   )
@@ -641,7 +695,7 @@ sims_dist <- to_plot_dist %>%
   guides(fill = guide_legend(ncol = 2))
 
 with_dist <- patchwork::wrap_plots(
-  a = sims +
+  a = sims_month +
     guides(fill = guide_legend(ncol = 5)) +
     ylab("Manual sampling bias\n(median %)") +
     xlab("Temperature treatment (ºC above ambient)"),
@@ -661,4 +715,35 @@ ggsave(with_dist,
   filename = "../figures/Figure 4 - Simulations with dist.jpg",
   dpi = 300, width = 6, height = 4
 )
+
+with_dist2 <- patchwork::wrap_plots(
+  a = sims_month +
+    guides(fill = guide_legend(ncol = 5)) +
+    ylab("Monthly sampling bias\n(median %)") +
+    xlab("Temperature treatment (ºC above ambient)"),
+  b = sims_dist + theme(legend.position = "none") +
+    ylab("Monthly sampling bias (%)"),
+  c = sims +
+    ylab("Sampling bias\n(median %)")+ 
+    theme(legend.position = "none",
+          axis.text.x = element_text(hjust = 0.5, angle = 0)),
+  guides = "collect",
+  axes = "collect_x",
+  design = c("AB
+              AB
+              CC")
+) +
+  patchwork::plot_annotation(
+    tag_levels = "a",
+    theme = theme(legend.position = "bottom")
+  ) &
+  theme(plot.tag = element_text(face = "bold"))
+
+with_dist2
+
+ggsave(with_dist2,
+  filename = "../figures/Figure 4 - Simulations all.jpg",
+  dpi = 300, width = 6, height = 6
+)
 ```
+

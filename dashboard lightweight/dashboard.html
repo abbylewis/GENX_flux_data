@@ -190,7 +190,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="plotly html-widget html-widget-output shiny-report-size shiny-report-theme html-fill-item" id="plot_wl" style="width:100%;height:420px;"></div>
 </div>
 <div class="cell-output-display">
-<div style="color: #808080; font-size: 0.85em; float: right;">All times are EST</div>
+<div style="color: #808080; font-size: 0.85em; ">All times are EST</div>
 </div>
 </div>
 </div>
@@ -231,14 +231,14 @@ ul.task-list li input[type="checkbox"] {
 <div class="form-group shiny-input-container">
 <label class="control-label" id="raw_date-label" for="raw_date">Date</label>
 <div>
-<select id="raw_date" class="shiny-input-select"><option value="2026-03-16">2026-03-16</option>
-<option value="2026-03-17">2026-03-17</option>
-<option value="2026-03-18">2026-03-18</option>
+<select id="raw_date" class="shiny-input-select"><option value="2026-03-18">2026-03-18</option>
 <option value="2026-03-19">2026-03-19</option>
 <option value="2026-03-20">2026-03-20</option>
 <option value="2026-03-21">2026-03-21</option>
 <option value="2026-03-22">2026-03-22</option>
-<option value="2026-03-23" selected="">2026-03-23</option></select>
+<option value="2026-03-23">2026-03-23</option>
+<option value="2026-03-24">2026-03-24</option>
+<option value="2026-03-25" selected="">2026-03-25</option></select>
 <script type="application/json" data-for="raw_date" data-nonempty="">{"plugins":["selectize-plugin-a11y"]}</script>
 </div>
 </div>
@@ -302,7 +302,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-03-23" data-initial-date="2026-03-23" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-03-25" data-initial-date="2026-03-25" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div class="cell-output-display">
@@ -470,13 +470,13 @@ partitioned <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_d
 
 updateDateInput(
   inputId = "today",
-  max = as.Date(max(partitioned$DateTime)),
-  value = as.Date(max(partitioned$DateTime))
+  max = as_date(max(partitioned$DateTime)),
+  value = as_date(max(partitioned$DateTime))
 )
 
 updateNumericInput(
   inputId = "days_to_plot",
-  max = round(as.numeric(difftime(as.Date(max(partitioned$DateTime)),
+  max = round(as.numeric(difftime(as_date(max(partitioned$DateTime)),
     "2025-03-18",
     units = "days"
   ))),
@@ -486,7 +486,7 @@ updateNumericInput(
 output$plot_flux <- renderPlotly({
   part_recent <- partitioned %>%
     filter(
-      as.Date(DateTime) <= input$today,
+      as_date(DateTime) <= input$today,
       DateTime > (input$today - days(input$days_to_plot))
     ) %>%
     rename(Chamber = MIU_VALVE) %>%
@@ -505,7 +505,7 @@ output$plot_flux <- renderPlotly({
   if (input$daily == "Daily mean") {
     part_recent2 <- part_recent %>%
       mutate(
-        DateTime = as.Date(DateTime),
+        DateTime = as_date(DateTime),
         DateTime = as.POSIXct(DateTime)
       ) %>%
       group_by(DateTime, Chamber, gas) %>%
@@ -564,7 +564,7 @@ output$plot_flux <- renderPlotly({
 output$plot_co2 <- renderPlotly({
   part_recent <- partitioned %>%
     filter(
-      as.Date(DateTime) <= input$today,
+      as_date(DateTime) <= input$today,
       DateTime > (input$today - days(input$days_to_plot))
     ) %>%
     rename(Chamber = MIU_VALVE) %>%
@@ -578,7 +578,7 @@ output$plot_co2 <- renderPlotly({
   if (input$daily == "Daily mean") {
     part_recent2 <- part_recent %>%
       mutate(
-        DateTime = as.Date(DateTime),
+        DateTime = as_date(DateTime),
         DateTime = as.POSIXct(DateTime)
       ) %>%
       group_by(DateTime, Chamber, gas) %>%
@@ -629,7 +629,7 @@ wl <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/
 output$plot_wl <- renderPlotly({
   wl_recent <- wl %>%
     filter(
-      as.Date(TIMESTAMP) <= input$today,
+      as_date(TIMESTAMP) <= input$today,
       TIMESTAMP > (input$today - days(input$days_to_plot))
     ) %>%
     pivot_longer(c(Depth_cm:Salinity_PSU),
@@ -639,7 +639,7 @@ output$plot_wl <- renderPlotly({
   if (input$daily == "Daily mean") {
     wl_recent2 <- wl_recent %>%
       mutate(
-        TIMESTAMP = as.Date(TIMESTAMP),
+        TIMESTAMP = as_date(TIMESTAMP),
         TIMESTAMP = as.POSIXct(TIMESTAMP)
       ) %>%
       group_by(TIMESTAMP, variable) %>%
@@ -682,7 +682,7 @@ output$plot_forecast <- renderPlotly({
 
   part_recent <- partitioned %>%
     filter(
-      as.Date(DateTime) <= (input$today + days(7)),
+      as_date(DateTime) <= (input$today + days(7)),
       DateTime > (input$today - days(input$days_to_plot))
     ) %>%
     rename(Chamber = MIU_VALVE) %>%
@@ -694,7 +694,7 @@ output$plot_forecast <- renderPlotly({
 
   part_recent2 <- part_recent %>%
     mutate(
-      DateTime = as.Date(DateTime),
+      DateTime = as_date(DateTime),
       DateTime = as.POSIXct(DateTime)
     ) %>%
     group_by(DateTime, Chamber, gas) %>%
@@ -770,19 +770,16 @@ output$plot_forecast <- renderPlotly({
 output$flux_wl <- renderPlotly({
   part_wl <- partitioned %>%
     rename(
-      Chamber = MIU_VALVE,
-      value = CH4
-    ) %>%
-    mutate(variable = "CH₄") %>%
-    bind_rows(wl %>%
-      rename(
-        DateTime = TIMESTAMP,
-        value = Depth_cm
-      ) %>%
-      select(DateTime, value) %>%
-      mutate(variable = "Depth_cm")) %>%
+      Chamber = MIU_VALVE) %>%
+    select(DateTime, Chamber, CH4, Depth_cm) %>%
+    pivot_longer(c(CH4, Depth_cm), names_to = "variable") %>%
+    mutate(variable = case_match(variable,
+                                 "CH4"~"CH₄",
+                                 .default = variable)) %>%
+    mutate(Chamber = ifelse(variable == "Depth_cm",
+                            NA, Chamber)) %>%
     filter(
-      as.Date(DateTime) <= input$today,
+      as_date(DateTime) <= input$today,
       DateTime > (input$today - days(input$days_to_plot))
     ) %>%
     select(c(DateTime, Chamber, value, variable))
@@ -790,7 +787,7 @@ output$flux_wl <- renderPlotly({
   if (input$daily == "Daily mean") {
     part_wl2 <- part_wl %>%
       mutate(
-        DateTime = as.Date(DateTime),
+        DateTime = as_date(DateTime),
         DateTime = as.POSIXct(DateTime)
       ) %>%
       group_by(DateTime, Chamber, variable) %>%
@@ -843,14 +840,14 @@ raw <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs
 updateSelectInput(
   inputId = "raw_date",
   label = "Date",
-  choices = as.Date((Sys.Date() - days(7)):Sys.Date()),
+  choices = as_date((Sys.Date() - days(7)):Sys.Date()),
   selected = Sys.Date()
 )
 
 output$plot_raw <- renderPlotly({
   raw_plot <- raw %>%
     filter(
-      as.Date(TIMESTAMP) == input$raw_date,
+      as_date(TIMESTAMP) == input$raw_date,
       MIU_VALVE == input$raw_chamber
     ) %>%
     rename(Chamber = MIU_VALVE) %>%
@@ -939,7 +936,7 @@ output$plot_time <- renderPlotly({
 
   raw_plot2 <- raw_plot %>%
     filter(
-      as.Date(TIMESTAMP) == input$raw_date,
+      as_date(TIMESTAMP) == input$raw_date,
       hour(TIMESTAMP) == as.numeric(input$time_hour)
     )
 
