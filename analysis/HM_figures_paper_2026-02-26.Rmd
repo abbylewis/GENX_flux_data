@@ -881,5 +881,74 @@ resids %>%
   ylab("Residual (negative means that hot moments\nare less influential than expected)")+
   facet_grid(resid~name, scales = "free")+
   ggpubr::stat_cor(size = 2)
+
+
+# Stem width/height
+library(readxl)
+files <- list.files("../Raw_data/biomass", full.names = T)
+stem_files <- files[grepl("1-", files)]
+stems <- stem_files %>%
+  map(read_excel, col_types = "text") %>%
+  bind_rows() %>%
+  mutate(
+    chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
+    chamber_ref = factor(chamber_ref,
+      levels = 1:12,
+      labels = 1:12
+    ),
+    `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber"),
+    Total_Height = as.numeric(Total_Height),
+    Width = as.numeric(Width)
+  )
+
+# Stem count
+count_files <- files[grepl("2-", files)]
+counts <- count_files %>%
+  map(read_excel, col_types = "text") %>%
+  bind_rows() %>%
+  mutate(
+    chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
+    chamber_ref = factor(chamber_ref,
+      levels = 1:12,
+      labels = 1:12
+    ),
+    `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber"),
+    Count = as.numeric(ifelse(is.na(Count), StemCount, Count))
+  ) %>%
+  select(-StemCount) 
+
+stems = stems %>%
+  filter(Year == 2025,
+         `Measurement type` == "Chamber") %>%
+  mutate(MIU_VALVE = factor(Chamber,
+                            levels = 1:12,
+                            labels = chamber_labels2)) %>%
+  select(MIU_VALVE, Total_Height, Width) %>%
+  pivot_longer(c(Total_Height, Width))
+  
+resids %>%
+  left_join(stems) %>%
+  ggplot(aes(x = value, y = resid_99))+
+  geom_point(aes(color = MIU_VALVE))+
+  geom_smooth(method = "lm")+
+  theme_hm+
+  scale_color_manual(values = color.gradient, name = "Chamber") +
+  facet_wrap(~name, scales = "free")
+
+counts = counts %>%
+  filter(Year == 2025,
+         `Measurement type` == "Chamber") %>%
+  mutate(MIU_VALVE = factor(Chamber,
+                            levels = 1:12,
+                            labels = chamber_labels2)) %>%
+  select(MIU_VALVE, Count)
+  
+resids %>%
+  left_join(counts) %>%
+  ggplot(aes(x = Count, y = resid_99))+
+  geom_point(aes(color = MIU_VALVE))+
+  geom_smooth(method = "lm")+
+  theme_hm+
+  scale_color_manual(values = color.gradient, name = "Chamber")
 ```
 

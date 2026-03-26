@@ -1,7 +1,6 @@
 install.packages("rsconnect")
 install.packages("here")
 install.packages("slackr")
-library(quarto)
 library(tidyverse)
 
 # Check for errors
