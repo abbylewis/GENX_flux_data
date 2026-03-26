@@ -5,7 +5,7 @@ library(tidyverse)
 library(data.table)
 library(randomForest)
 
-target <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
+df <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
   rename(TIMESTAMP = DateTime) %>%
   filter(!is.na(TIMESTAMP)) %>%
   mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"),
@@ -14,85 +14,6 @@ target <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
 
 evi <- read_csv(here::here("processed_data", "evi.csv")) %>%
   filter(!duplicated(Date))
-
-# QAQC
-filt <- target %>%
-  group_by(MIU_VALVE) %>%
-  mutate(
-    #cutoff = quantile(CH4_se, 0.99, na.rm = TRUE),
-    cutoff = mean(CH4_se, na.rm = TRUE)+3*sd(CH4_se, na.rm = TRUE),
-    keep = ifelse(!is.na(CH4_se) & CH4_se < cutoff, TRUE, F),
-    keep = ifelse(as_date(TIMESTAMP) == "2025-07-29" & 
-                    MIU_VALVE == 8 & 
-                    !is.na(CH4) & 
-                    CH4 > 0.2,
-                  F,
-                  keep)
-  )
-
-# visualize
-p <- filt %>%
-  ggplot(aes(x = CH4, y = CH4_se, color = keep, label = paste(TIMESTAMP, CH4_se))) +
-  geom_point(data = . %>% filter(keep == T)) +
-  geom_point(data = . %>% filter(keep == F)) +
-  scale_color_manual(values = c("red", "black")) +
-  theme_minimal() +
-  facet_wrap(~MIU_VALVE, scales = "free")
-
-plotly::ggplotly(p)
-
-p <- filt %>%
-  ggplot(aes(x = CH4, y = CH4_R2, color = keep, label = paste(TIMESTAMP, CH4_se))) +
-  geom_point(data = . %>% filter(keep == T)) +
-  geom_point(data = . %>% filter(keep == F)) +
-  scale_color_manual(values = c("red", "black")) +
-  theme_minimal() +
-  facet_wrap(~MIU_VALVE, scales = "free")
-
-plotly::ggplotly(p)
-
-filt %>%
-  ggplot(aes(x = abs(NEE), y = CO2_R2, color = keep, label = TIMESTAMP)) +
-  geom_point() +
-  labs(x = "CO2 slope", y = "R²") +
-  scale_color_manual(values = c("red", "black")) +
-  theme_minimal() +
-  facet_wrap(~MIU_VALVE, scales = "free")
-
-p <- filt %>%
-  ggplot(aes(x = TIMESTAMP, y = CH4, color = keep, label = CH4_se)) +
-  geom_point() +
-  scale_color_manual(values = c("red", "black")) +
-  theme_minimal() +
-  facet_wrap(~MIU_VALVE, scales = "free")
-
-plotly::ggplotly(p)
-
-filt %>%
-  ggplot(aes(x = TIMESTAMP, y = CH4, color = keep)) +
-  geom_point() +
-  scale_color_manual(values = c("red", "black")) +
-  theme_minimal() +
-  ylim(0, 0.04) +
-  facet_wrap(~MIU_VALVE)
-
-removal <- filt %>%
-  select(MIU_VALVE, TIMESTAMP, keep) %>%
-  distinct()
-
-df <- target %>%
-  left_join(removal) %>%
-  mutate(CH4 = ifelse(!keep,
-    NA,
-    CH4
-  )) %>%
-  select(-keep)
-
-target %>%
-  group_by(MIU_VALVE) %>%
-  left_join(removal) %>%
-  summarize(n_removed = sum(!keep & !is.na(CH4), na.rm = T),
-            pct = n_removed/sum(!is.na(keep) & !is.na(CH4))*100)
 
 # Consistent timestamp
 
@@ -149,7 +70,6 @@ p <- ch4 %>%
   mutate(MIU_VALVE = factor(MIU_VALVE)) %>%
   ggplot(aes(x = TIMESTAMP, y = Rref_t, 
              color = MIU_VALVE, label = MIU_VALVE)) +
-  geom_smooth()+
   geom_point()
 
 plotly::ggplotly(p)
@@ -209,6 +129,15 @@ ch4 %>%
   group_by(MIU_VALVE) %>%
   summarize(nas = sum(is.na(GPP_filled)))
 
+ch4 %>%
+  group_by(MIU_VALVE) %>%
+  summarize(nas = sum(is.na(Reco)))
+
+ch4 %>%
+  ggplot(aes(x = TIMESTAMP, y = Reco))+
+  geom_line()+
+  facet_wrap(~MIU_VALVE)
+
 ### CH4 ###
 
 train <- ch4[!is.na(CH4)]
@@ -259,9 +188,6 @@ ch4 %>%
   ggplot(aes(x = TIMESTAMP)) +
   geom_point(aes(y = CH4_rf), color = "red")+
   facet_wrap(~MIU_VALVE, scales = "free")
-
-ch4 %>%
-  filter(is.na(GPP_filled))
 
 write_csv(ch4, here::here("processed_data", "L2- partitioned_and_gap_filled.csv"))
 

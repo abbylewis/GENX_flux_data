@@ -485,7 +485,7 @@ discrete_scales %>%
       minute(TIMESTAMP) / 60 +
       second(TIMESTAMP) / 3600
   ) %>%
-  filter(grouped_scale == "Hourly") %>%
+  filter(grouped_scale == "Daily") %>%
   ggplot(aes(x = tod, y = reconstructed_CH4_filled, color = MIU_VALVE)) +
   geom_smooth(
     method = "gam",
@@ -514,6 +514,29 @@ ch4 %>%
   scale_x_continuous(limits = c(0, 24), breaks = seq(0, 24, 6)) +
   scale_color_manual(values = color.gradient) +
   theme_hm
+
+ch4 %>%
+  mutate(
+    MIU_VALVE = factor(MIU_VALVE, 
+                       levels = chamber_levels, 
+                       labels = chamber_labels2),
+    tod = hour(TIMESTAMP) +
+      minute(TIMESTAMP) / 60 +
+      second(TIMESTAMP) / 3600,
+    season = case_when(month(TIMESTAMP) %in% c(3:5)~"Spring",
+                       month(TIMESTAMP) %in% c(6:8)~"Summer",
+                       month(TIMESTAMP) %in% c(9:11)~"Autumn")
+  ) %>%
+  ggplot(aes(x = tod, y = CH4_filled, color = MIU_VALVE)) +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ s(x, bs = "cc", k = 12),
+    se = FALSE
+  ) +
+  scale_x_continuous(limits = c(0, 24), breaks = seq(0, 24, 6)) +
+  scale_color_manual(values = color.gradient) +
+  theme_hm+
+  facet_wrap(~season)
 
 ch4 %>%
   mutate(

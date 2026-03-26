@@ -9,11 +9,89 @@ source(here::here("R", "download_gcrew_met.R"))
 source(here::here("R", "download_water_level.R"))
 Sys.setenv(TZ = "America/New_York")
 # Load slopes
-df <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
+target <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
   mutate(flux_start = force_tz(flux_start, tzone = "EST"),
          flux_end = force_tz(flux_end, tzone = "EST"),
          TIMESTAMP = force_tz(TIMESTAMP, tzone = "EST")) %>%
-  rename(flux_time = TIMESTAMP)
+  rename(flux_time = TIMESTAMP) %>%
+  filter(!duplicated(flux_time))
+
+#QAQC
+filt <- target %>%
+  group_by(MIU_VALVE) %>%
+  mutate(
+    cutoff = mean(CH4_se, na.rm = TRUE)+3*sd(CH4_se, na.rm = TRUE),
+    keep = ifelse(!is.na(CH4_se) & CH4_se < cutoff, TRUE, F),
+    cutoff_co2 = mean(CO2_se, na.rm = TRUE)+3*sd(CO2_se, na.rm = TRUE),
+    keep_co2 = ifelse(!is.na(CO2_se) & CO2_se < cutoff_co2, TRUE, F)
+  )
+
+# visualize
+p <- filt %>%
+  ggplot(aes(x = CH4_slope_ppm_per_day, y = CH4_se, color = keep, 
+             label = paste(flux_time, CH4_se))) +
+  geom_point(data = . %>% filter(keep == T)) +
+  geom_point(data = . %>% filter(keep == F)) +
+  scale_color_manual(values = c("red", "black")) +
+  theme_minimal() +
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+plotly::ggplotly(p)
+
+p <- filt %>%
+  ggplot(aes(x = CH4_slope_ppm_per_day, y = CH4_R2, color = keep, 
+             label = paste(flux_time, CH4_se))) +
+  geom_point(data = . %>% filter(keep == T)) +
+  geom_point(data = . %>% filter(keep == F)) +
+  scale_color_manual(values = c("red", "black")) +
+  theme_minimal() +
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+plotly::ggplotly(p)
+
+filt %>%
+  ggplot(aes(x = abs(CO2_slope_ppm_per_day), y = CO2_R2, color = keep_co2, label = flux_time)) +
+  geom_point() +
+  labs(x = "CO2 slope", y = "R²") +
+  scale_color_manual(values = c("red", "black")) +
+  theme_minimal() +
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+p <- filt %>%
+  ggplot(aes(x = flux_time, y = CH4_slope_ppm_per_day, color = keep, 
+             label = CH4_se)) +
+  geom_point() +
+  scale_color_manual(values = c("red", "black")) +
+  theme_minimal() +
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+plotly::ggplotly(p)
+
+filt %>%
+  ggplot(aes(x = flux_time, y = CH4_slope_ppm_per_day, color = keep)) +
+  geom_point() +
+  scale_color_manual(values = c("red", "black")) +
+  theme_minimal() +
+  facet_wrap(~MIU_VALVE)
+
+removal <- filt %>%
+  select(MIU_VALVE, flux_time, keep, keep_co2) %>%
+  distinct()
+
+df <- target %>%
+  left_join(removal, by = c("MIU_VALVE", "flux_time")) %>%
+  mutate(
+    CH4_slope_ppm_per_day = ifelse(!keep, NA, CH4_slope_ppm_per_day),
+    CO2_slope_ppm_per_day = ifelse(!keep_co2, NA, CO2_slope_ppm_per_day)) %>%
+  select(-keep, -keep_co2)
+
+target %>%
+  group_by(MIU_VALVE) %>%
+  left_join(removal) %>%
+  summarize(n_removed = sum(!keep & !is.na(CH4_slope_ppm_per_day), na.rm = T),
+            pct = n_removed/sum(!is.na(keep) & !is.na(CH4_slope_ppm_per_day))*100,
+            n_removed_co2 = sum(!keep_co2 & !is.na(CO2_slope_ppm_per_day), na.rm = T),
+            pct_co2 = n_removed_co2/sum(!is.na(keep_co2) & !is.na(CO2_slope_ppm_per_day))*100)
 
 # Update met
 download_gcrew_met()
@@ -79,7 +157,7 @@ merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each f
   ) %>%
   ungroup() %>%
   select(all_of(c("MIU_VALVE", "DateTime", "flux_time", "NEE", "CH4", "N2O", "PAR", "Ta", 
-                  "CH4_R2", "CO2_R2", "CH4_se")))
+                  "CH4_R2", "CO2_R2", "CH4_se", "CO2_se")))
 
 # Identify nighttime
 par_night_thresh <- 5 # µmol m-2 s-1 threshold to define night

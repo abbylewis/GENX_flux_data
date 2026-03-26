@@ -40,6 +40,10 @@ soil_temp <- read_csv(here::here("processed_data", "soil_temp.csv"))  %>%
   mutate(timestamp = with_tz(timestamp, "EST"))
 
 n_days = as.numeric(difftime(max(part$DateTime),min(part$DateTime), units = "days"))
+
+part %>%
+  arrange(DateTime) %>%
+  filter(is.na(CH4_filled))
 ```
 
 Summary stats
@@ -529,7 +533,7 @@ ggsave(
 )
 ```
 
-Manual sampling underestimates
+Manual sampling underestimates (daytime comp)
 
 ```{r}
 reps <- 10000
@@ -550,7 +554,7 @@ calc_bias <- function(interval){
   bin_dur <- ifelse(bin_dur == "daily", "day", bin_dur)
   message(paste0("Running ",interval, ": \nBin: ",bin_dur,"\nSamples per bin: ", samples_per_bin))
 
-  out <- df %>%
+  out_all <- df %>%
     group_by(get(bin_dur), MIU_VALVE) %>%
     reframe(
       n = n(),
@@ -560,14 +564,32 @@ calc_bias <- function(interval){
         mean(sample(CH4_umol_m2_h, samples_per_bin))
       ),
       interval = interval
-    )
+    ) %>%
+    mutate(time = "all")
+  
+  out_daytime <- df %>%
+    filter(hour(DateTime) %in% c(9:17)) %>%
+    group_by(get(bin_dur), MIU_VALVE) %>%
+    reframe(
+      n = n(),
+      rep = seq_len(reps),
+      flux = replicate(
+        reps,
+        mean(sample(CH4_umol_m2_h, samples_per_bin))
+      ),
+      interval = interval
+    ) %>%
+    mutate(time = "daytime")
+  
+  out <- bind_rows(out_all, out_daytime)
+  out
 }
 
 df_out <- purrr::map(intervals, calc_bias) %>%
   bind_rows()
 
 to_plot <- df_out %>%
-  group_by(MIU_VALVE, rep, interval) %>%
+  group_by(MIU_VALVE, rep, interval, time) %>%
   summarize(
     mean_hourly = sum(flux*n/sum(n), na.rm = TRUE),
     tot_hourly = mean_hourly / 1e6 * (n_days * 24),
@@ -578,7 +600,7 @@ to_plot <- df_out %>%
     by = "MIU_VALVE"
   ) %>%
   mutate(percent_bias = tot_hourly / tot_real * 100 - 100) %>%
-  group_by(MIU_VALVE, interval) %>%
+  group_by(MIU_VALVE, interval, time) %>%
   summarize(
     median_bias = median(percent_bias, na.rm = TRUE),
     .groups = "drop"
@@ -611,20 +633,23 @@ sims <- to_plot %>%
   xlab("Sampling interval") +
   guides(fill = guide_legend(ncol = 2))+
   theme(axis.text.x = element_text(hjust = 1, 
-                                   angle = 45))
+                                   angle = 45))+
+  facet_wrap(~time)
 
 sims
 ggsave(sims, filename = "../figures/Figure 4 - Simulations multiple intervals.jpg", dpi = 300, width = 3, height = 4)
 
 sims_label <- make_lm_label(
   data = to_plot %>%
-    filter(interval == "monthly"),
+    filter(interval == "monthly",
+           time == "all"),
   xvar = "Temp_C",
   yvar = "median_bias"
 )
 
 sims_month <- to_plot %>%
-  filter(interval == "monthly") %>%
+  filter(interval == "monthly",
+         time == "all") %>%
   ggplot(aes(x = as.numeric(Temp_C), y = median_bias, group = "group")) +
   geom_hline(yintercept = 0, color = "grey85") +
   geom_smooth(method = "lm", color = "black") +
@@ -653,7 +678,8 @@ sims_month
 ggsave(sims_month, filename = "../figures/Figure 4 - Simulations.jpg", dpi = 300, width = 3, height = 4)
 
 to_plot_dist <- df_out %>%
-  filter(interval == "monthly") %>%
+  filter(interval == "monthly",
+         time == "all") %>%
   group_by(MIU_VALVE, rep) %>%
   summarize(
     mean_hourly = sum(flux*n/sum(n)),
