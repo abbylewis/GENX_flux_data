@@ -1,13 +1,16 @@
 # R Code to convert harmonized landsat/sentinel images into EVI
 library(tidyverse)
+library(terra)
 #https://github.com/nasa/HLS-Data-Resources/blob/main/r/HLS_Tutorial.Rmd
 earthdatalogin::edl_netrc()
 s = rstac::stac("https://cmr.earthdata.nasa.gov/stac/LPCLOUD/")
 HLS_col <- list("HLSS30_2.0", "HLSL30_2.0")
-roi <- terra::vect("../Raw_data/map.geojson")
+roi <- terra::vect(here::here("Raw_data","map.geojson"))
 roi_extent <- terra::ext(roi)
 bbox <- c(roi_extent$xmin, roi_extent$ymin, roi_extent$xmax, roi_extent$ymax)
-roi_datetime <- '2025-03-01T00:00:00Z/2026-03-01T23:59:59Z'
+start_date <- "2025-03-01T00:00:00Z"
+end_date <- paste0(Sys.Date(), "T23:59:59Z")
+roi_datetime <- paste(start_date, end_date, sep = "/")
 items <- s %>%
   rstac::stac_search(collections = HLS_col,
                      bbox = bbox,
@@ -121,7 +124,7 @@ build_mask <- function(fmask, selected_bit_nums){
   return(mask)
 }
 
-qmask <- build_mask(fmask[[1]], selected_bit_nums)
+qmask <- build_mask(fmask_stack[[1]], selected_bit_nums)
 plot(qmask)
 
 # Create List of Masks
@@ -146,7 +149,7 @@ stats$Date <- ymd_hms(sf_items$datetime) # convert string to date format (ISO 86
 
 ### MODEL
 
-source("../R/calc_curve.R")
+source(here::here("R","calc_curve.R"))
 df <- stats %>%
   select(Date, mean) %>%
   rename(evi = mean) %>%
@@ -170,7 +173,7 @@ pred_df_beck <- data.frame(id = rep(unique(fits_beck$id), each = 365),
 
 
 pred_df_beck %>%
-  ggplot(aes(x = doy, y = evi)) +
+  ggplot(aes(x = doy, y = evi, color = as.factor(year(Date)))) +
   geom_point() +
   geom_line(aes(y = pred), color = "blue") +
   facet_wrap(~id) +
@@ -191,5 +194,5 @@ out <- bind_rows(formatted, formatted %>%
   select(-Date) %>%
   rename(Date = Date_mod)
 
-write_csv(out, "../processed_data/EVI.csv")
+write_csv(out, here::here("processed_data","EVI.csv"))
 
