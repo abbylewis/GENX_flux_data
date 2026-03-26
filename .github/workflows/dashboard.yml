@@ -13,6 +13,10 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
       
+    - name: load packages
+      run: install.packages(c("rsconnect", "slackr"))
+      shell: Rscript {0}
+      
     - name: set auth
       run: |
         Rscript -e "rsconnect::setAccountInfo(name='aslewis', token=${{secrets.TOKEN}}, secret=${{secrets.SECRET}})"
@@ -21,4 +25,4 @@ jobs:
       env:
         SLACKRTOKEN: ${{ secrets.SLACKRTOKEN }}
         SLACKRURL: ${{ secrets.SLACKRURL }}
-      run:  Rscript "./dashboard lightweight/run_slackr.R"
+      run:  Rscript "./dashboard lightweight/run_dashboard.R"
