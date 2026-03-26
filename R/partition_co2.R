@@ -146,13 +146,13 @@ merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each f
       0
     ),
     NEE = CO2_slope_ppm_per_day * # CONVERT TO umolCO2/m2/s
-      (150 - Depth_above_surf) / 150 *
+      (125 - Depth_above_surf) / 125 *
       265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196,
     CH4 = CH4_slope_ppm_per_day * # CONVERT TO umolCH4/m2/s
-      (150 - Depth_above_surf) / 150 *
+      (125 - Depth_above_surf) / 125 *
       265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196,
     N2O = N2O_slope_ppm_per_day * # CONVERT TO umolN2O/m2/s
-      (150 - Depth_above_surf) / 150 *
+      (125 - Depth_above_surf) / 125 *
       265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196
   ) %>%
   ungroup() %>%

@@ -1,7 +1,4 @@
 install.packages("rsconnect")
-install.packages("quarto")
-install.packages("shiny")
-install.packages("plotly")
 install.packages("here")
 install.packages("slackr")
 library(quarto)
