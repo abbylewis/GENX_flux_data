@@ -29,7 +29,7 @@ part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.cs
   ) %>%
   filter(DateTime <= "2025-11-15")
 
-met <- read_csv("../processed_data/met_2025_gapfilled.csv") %>%
+met <- read_csv("../processed_data/met_2025_L1.csv") %>%
   mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"))
 
 soil_temp <- read_csv(here::here("processed_data", "soil_temp.csv"))  %>%
@@ -801,5 +801,85 @@ ggsave(with_dist2,
   filename = "../figures/Figure 4 - Simulations all.jpg",
   dpi = 300, width = 6, height = 5
 )
+```
+
+What drives residuals?
+
+```{r}
+resids <- annual_df %>%
+  mutate(
+    Temp_C = sub(" ºC", "", str_extract(as.character(MIU_VALVE), "[0-9]+\\.*[0-9]* ºC")),
+    Temp_C = as.numeric(sub("mb", "0", Temp_C)),
+    hm_pct_998 = hot_sum_998 / sum * 100,
+    hm_pct_99 = hot_sum_99 / sum * 100,
+    hm_pct_95 = hot_sum_95 / sum * 100
+  )%>%
+  mutate(resid_99 = lm(hm_pct_99~Temp_C)$residuals,
+         resid_95 = lm(hm_pct_95~Temp_C)$residuals,
+         resid_998 = lm(hm_pct_998~Temp_C)$residuals) %>%
+  select(MIU_VALVE, resid_99, resid_95, resid_998)
+
+rtk <- read_csv(here::here("Raw_Data", "GENX_RTK_11mar2026.csv")) %>%
+  group_by(Chamber_ID) %>%
+  summarize(Elev_m = mean(Elev_m, na.rm = T), .groups = "drop") %>%
+  mutate(MIU_VALVE = factor(Chamber_ID,
+                            levels = 1:12,
+                            labels = chamber_labels2))
+
+resids %>%
+  left_join(rtk) %>%
+  ggplot(aes(x = Elev_m, y = resid_99, color = MIU_VALVE))+
+  geom_point()+
+  theme_hm+
+  scale_color_manual(values = color.gradient, name = "Chamber") +
+  xlab("Elevation (m)")+
+  ylab("Residual")
+
+## BIOMASS
+agb <- read_csv("../Raw_data/biomass/2025 aboveground biomass.csv", show_col_types = F) %>%
+  filter(!grepl("Ref", Chamber)) %>%
+  mutate(MIU_VALVE = factor(Chamber,
+                            levels = 1:12,
+                            labels = chamber_labels2)) %>%
+  pivot_longer(cols = c("SCAM.g.m2", "TotalC4.g.m2", "SPPA.g.m2", "DISP.g.m2",
+                        "Other.g.m2", "Above.g.m2"))
+
+resids %>%
+  left_join(agb) %>%
+  ggplot(aes(x = value, y = resid_99, color = MIU_VALVE))+
+  geom_point()+
+  theme_hm+
+  scale_color_manual(values = color.gradient, name = "Chamber") +
+  xlab("Biomass (g/m2)")+
+  ylab("Residual (negative means that hot moments\nare less influential than expected)")+
+  facet_wrap(~name, scales = "free")
+
+bio_label <- make_lm_label(
+  data = resids %>%
+  left_join(agb),
+  xvar = "value",
+  yvar = "resid_99",
+  group_var = "name"
+)
+
+resids %>%
+  pivot_longer(c(resid_99, resid_998, resid_95), names_to = "resid", values_to = "resid_val") %>%
+  mutate(resid = replace_values(resid,
+         "resid_99"~"Top 1%",
+         "resid_998"~"Top 0.2%",
+         "resid_95"~"Top 5%")) %>%
+  left_join(agb, relationship = "many-to-many") %>%
+  filter(!name == "Other.g.m2") %>%
+  group_by(name, resid) %>%
+  mutate(p = summary(lm(resid_val~value))$coefficients[2,4]) %>%
+  ggplot(aes(x = value, y = resid_val))+
+  geom_smooth(method = "lm", data = . %>% filter(p < 0.05), color = "black")+
+  geom_point(aes(color = MIU_VALVE))+
+  theme_hm+
+  scale_color_manual(values = color.gradient, name = "Chamber") +
+  xlab("Biomass (g/m2)")+
+  ylab("Residual (negative means that hot moments\nare less influential than expected)")+
+  facet_grid(resid~name, scales = "free")+
+  ggpubr::stat_cor(size = 2)
 ```
 

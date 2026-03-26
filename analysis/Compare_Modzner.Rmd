@@ -28,7 +28,7 @@ part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.cs
   ) %>%
   filter(DateTime <= "2025-11-15")
 
-met <- read_csv("../processed_data/met_2025_gapfilled.csv") %>%
+met <- read_csv("../processed_data/met_2025_L1.csv") %>%
   mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"))
 
 soil_temp <- read_csv(here::here("processed_data", "soil_temp.csv"))  %>%
