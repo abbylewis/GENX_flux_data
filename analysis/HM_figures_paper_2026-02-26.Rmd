@@ -533,7 +533,7 @@ ggsave(
 )
 ```
 
-Manual sampling underestimates (daytime comp)
+Manual sampling underestimates
 
 ```{r}
 reps <- 10000
@@ -630,7 +630,7 @@ sims <- to_plot %>%
   theme_hm +
   theme(legend.title.position = "top") +
   ylab("Manual sampling bias (%)") +
-  xlab("Sampling interval") +
+  xlab("Simulated sampling interval") +
   guides(fill = guide_legend(ncol = 2))+
   theme(axis.text.x = element_text(hjust = 1, 
                                    angle = 45))+
@@ -638,6 +638,34 @@ sims <- to_plot %>%
 
 sims
 ggsave(sims, filename = "../figures/Figure 4 - Simulations multiple intervals.jpg", dpi = 300, width = 3, height = 4)
+
+sims_full_day <- to_plot %>%
+  filter(time == "all") %>%
+  mutate(interval = factor(interval, levels = intervals),
+         int_num = as.numeric(interval)) %>%
+  ggplot(aes(color = MIU_VALVE, x = int_num, y = median_bias)) +
+  geom_hline(yintercept = 0, color = "grey85") +
+  geom_line(size = 0.5) +
+  geom_point(aes(fill = MIU_VALVE), shape = 21, size = 2, stroke = 0.5) +
+  scale_x_continuous(breaks = 1:length(intervals),
+                     labels = intervals)+
+  scale_fill_manual(
+    values = color.gradient,
+    name = "Chamber"
+  ) +
+  scale_color_manual(
+    values = color.gradient,
+    name = "Chamber"
+  ) +
+  theme_hm +
+  theme(legend.title.position = "top") +
+  ylab("Manual sampling bias (%)") +
+  xlab("Simulated sampling interval") +
+  guides(fill = guide_legend(ncol = 2))+
+  theme(axis.text.x = element_text(hjust = 1, 
+                                   angle = 45))
+
+sims_full_day
 
 sims_label <- make_lm_label(
   data = to_plot %>%
@@ -656,8 +684,8 @@ sims_month <- to_plot %>%
   geom_point(aes(fill = MIU_VALVE), shape = 21, size = 2, stroke = 0.5) +
   geom_text(
     data = sims_label,
-    aes(x = -Inf, y = Inf, label = label),
-    hjust = 0, vjust = 1.1,
+    aes(x = -Inf, y = -Inf, label = label),
+    hjust = 0, vjust = -0.1,
     inherit.aes = FALSE, size = 3
   ) +
   scale_x_continuous(
@@ -744,24 +772,26 @@ ggsave(with_dist,
 
 with_dist2 <- patchwork::wrap_plots(
   a = sims_month +
-    guides(fill = guide_legend(ncol = 5)) +
+    guides(fill = guide_legend(ncol = 1)) +
     ylab("Monthly sampling bias\n(median %)") +
     xlab("Temperature treatment (ºC above ambient)"),
   b = sims_dist + theme(legend.position = "none") +
     ylab("Monthly sampling bias (%)"),
-  c = sims +
+  c = sims_full_day +
     ylab("Sampling bias\n(median %)")+ 
     theme(legend.position = "none",
           axis.text.x = element_text(hjust = 0.5, angle = 0)),
+  d = patchwork::guide_area(),
   guides = "collect",
   axes = "collect_x",
-  design = c("AB
-              AB
-              CC")
+  design = c("AAABBB
+              AAABBB
+              AAABBB
+              CCCCDD
+              CCCCDD")
 ) +
   patchwork::plot_annotation(
-    tag_levels = "a",
-    theme = theme(legend.position = "bottom")
+    tag_levels = "a"
   ) &
   theme(plot.tag = element_text(face = "bold"))
 
@@ -769,7 +799,7 @@ with_dist2
 
 ggsave(with_dist2,
   filename = "../figures/Figure 4 - Simulations all.jpg",
-  dpi = 300, width = 6, height = 6
+  dpi = 300, width = 6, height = 5
 )
 ```
 
