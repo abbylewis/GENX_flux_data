@@ -12,10 +12,6 @@ jobs:
     steps:
     - name: Checkout repo
       uses: actions/checkout@v4
-
-    - name: load packages
-      run: install.packages(c("shiny", "rsconnect", "slackr"))
-      shell: Rscript {0}
       
     - name: set auth
       run: |
@@ -25,4 +21,4 @@ jobs:
       env:
         SLACKRTOKEN: ${{ secrets.SLACKRTOKEN }}
         SLACKRURL: ${{ secrets.SLACKRURL }}
-      run:  Rscript "./dashboard lightweight/run_dashboard.R"
+      run:  Rscript "./dashboard lightweight/run_slackr.R"
