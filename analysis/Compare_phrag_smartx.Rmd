@@ -1,7 +1,7 @@
 ---
-title: "HM_figures"
+title: "Compare GENX to Phrag and SMARTX"
 author: "Abby Lewis"
-date: "2026-01-20"
+date: "2026-03-27"
 output: html_document
 ---
 
@@ -33,22 +33,24 @@ part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.cs
   filter(grepl("0.*[0-9]* º", MIU_VALVE))
 
 # PHAU
-phau <- read_csv(here::here("Raw_data", "from_tom.csv")) %>%
+phau <- read_csv(here::here("Raw_data", "phrag.csv")) %>%
   rename(CH4_umol_m2_s = flux_ch4,
+         CO2_umol_m2_s = flux_co2,
          DateTime = Time) %>%
-  select(DateTime, CH4_umol_m2_s, chamber, collar, zone) %>%
+  select(DateTime, CH4_umol_m2_s, CO2_umol_m2_s, chamber, collar, zone) %>%
   mutate(experiment = "Phrag experiment")
 
 # SMARTX
 st <- read_csv(here::here("Raw_data","smartx_treatments.csv"))
 smartx <- read_csv(here::here("Raw_data","SMARTX CH4 and CO2 fluxes_2016-2025.csv")) %>%
   mutate(CH4_umol_m2_s = `CH4 flux (umol/m2/d)`/24/60/60,
+         CO2_umol_m2_s = `CO2 flux (umol/m2/d)`/24/60/60*1000,
          DateTime = as_datetime(paste0(as.Date(Date, format = "%m/%d/%Y")," 12:00:00"))) %>%
   left_join(st) %>%
   filter(Temp == 0,
          CO2 == 0,
          year(DateTime) %in% c(2025, 2024)) %>%
-  select(DateTime, CH4_umol_m2_s, Veg, Transect) %>%
+  select(DateTime, CH4_umol_m2_s, CO2_umol_m2_s, Veg, Transect) %>%
   mutate(experiment = "SMARTX experiment")
 
 # Combine PHAU and SMARTX
@@ -58,10 +60,11 @@ discrete <- phau %>%
               mutate(relevant_treatment = Veg))
 ```
 
-Plot
+Plot CH4
 
 ```{r}
-part %>%
+#All data
+all <- part %>%
   ggplot()+
   geom_line(aes(x = DateTime, y = CH4_umol_m2_s, color = MIU_VALVE))+
   geom_point(aes(y = CH4_umol_m2_s, x = DateTime), fill = "pink", color = "maroon", 
@@ -72,9 +75,10 @@ part %>%
   theme(axis.title.x = element_blank())+
   ylab(expression(CH[4]~" flux (µmol"~m^-2~s^-1*")"))+
   theme(ggh4x.facet.nestline = element_line(colour = "grey70"))
+all
+ggsave(plot = all, here::here("figures", "phrag_compare.jpg"), width = 7, height = 5)
 
-ggsave(here::here("figures", "phrag_compare.jpg"))
-
+#Limited to the range of GENX data
 part %>%
   ggplot()+
   geom_line(aes(x = DateTime, y = CH4_umol_m2_s, color = MIU_VALVE))+
@@ -82,12 +86,51 @@ part %>%
              shape = 21, data = discrete)+
   scale_color_manual(name = "GENX chamber", values = c("lightblue", "darkblue"))+
   theme_hm+
-  ylim(c(0, 0.02))+
+  coord_cartesian(ylim = c(0, 0.035))+
   ggh4x::facet_nested_wrap(~experiment+relevant_treatment)+
   theme(axis.title.x = element_blank())+
   ylab(expression(CH[4]~" flux (µmol"~m^-2~s^-1*")"))+
   theme(ggh4x.facet.nestline = element_line(colour = "grey70"))
 
-ggsave(here::here("figures", "phrag_compare_zoomed.jpg"))
+ggsave(here::here("figures", "phrag_compare_zoomed.jpg"), width = 7, height = 5)
+
+plotly::ggplotly(all)
+```
+
+Plot CO2
+
+```{r}
+#All data
+all <- part %>%
+  ggplot()+
+  geom_line(aes(x = DateTime, y = CO2_umol_m2_s, color = MIU_VALVE))+
+  geom_point(aes(y = CO2_umol_m2_s, x = DateTime), fill = "pink", color = "maroon", 
+             shape = 21, data = discrete)+
+  scale_color_manual(name = "GENX chamber", values = c("lightblue", "darkblue"))+
+  theme_hm+
+  ggh4x::facet_nested_wrap(~experiment+relevant_treatment)+
+  theme(axis.title.x = element_blank())+
+  ylab(expression(CO[2]~" flux (µmol"~m^-2~s^-1*")"))+
+  theme(ggh4x.facet.nestline = element_line(colour = "grey70"))
+all
+ggsave(plot = all, here::here("figures", "phrag_compare_co2.jpg"), width = 7, height = 5)
+
+#Limited to the range of GENX data
+part %>%
+  ggplot()+
+  geom_line(aes(x = DateTime, y = CO2_umol_m2_s, color = MIU_VALVE))+
+  geom_point(aes(y = CO2_umol_m2_s, x = DateTime), fill = "pink", color = "maroon", 
+             shape = 21, data = discrete)+
+  scale_color_manual(name = "GENX chamber", values = c("lightblue", "darkblue"))+
+  theme_hm+
+  coord_cartesian(ylim = c(0,20))+
+  ggh4x::facet_nested_wrap(~experiment+relevant_treatment)+
+  theme(axis.title.x = element_blank())+
+  ylab(expression(CO[2]~" flux (µmol"~m^-2~s^-1*")"))+
+  theme(ggh4x.facet.nestline = element_line(colour = "grey70"))
+
+ggsave(here::here("figures", "phrag_compare_zoomed_co2.jpg"), width = 7, height = 5)
+
+plotly::ggplotly(all)
 ```
 
