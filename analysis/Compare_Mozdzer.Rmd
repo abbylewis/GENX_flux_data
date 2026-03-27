@@ -40,22 +40,22 @@ soil_temp <- read_csv(here::here("processed_data", "soil_temp.csv"))  %>%
 
 n_days = as.numeric(difftime(max(part$DateTime),min(part$DateTime), units = "days"))
 
-modzner <- read_csv(here::here("Raw_data", "from_tom.csv"))
+mozdzer <- read_csv(here::here("Raw_data", "from_tom.csv"))
 ```
 
 Summary stats
 
 ```{r}
 setDT(part)
-setDT(modzner)
+setDT(mozdzer)
 
 # Set compound keys (group + time)
 setkey(part, DateTime)
-setkey(modzner, Time)
+setkey(mozdzer, Time)
 
 max_diff <- 60 * 10  # 10 minutes (seconds)
 
-p_to_m <- modzner[
+p_to_m <- mozdzer[
   part,
   on = .(Time = DateTime),
   roll = max_diff,
@@ -63,7 +63,7 @@ p_to_m <- modzner[
 ]
 
 m_to_p <- part[
-  modzner,
+  mozdzer,
   on = .(DateTime = Time),
   roll = max_diff,
   allow.cartesian = TRUE
