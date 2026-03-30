@@ -12,3 +12,4 @@ tokenfile.RDS.base64
 processed_data/processed_GENX_LGR_data.csv
 processed_data/met.csv
 .DS_Store
+.rcookies
