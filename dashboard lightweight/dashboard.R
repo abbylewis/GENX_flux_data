@@ -1,0 +1,671 @@
+#' ---
+#' title: 'CH~4~-cast: Data dashboard'
+#' title-block-banner: true
+#' format:
+#'   html:
+#'     page-layout: full
+#' server: shiny
+#' ---
+#' 
+
+#| context: setup
+
+library(tidyverse)
+library(plotly)
+
+chamber_levels <- c(
+  "c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
+  "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
+  "c_10_e4.5", "c_11_e5.25", "c_12_e6.0"
+)
+
+color.gradient <- c(
+  "blue4", "blue3", "turquoise4", "lightseagreen",
+  "mediumseagreen", "limegreen", "yellowgreen", "yellow2",
+  "darkgoldenrod2", "darkorange2", "orangered1", "red2"
+)
+
+# For testing
+input <- list()
+input$gases <- c("CH₄", "CO₂", "N₂O")
+input$today <- Sys.Date()
+input$days_to_plot <- 3
+input$daily <- "Hourly"
+input$smooth <- "Measured"
+
+#| panel: fill
+
+plotlyOutput("plot_flux", height = 420)
+div(style = "color: #808080; font-size: 0.85em; ", "All times are EST")
+
+#| panel: fill
+
+plotlyOutput("plot_co2", height = 420)
+div(style = "color: #808080; font-size: 0.85em; ", "All times are EST")
+
+#| panel: fill
+
+plotlyOutput("plot_wl", height = 420)
+div(style = "color: #808080; font-size: 0.85em; ", "All times are EST")
+
+#| panel: fill
+
+plotlyOutput("flux_wl", height = 420)
+div(style = "color: #808080; font-size: 0.85em; ", "All times are EST")
+
+#| panel: fill
+
+plotlyOutput("plot_forecast", height = 420)
+
+#| panel: fill
+splitLayout(
+  cellWidths = c("50%", "50%"),
+  selectInput("raw_date", "Date",
+    choices = as_date((Sys.Date() - days(7)):Sys.Date()),
+    selected = Sys.Date()
+  ),
+  sliderInput("time_hour", "Hour",
+    min = 0, max = 23, value = 5
+  )
+)
+
+plotlyOutput("plot_time", height = 420)
+
+br()
+
+p("Alternatively, visualize all fluxes from a chamber for this date:")
+
+splitLayout(
+  cellWidths = c("50%", "50%"),
+  selectInput("raw_chamber", "Chamber",
+    choices = 1:12
+  )
+)
+
+plotlyOutput("plot_raw", height = 420)
+
+#| panel: sidebar
+
+h4("Plot Specifications")
+
+dateInput("today", "Today",
+  min = "2025-03-18",
+  max = Sys.Date(),
+  value = Sys.Date()
+)
+br()
+numericInput("days_to_plot", "Days of historical data to plot",
+  0,
+  5,
+  value = 5
+)
+br()
+splitLayout(
+  cellWidths = c("50%", "50%"),
+
+  # Left column
+  tagList(
+    checkboxGroupInput("gases", "Gases to plot",
+      choices = c("CH₄", "CO₂", "N₂O"),
+      selected = c("CH₄", "CO₂", "N₂O")
+    )
+  ),
+
+  # Right column
+  checkboxGroupInput("metrics", "Metrics to plot",
+    choices = c("GPP", "NEE", "Reco"),
+    selected = c("GPP", "NEE", "Reco")
+  )
+)
+br()
+splitLayout(
+  cellWidths = c("50%", "50%"),
+
+  # Left column
+  radioButtons("daily",
+    label = "Time step",
+    choices = c("Hourly", "Daily mean"),
+    selected = "Hourly"
+  ),
+
+  # Right column
+  radioButtons("smooth",
+    label = "Line type",
+    choices = c("Measured", "Smoothed"),
+    selected = "Measured"
+  )
+)
+
+#| context: server
+
+# Code for plots
+################ FLUXES ####################
+# This file has BOTH fluxes and partitioned GPP/R
+partitioned <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/partitioned_co2.csv", show_col_types = F) %>%
+  mutate(
+    GPP = ifelse(!is_day & !is.na(NEE), 0, GPP),
+    CH4 = ifelse(CH4 < -0.2, NA, CH4)
+  ) %>%
+  mutate(DateTime = with_tz(DateTime, "EST"),
+         flux_time = with_tz(flux_time, "EST"),
+         driver_time = with_tz(driver_time, "EST"))
+
+updateDateInput(
+  inputId = "today",
+  max = as_date(max(partitioned$DateTime)),
+  value = as_date(max(partitioned$DateTime))
+)
+
+updateNumericInput(
+  inputId = "days_to_plot",
+  max = round(as.numeric(difftime(as_date(max(partitioned$DateTime)),
+    "2025-03-18",
+    units = "days"
+  ))),
+  value = 5
+)
+
+output$plot_flux <- renderPlotly({
+  part_recent <- partitioned %>%
+    filter(
+      as_date(DateTime) <= input$today,
+      DateTime > (input$today - days(input$days_to_plot))
+    ) %>%
+    rename(Chamber = MIU_VALVE) %>%
+    select(c(CH4, N2O, NEE, DateTime, Chamber)) %>%
+    pivot_longer(matches("CH4|N2O|NEE"),
+      names_to = "gas"
+    ) %>%
+    mutate(gas = case_match(gas,
+      "CH4" ~ "CH₄",
+      "CO2" ~ "CO₂",
+      "N2O" ~ "N₂O",
+      .default = gas
+    )) %>%
+    filter(!gas == "Flag")
+
+  if (input$daily == "Daily mean") {
+    part_recent2 <- part_recent %>%
+      mutate(
+        DateTime = as_date(DateTime),
+        DateTime = as.POSIXct(DateTime)
+      ) %>%
+      group_by(DateTime, Chamber, gas) %>%
+      summarize(
+        value = mean(value, na.rm = T),
+        .groups = "drop"
+      )
+  } else {
+    part_recent2 <- part_recent
+  }
+
+  p1 <- part_recent2 %>%
+    mutate(
+      Chamber = factor(Chamber,
+        levels = 1:12,
+        labels = chamber_levels
+      ),
+      gas = ifelse(gas == "NEE", "CO₂", gas)
+    ) %>%
+    filter(gas %in% input$gases) %>%
+    ggplot(aes(x = DateTime, y = value, color = Chamber)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_point(size = 0.5) +
+    {
+      if (input$smooth == "Smoothed") {
+        geom_smooth(se = FALSE, method = "gam")
+      } else {
+        geom_line()
+      }
+    } +
+    ylab("Flux (µmol/m²/s)") +
+    facet_wrap(~gas, scales = "free_y", nrow = 1) +
+    scale_color_manual(
+      values = color.gradient,
+      breaks = chamber_levels
+    ) +
+    theme_bw() +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    )
+
+  plotly::ggplotly(p1, tooltip = c("Chamber", "DateTime", "value")) %>%
+    layout(
+      legend = list(
+        tracegroupgap = 0
+      )
+    )
+})
+
+
+################ PARTITIONED CO2 ####################
+
+# Code for plots
+output$plot_co2 <- renderPlotly({
+  part_recent <- partitioned %>%
+    filter(
+      as_date(DateTime) <= input$today,
+      DateTime > (input$today - days(input$days_to_plot))
+    ) %>%
+    rename(Chamber = MIU_VALVE) %>%
+    select(c(NEE, GPP, Reco, DateTime, Chamber)) %>%
+    pivot_longer(c(NEE, GPP, Reco),
+      names_to = "gas"
+    ) %>%
+    mutate(value = ifelse(gas == "GPP", -value, value)) %>%
+    filter(!gas == "Flag")
+
+  if (input$daily == "Daily mean") {
+    part_recent2 <- part_recent %>%
+      mutate(
+        DateTime = as_date(DateTime),
+        DateTime = as.POSIXct(DateTime)
+      ) %>%
+      group_by(DateTime, Chamber, gas) %>%
+      summarize(
+        value = mean(value, na.rm = T),
+        .groups = "drop"
+      )
+  } else {
+    part_recent2 <- part_recent
+  }
+
+  p1 <- part_recent2 %>%
+    mutate(Chamber = factor(Chamber,
+      levels = 1:12,
+      labels = chamber_levels
+    )) %>%
+    filter(gas %in% input$metrics) %>%
+    ggplot(aes(x = DateTime, y = value, color = Chamber)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_point(size = 0.5) +
+    {
+      if (input$smooth == "Smoothed") {
+        geom_smooth(se = FALSE, method = "gam")
+      } else {
+        geom_line()
+      }
+    } +
+    ylab("Flux (µmol/m²/s)") +
+    facet_wrap(~gas, nrow = 1) +
+    scale_color_manual(values = color.gradient) +
+    theme_bw() +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    )
+
+  plotly::ggplotly(p1, tooltip = c("Chamber", "DateTime", "value")) %>%
+    layout(
+      legend = list(
+        tracegroupgap = 0
+      )
+    )
+})
+
+################ WATER LEVEL ####################
+wl <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/water_level_dashboard.csv")
+output$plot_wl <- renderPlotly({
+  wl_recent <- wl %>%
+    filter(
+      as_date(TIMESTAMP) <= input$today,
+      TIMESTAMP > (input$today - days(input$days_to_plot))
+    ) %>%
+    pivot_longer(c(Depth_cm:Salinity_PSU),
+      names_to = "variable"
+    )
+
+  if (input$daily == "Daily mean") {
+    wl_recent2 <- wl_recent %>%
+      mutate(
+        TIMESTAMP = as_date(TIMESTAMP),
+        TIMESTAMP = as.POSIXct(TIMESTAMP)
+      ) %>%
+      group_by(TIMESTAMP, variable) %>%
+      summarize(
+        value = mean(value, na.rm = T),
+        .groups = "drop"
+      )
+  } else {
+    wl_recent2 <- wl_recent
+  }
+
+  p1 <- wl_recent2 %>%
+    ggplot(aes(x = TIMESTAMP, y = value)) +
+    geom_point(size = 0.5) +
+    {
+      if (input$smooth == "Smoothed") {
+        geom_smooth(se = FALSE, method = "gam")
+      } else {
+        geom_line()
+      }
+    } +
+    ylab("Value") +
+    facet_wrap(~variable, ncol = 1, scales = "free_y") +
+    theme_bw() +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    )
+
+  plotly::ggplotly(p1, tooltip = c("TIMESTAMP", "value"))
+})
+
+################ FORECAST ####################
+# Code for plots
+output$plot_forecast <- renderPlotly({
+  forecast <- read_csv(paste0("https://raw.githubusercontent.com/abbylewis/GENX_CH4cast/refs/heads/master/outputs/daily-", input$today, "-slosh.csv.gz"),
+    show_col_types = F
+  )
+
+  part_recent <- partitioned %>%
+    filter(
+      as_date(DateTime) <= (input$today + days(7)),
+      DateTime > (input$today - days(input$days_to_plot))
+    ) %>%
+    rename(Chamber = MIU_VALVE) %>%
+    select(c(CH4, DateTime, Chamber)) %>%
+    pivot_longer(matches("CH4"),
+      names_to = "gas"
+    ) %>%
+    filter(!gas == "Flag")
+
+  part_recent2 <- part_recent %>%
+    mutate(
+      DateTime = as_date(DateTime),
+      DateTime = as.POSIXct(DateTime)
+    ) %>%
+    group_by(DateTime, Chamber, gas) %>%
+    summarize(
+      value = mean(value, na.rm = T),
+      .groups = "drop"
+    )
+
+  p1 <- forecast %>%
+    mutate(
+      Chamber = factor(site_id, levels = 1:12, labels = chamber_levels),
+      site_id = factor(site_id, levels = 1:12, labels = chamber_levels)
+    ) %>%
+    pivot_wider(names_from = "parameter", values_from = "prediction") %>%
+    rename(
+      value = mu,
+      DateTime = datetime
+    ) %>%
+    ggplot(aes(x = DateTime, y = value, color = Chamber, fill = site_id)) +
+    geom_hline(yintercept = 0, color = "grey50") +
+    geom_vline(xintercept = input$today) +
+    geom_line() +
+    geom_ribbon(aes(ymin = value - sigma, ymax = value + sigma), alpha = 0.1) +
+    geom_point(
+      data = part_recent2 %>%
+        mutate(
+          site_id = factor(Chamber, levels = 1:12, labels = chamber_levels),
+          Chamber = site_id
+        ),
+      aes(x = DateTime, y = value), alpha = 0.6, size = 0.75
+    ) +
+    scale_color_manual(
+      values = color.gradient,
+      breaks = chamber_levels,
+      name = "Chamber"
+    ) +
+    scale_fill_manual(
+      values = color.gradient,
+      breaks = chamber_levels,
+      name = "Chamber"
+    ) +
+    theme_bw() +
+    theme(
+      axis.title.x = element_blank(),
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    ) +
+    ylab("Flux (µmol/m²/day)") +
+    ggtitle(paste0("CH₄ forecasts for ", input$today))
+
+  # p1_plotly <- plotly::ggplotly(p1, tooltip = c("site_id", "datetime", "mu", "value"))
+
+  # Clean up legend names like "(c_1_amb,orangered1)" → "c_1_amb"
+  # for (i in seq_along(p1_plotly$x$data)) {
+  #  nm <- p1_plotly$x$data[[i]]$name
+  #  if (!is.null(nm)) {
+  #    nm_clean <- gsub("^\\(([^,]+),.*\\)$", "\\1", nm)
+  #    nm_clean <- trimws(nm_clean)
+  #    p1_plotly$x$data[[i]]$name <- nm_clean
+  #  }
+  # }
+
+  plotly::ggplotly(p1, tooltip = c("site_id", "DateTime", "value")) %>%
+    layout(
+      legend = list(
+        tracegroupgap = 0
+      )
+    )
+})
+
+################ FLUX, WL comp ####################
+# Code for plots
+
+output$flux_wl <- renderPlotly({
+  part_wl <- partitioned %>%
+    rename(
+      Chamber = MIU_VALVE) %>%
+    select(DateTime, Chamber, CH4, Depth_cm) %>%
+    pivot_longer(c(CH4, Depth_cm), names_to = "variable") %>%
+    mutate(variable = case_match(variable,
+                                 "CH4"~"CH₄",
+                                 .default = variable)) %>%
+    mutate(Chamber = ifelse(variable == "Depth_cm",
+                            NA, Chamber)) %>%
+    filter(
+      as_date(DateTime) <= input$today,
+      DateTime > (input$today - days(input$days_to_plot))
+    ) %>%
+    select(c(DateTime, Chamber, value, variable))
+
+  if (input$daily == "Daily mean") {
+    part_wl2 <- part_wl %>%
+      mutate(
+        DateTime = as_date(DateTime),
+        DateTime = as.POSIXct(DateTime)
+      ) %>%
+      group_by(DateTime, Chamber, variable) %>%
+      summarize(
+        value = mean(value, na.rm = T),
+        .groups = "drop"
+      )
+  } else {
+    part_wl2 <- part_wl
+  }
+
+  p1 <- part_wl2 %>%
+    mutate(Chamber = factor(Chamber,
+      levels = 1:12,
+      labels = chamber_levels
+    )) %>%
+    ggplot(aes(x = DateTime, y = value, color = Chamber)) +
+    geom_point(size = 0.5) +
+    {
+      if (input$smooth == "Smoothed") {
+        geom_smooth(se = FALSE, method = "gam")
+      } else {
+        geom_line()
+      }
+    } +
+    ylab("Value") +
+    facet_wrap(~variable, scales = "free_y", ncol = 1) +
+    scale_color_manual(
+      values = color.gradient,
+      breaks = chamber_levels
+    ) +
+    theme_bw() +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    )
+
+  plotly::ggplotly(p1, tooltip = c("Chamber", "DateTime", "value")) %>%
+    layout(
+      legend = list(
+        tracegroupgap = 0
+      )
+    )
+})
+
+################ Raw data ####################
+raw <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/raw_for_dashboard.csv")
+
+updateSelectInput(
+  inputId = "raw_date",
+  label = "Date",
+  choices = as_date((Sys.Date() - days(7)):Sys.Date()),
+  selected = Sys.Date()
+)
+
+output$plot_raw <- renderPlotly({
+  raw_plot <- raw %>%
+    filter(
+      as_date(TIMESTAMP) == input$raw_date,
+      MIU_VALVE == input$raw_chamber
+    ) %>%
+    rename(Chamber = MIU_VALVE) %>%
+    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm"),
+      names_to = "gas"
+    ) %>%
+    mutate(
+      gas = case_match(gas,
+        "CH4d_ppm" ~ "CH₄",
+        "CO2d_ppm" ~ "CO₂",
+        "N2Od_ppm" ~ "N₂O",
+        .default = gas
+      ),
+      Chamber = factor(Chamber,
+        levels = 1:12,
+        labels = chamber_levels
+      )
+    ) %>%
+    group_by(group) %>%
+    mutate(label = format(min(TIMESTAMP), "%H:%M:%S"))
+
+  start_cutoff <- 200 # Buffer of time after flux window
+  end_cutoff <- 540
+
+  p1 <- raw_plot %>%
+    mutate(used = ifelse(Manifold_Timer >= start_cutoff &
+      Manifold_Timer <= end_cutoff,
+    "yes",
+    "no"
+    )) %>%
+    ggplot(aes(
+      x = TIMESTAMP, y = value,
+      alpha = used, shape = used,
+      color = Chamber
+    )) +
+    geom_point(size = .9) +
+    scale_alpha_manual(
+      values = c(1, 0.1),
+      breaks = c("yes", "no")
+    ) +
+    scale_color_manual(
+      values = color.gradient,
+      breaks = chamber_levels
+    ) +
+    scale_shape_manual(
+      values = c(21, 19),
+      breaks = c("no", "yes")
+    ) +
+    ylab("Value") +
+    facet_grid(gas ~ label, scales = "free") +
+    theme_bw() +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      legend.position = "none",
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    ) +
+    ggtitle(unique(raw_plot$Chamber))
+
+  plotly::ggplotly(p1, tooltip = c("TIMESTEP", "value"))
+})
+
+output$plot_time <- renderPlotly({
+  raw_plot <- raw %>%
+    rename(Chamber = MIU_VALVE) %>%
+    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm"),
+      names_to = "gas"
+    ) %>%
+    mutate(
+      gas = case_match(gas,
+        "CH4d_ppm" ~ "CH₄",
+        "CO2d_ppm" ~ "CO₂",
+        "N2Od_ppm" ~ "N₂O",
+        .default = gas
+      ),
+      Chamber = factor(Chamber,
+        levels = 1:12,
+        labels = chamber_levels
+      )
+    ) %>%
+    group_by(group) %>%
+    mutate(label = format(min(TIMESTAMP), "%H:%M:%S"))
+
+  start_cutoff <- 200 # Buffer of time after flux window
+  end_cutoff <- 540
+
+  raw_plot2 <- raw_plot %>%
+    filter(
+      as_date(TIMESTAMP) == input$raw_date,
+      hour(TIMESTAMP) == as.numeric(input$time_hour)
+    )
+
+  p1 <- raw_plot2 %>%
+    mutate(used = ifelse(Manifold_Timer >= start_cutoff &
+      Manifold_Timer <= end_cutoff,
+    "yes",
+    "no"
+    )) %>%
+    ungroup() %>%
+    mutate(
+      min_TS = min(TIMESTAMP),
+      secs = as.numeric(difftime(TIMESTAMP, min_TS, units = "secs"))
+    ) %>%
+    ggplot(aes(
+      x = secs, y = value,
+      alpha = used, shape = used,
+      color = Chamber
+    )) +
+    geom_point(size = .9) +
+    geom_smooth(aes(group = paste(group, gas, Chamber), x = secs, y = value),
+      method = "lm", se = F, color = "black",
+      data = . %>% filter(used == "yes"),
+      linewidth = 0.5
+    ) +
+    scale_alpha_manual(
+      values = c(1, 0.2),
+      breaks = c("yes", "no")
+    ) +
+    scale_color_manual(
+      values = color.gradient,
+      breaks = chamber_levels
+    ) +
+    scale_shape_manual(
+      values = c(21, 19),
+      breaks = c("no", "yes")
+    ) +
+    ylab("Value") +
+    xlab("Seconds since start time") +
+    facet_wrap(~gas, scales = "free_y", ncol = 1) +
+    theme_bw() +
+    theme( # axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      legend.position = "none",
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    ) +
+    ggtitle(input$time_date)
+
+  plotly::ggplotly(p1, tooltip = c("TIMESTEP", "value", "Chamber"))
+})
+

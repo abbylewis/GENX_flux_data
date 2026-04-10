@@ -7,7 +7,7 @@ library(tidyverse)
 library(data.table)
 source(here::here("R", "download_gcrew_met.R"))
 source(here::here("R", "download_water_level.R"))
-Sys.setenv(TZ = "America/New_York")
+Sys.setenv(TZ = "EST")
 # Load slopes
 target <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
   mutate(flux_start = force_tz(flux_start, tzone = "EST"),
@@ -111,6 +111,10 @@ met <- read_csv(here::here("processed_data", "met_2025_dashboard.csv")) %>%
   ) %>%
   filter(!is.na(TIMESTAMP),
          !duplicated(TIMESTAMP))
+
+met %>%
+  ggplot(aes(x = hour(TIMESTAMP), y = AirTC_Avg))+
+  geom_point()
 
 # Use met water level
 driver <- met %>%

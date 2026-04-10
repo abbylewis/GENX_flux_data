@@ -1,0 +1,52 @@
+---
+title: "Drivers and CH4"
+author: "Abby Lewis"
+date: "2024-08-22"
+output: html_document
+---
+
+Load data and packages
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+ch4 <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) %>%
+  mutate(CH4_filled = CH4_filled * (60 * 60)) %>%# h instead of s
+  filter(as.Date(TIMESTAMP) >= "2025-03-18",
+         as.Date(TIMESTAMP) <= "2025-11-15")
+```
+
+```{r}
+ch4 %>%
+  ggplot(aes(x = TIMESTAMP, y = Depth_cm))+
+  geom_line()
+
+ch4 %>%
+  summarize(n_flooded = sum(Depth_cm > 0, na.rm = T)/sum(!is.na(Depth_cm)))
+```
+```{r}
+library("sf")
+library("rnaturalearth")
+library("rnaturalearthdata")
+
+rtk <- read_csv(here::here("Raw_Data", "GENX_RTK_11mar2026.csv"))
+
+rtk_sf <- rtk %>%
+  filter(!is.na(Elev_m),
+         !is.na(Chamber_ID)) %>%
+  mutate(
+    lat_dd = as.numeric(sub("N", "", Lat)),
+    lon_dd = -as.numeric(sub("W", "", Lon))
+  ) %>%
+  st_as_sf(coords = c("lon_dd", "lat_dd"), crs = 4326)
+
+ggplot(rtk_sf) +
+  geom_sf(aes(color = Elev_m))+
+  scale_color_viridis_c()+
+  egg::theme_article()
+```
+
+
+

@@ -11,8 +11,8 @@ error_check <- data %>%
   arrange(rev(TIMESTAMP)) %>%
   summarize(
     last_timestamp = max(TIMESTAMP),
-    r2_check_ch4 = max(CH4_R2[1:3]),
-    r2_check_co2 = max(CO2_R2[1:3])
+    r2_check_ch4 = median(CH4_R2[1:5]),
+    r2_check_co2 = median(CO2_R2[1:5])
   ) %>%
   filter(r2_check_ch4 < 0.7 & r2_check_co2 < 0.7)
 

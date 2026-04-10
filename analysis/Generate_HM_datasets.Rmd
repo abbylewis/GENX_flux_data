@@ -1,0 +1,152 @@
+---
+title: "Generate HM datasets"
+author: "Abigail Lewis"
+output: html_document
+date: "2026-04-01"
+---
+
+Setup
+
+```{r setup, include=FALSE}
+#Load packages
+library(readxl)
+library(tidyverse)
+
+#Start and end dates for all files
+START = "2025-03-18"
+END = "2025-11-15"
+```
+
+Soil temps
+
+```{r}
+soil_temp <- read_csv(here::here("processed_data", "soil_temp.csv")) %>%
+  mutate(DateTime_EST = with_tz(timestamp, "EST")) %>%
+  rename(SoilTemp_C = Temp_C) %>%
+  filter(as_date(DateTime_EST) >= START,
+         as_date(DateTime_EST) <= END)
+
+soil_sum <- soil_temp %>%
+  group_by(MIU_VALVE) %>%
+  summarize(mean = mean(SoilTemp_C, na.rm = T), .groups = "drop") %>%
+  arrange(MIU_VALVE) %>%
+  mutate(dif = mean - mean[MIU_VALVE == 1],
+         label = paste0("Ch. ", MIU_VALVE, " (+", round(dif,1), " ºC)"),
+         label = sub("\\+\\-", "-", label))
+
+chamber_labels <- soil_sum$label
+chamber_levels <- soil_sum$MIU_VALVE
+
+soil_export <- soil_temp %>%
+  mutate(Chamber = factor(MIU_VALVE,
+                            levels = chamber_levels,
+                            labels = chamber_labels
+  )) %>%
+  select(DateTime_EST, Chamber, SoilTemp_C)
+  
+write_csv(soil_export, here::here("processed_data", "for_HM_MS", "Soil_temp.csv"))
+```
+
+CH4 and met
+
+```{r}
+part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) %>%
+  rename(DateTime = TIMESTAMP,
+         AirTC_Avg = Ta) %>%
+  mutate(
+    CH4_umol_m2_h = CH4_filled * (60 * 60), # h instead of s
+    CO2_umol_m2_h = NEE * (60 * 60), 
+    GPP_umol_m2_h = GPP_filled * (60 * 60),
+    Reco_umol_m2_h = Reco * (60 * 60),
+    DateTime_EST = with_tz(DateTime, "EST"),
+    Chamber = factor(MIU_VALVE,
+      levels = chamber_levels,
+      labels = chamber_labels
+    ),
+    date = as_date(DateTime)
+  ) %>%
+  filter(date >= START,
+         date <= END) %>%
+  rename(CH4_umol_m2_h_not_gapfilled = CH4,
+         GPP_umol_m2_h_not_gapfilled = GPP,
+         AirTemp_C = AirTC_Avg) %>%
+  select(DateTime_EST, Chamber, 
+         CH4_umol_m2_h, CH4_umol_m2_h_not_gapfilled, CH4_R2, CH4_se, 
+         CO2_umol_m2_h, CO2_R2, CO2_se, 
+         Reco_umol_m2_h, GPP_umol_m2_h, GPP_umol_m2_h_not_gapfilled, 
+         Depth_cm, Salinity, AirTemp_C)
+
+write_csv(part, here::here("processed_data", "for_HM_MS", "GENX_flux_data_interpolated_with_drivers.csv"))
+```
+
+RTK
+
+```{r}
+rtk <- read_csv(here::here("Raw_Data", "GENX_RTK_11mar2026.csv")) %>%
+  filter(!is.na(Elev_m)) %>%
+  group_by(Chamber_ID) %>%
+  summarize(Elev_m = mean(Elev_m, na.rm = T),
+            Latitude_DD = mean(as.numeric(sub("N","",Lat))), 
+            Longitude_DD = -mean(as.numeric(sub("W","",Lon))),
+            .groups = "drop") %>%
+  mutate(Chamber = factor(Chamber_ID,
+                            levels = 1:12,
+                            labels = chamber_labels)) %>%
+  select(Chamber, Latitude_DD, Longitude_DD, Elev_m) %>%
+  filter(!is.na(Chamber))
+
+write_csv(rtk, here::here("processed_data", "for_HM_MS", "Chamber_elevation.csv"))
+```
+
+Biomass
+
+```{r}
+agb <- read_csv("../Raw_data/biomass/2025 aboveground biomass.csv", show_col_types = F) %>%
+  filter(!grepl("Ref", Chamber)) %>%
+  mutate(Chamber = factor(Chamber,
+                            levels = 1:12,
+                            labels = chamber_labels)) %>%
+  rename(SCAM_g_m2 = SCAM.g.m2,
+         TotalC4_g_m2 = TotalC4.g.m2,
+         TotalAboveground_g_m2 = Above.g.m2,
+         ) %>%
+  select(Chamber, TotalAboveground_g_m2, SCAM_g_m2, TotalC4_g_m2)
+
+stems <- read_excel("../Raw_data/biomass/2025 1-GENX SC Census (Entered).xlsx", 
+                    col_types = "text") %>% 
+  mutate(
+    chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
+    chamber_ref = factor(chamber_ref,
+      levels = 1:12,
+      labels = 1:12
+    ),
+    `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber"),
+    Total_Height = as.numeric(Total_Height),
+    Width = as.numeric(Width)
+  ) %>%
+  filter(`Measurement type` == "Chamber") %>%
+  mutate(Chamber = factor(Chamber,
+                            levels = 1:12,
+                            labels = chamber_labels)) %>%
+  rename(SCAM_Height_cm = Total_Height,
+         SCAM_Width_mm = Width) %>%
+  select(Chamber, SCAM_Height_cm, SCAM_Width_mm)
+
+# Stem count
+counts <- read_excel("../Raw_data/biomass/2025 2-GENX SC Density (Entered).xlsx", 
+                    col_types = "text") %>% 
+  filter(!grepl("Ref", Chamber)) %>%
+  mutate(
+    chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
+    Chamber = factor(chamber_ref,
+      levels = 1:12,
+      labels = chamber_labels
+    )) %>%
+  rename(SCAM_Stem_count = StemCount) %>%
+  select(Chamber, SCAM_Stem_count)
+
+write_csv(agb, here::here("processed_data", "for_HM_MS", "Aboveground_biomass.csv"))
+write_csv(counts, here::here("processed_data", "for_HM_MS", "SCAM_Stem_counts.csv"))
+write_csv(stems, here::here("processed_data", "for_HM_MS", "SCAM_Stem_measurements.csv"))
+```
+
