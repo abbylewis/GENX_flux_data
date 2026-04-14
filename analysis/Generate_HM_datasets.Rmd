@@ -20,13 +20,16 @@ END = "2025-11-15"
 Soil temps
 
 ```{r}
-soil_temp <- read_csv(here::here("processed_data", "soil_temp.csv")) %>%
+soil_temp <- read_csv(here::here("processed_data", "soil_temp_chamber.csv")) %>%
   mutate(DateTime_EST = with_tz(timestamp, "EST")) %>%
   rename(SoilTemp_C = Temp_C) %>%
   filter(as_date(DateTime_EST) >= START,
          as_date(DateTime_EST) <= END)
 
 soil_sum <- soil_temp %>%
+  group_by(DateTime_EST) %>%
+  filter(!is.na(SoilTemp_C)) %>%
+  filter(length(unique(MIU_VALVE)) == 12) %>%
   group_by(MIU_VALVE) %>%
   summarize(mean = mean(SoilTemp_C, na.rm = T), .groups = "drop") %>%
   arrange(MIU_VALVE) %>%
