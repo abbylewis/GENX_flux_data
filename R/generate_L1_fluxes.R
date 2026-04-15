@@ -1,6 +1,5 @@
-source(here::here("R", "qaqc.R"))
 source(here::here("R", "download_new_data.R"))
-source(here::here("R", "calculate_flux.R"))
+source(here::here("R", "calculate_flux_autochamber.R"))
 source(here::here("R", "download_chamber_temp.R"))
 
 #' generate_L1_fluxes
@@ -35,6 +34,7 @@ generate_target <- function(reprocess = F, temp = T) {
 
   # Third- QAQC, generating the L1 file
   # data <- qaqc(here::here("processed_data","L0.csv"))
+  data <- L0
 
   return(data)
 }

@@ -1,8 +1,3 @@
-source(here::here("R", "load_data.R"))
-source(here::here("R", "filter_old_data.R"))
-source(here::here("R", "group_fun.R"))
-# requires zoo, tidyverse
-
 #' calculate_flux
 #'
 #' @description
@@ -16,16 +11,15 @@ source(here::here("R", "group_fun.R"))
 
 calculate_flux <- function(start_date = NULL,
                            end_date = NULL,
-                           reprocess = F,
-                           plot = reprocess) {
+                           reprocess = F) {
   
   ### Load files ###
   files <- autochamber::choose_files(
     input_folder = here::here("Raw_data", "dropbox_downloads"),
     l0_file_path = here::here("processed_data", "L0.csv"),
-    reprocess = F,
-    start_date = NULL,
-    end_date = NULL,
+    reprocess = reprocess,
+    start_date = start_date,
+    end_date = end_date,
     files_to_exclude = c(
       "GENX_INSTRUMENT_FLUX_COMB_20240417020046.dat",
       "GENX_INSTRUMENT_FLUX_COMB_20240403020045.dat",
@@ -38,14 +32,6 @@ calculate_flux <- function(start_date = NULL,
     return(read_csv(here::here("processed_data", "L0.csv"), show_col_types = F))
   }
 
-  exclude <- c(
-    "GENX_INSTRUMENT_FLUX_COMB_20240417020046.dat",
-    "GENX_INSTRUMENT_FLUX_COMB_20240403020045.dat",
-    "GENX_INSTRUMENT_FLUX_COMB_20240501020048.dat",
-    "GENX_LGR_04142021_20210505020005.dat"
-  )
-  files <- files[!grepl(paste0(exclude, collapse = "|"), files)]
-  
   message(paste0("Calculating fluxes for ", length(files), " files"))
 
   # Load data
@@ -77,27 +63,28 @@ calculate_flux <- function(start_date = NULL,
         TIMESTAMP = force_tz(TIMESTAMP, tz = "EST"),
         flux_start = force_tz(flux_start, tz = "EST"),
         flux_end = force_tz(flux_end, tz = "EST")
-      ) 
+      ) %>%
+      rename(Chamber = MIU_VALVE)
     #Combine
     slopes_comb <- autochamber::combine_slopes(old_slopes, slopes)
   } else {
     slopes_comb <- slopes
   }
   
-  slopes_comb <- autochamber::add_maintenance_log(
-    slopes = genx_fluxes,
+  slopes_out <- autochamber::add_maintenance_log(
+    slopes = slopes_comb,
     gs_url = "http://docs.google.com/spreadsheets/d/1_uk8-335NDJOdVU6OjLcxWx4MamNJeVEbVkSmdb9oRs/edit?gid=0#gid=0"
-  )
+  ) %>%
+    rename(MIU_VALVE = Chamber) #for compatibility downstream
   
   # Output
-  write.csv(slopes_comb %>% select(-max_s), 
+  write.csv(slopes_out, 
     here::here("processed_data", "L0.csv"),
     row.names = FALSE
   )
 
   write.csv(
-    slopes_comb %>%
-      select(-max_s) %>%
+    slopes_out %>%
       filter(TIMESTAMP > as.Date("2025-03-18")),
     here::here("processed_data", "L0_for_dashboard.csv"),
     row.names = FALSE
@@ -110,36 +97,7 @@ calculate_flux <- function(start_date = NULL,
     row.names = FALSE
   )
 
-  if (plot) {
-    for (year_i in unique(year(slopes$TIMESTAMP))) {
-      p <- slopes %>%
-        filter(
-          max_s <= 1000,
-          month(date) %in% c(1:12)
-        ) %>%
-        mutate(MIU_VALVE = factor(MIU_VALVE,
-          levels = c(
-            1, 4, 7, 10,
-            3, 6, 9, 12,
-            2, 5, 8, 11
-          )
-        )) %>%
-        filter(year(TIMESTAMP) == year_i) %>%
-        ggplot(aes(x = TIMESTAMP, y = max_s)) +
-        geom_point(alpha = 0.02) +
-        geom_line(aes(y = cutoff, x = as.POSIXct(date)), color = "red") +
-        facet_wrap(~MIU_VALVE) +
-        ggtitle(year_i) +
-        xlab("Date") +
-        ylab("Time to peak (s)") +
-        theme_bw()
-      jpeg(here::here("figures", paste0("TimeToPeak_", year_i, ".jpeg")), width = 6, height = 5, units = "in", res = 300)
-      print(p)
-      dev.off()
-    }
-  }
-
-  return(slopes_comb)
+  return(slopes_out)
 }
 
 
