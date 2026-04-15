@@ -1,5 +1,5 @@
 install.packages("zoo")
 install.packages("here")
 install.packages("plotly")
-install.pacakges("pak")
+install.packages("pak")
 pak::pak("abbylewis/autochamber")

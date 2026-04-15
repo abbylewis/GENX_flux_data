@@ -138,6 +138,12 @@ setDT(driver)
 setkey(df, DateTime)
 setkey(driver, DateTime)
 
+chamber_height = 150 # cm
+chamber_radius = 25 # cm
+chamber_area = pi*(chamber_radius/100)^2 # m2
+chamber_volume = chamber_height/100 * # m
+  chamber_area * 1000 #L
+
 # Join and format
 merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each flux
   rename(
@@ -150,14 +156,14 @@ merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each f
       0
     ),
     NEE = CO2_slope_ppm_per_day * # CONVERT TO umolCO2/m2/s
-      (125 - Depth_above_surf) / 125 *
-      265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196,
+      (chamber_height - Depth_above_surf) / chamber_height *
+      chamber_volume / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / chamber_area,
     CH4 = CH4_slope_ppm_per_day * # CONVERT TO umolCH4/m2/s
-      (125 - Depth_above_surf) / 125 *
-      265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196,
+      (chamber_height - Depth_above_surf) / chamber_height *
+      chamber_volume / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / chamber_area,
     N2O = N2O_slope_ppm_per_day * # CONVERT TO umolN2O/m2/s
-      (125 - Depth_above_surf) / 125 *
-      265.8 / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / 0.196
+      (chamber_height - Depth_above_surf) / chamber_height *
+      chamber_volume / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / chamber_area
   ) %>%
   ungroup() %>%
   select(all_of(c("MIU_VALVE", "DateTime", "flux_time", "NEE", "CH4", "N2O", "PAR", "Ta", 
