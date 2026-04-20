@@ -78,7 +78,10 @@ calculate_flux <- function(start_date = NULL,
     rename(MIU_VALVE = Chamber) #for compatibility downstream
   
   # Output
-  write.csv(slopes_out, 
+  write.csv(slopes_out %>%
+              mutate(across(where(is.numeric), 
+                            signif,
+                            digits = 3)), #Trim file size
     here::here("processed_data", "L0.csv"),
     row.names = FALSE
   )
