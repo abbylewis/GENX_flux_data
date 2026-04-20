@@ -32,7 +32,7 @@ write_csv(soil_temp, here::here("processed_data", "soil_temp.csv"))
 ## REPEAT WITH IN-CHAMBER DATA
 #Save files to computer
 files <- drop_dir(path = "Hiremutt Projects/GENX Heating/GENX_data/Rolling_MSD_Data/yearly_RMSD_genx_ardlog")
-all_data <- files$path_display[grepl("2024", files$path_display)] %>%
+all_data <- files$path_display[grepl("2025", files$path_display)] %>%
   map(load_file, output_dir = here::here("Raw_data/soil_temp"))
 
 #Load and format

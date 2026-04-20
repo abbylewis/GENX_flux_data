@@ -138,7 +138,7 @@ setDT(driver)
 setkey(df, DateTime)
 setkey(driver, DateTime)
 
-chamber_height = 150 # cm
+chamber_height = 156 # cm
 chamber_radius = 25 # cm
 chamber_area = pi*(chamber_radius/100)^2 # m2
 chamber_volume = chamber_height/100 * # m
