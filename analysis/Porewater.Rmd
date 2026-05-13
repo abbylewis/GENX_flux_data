@@ -1,0 +1,62 @@
+---
+title: "Porewater"
+author: "Abby Lewis"
+date: "2026-05-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+files <- c("https://raw.githubusercontent.com/Smithsonian/GCREW/refs/heads/GENX/GENX%20(WIP)/Porewater/CH4/2026/Processed%20Data/GCReW_GENX_Porewater_CH4_202604.csv",
+           "https://raw.githubusercontent.com/Smithsonian/GCREW/refs/heads/GENX/GENX%20(WIP)/Porewater/CH4/2026/Processed%20Data/GCReW_GENX_Porewater_CH4_20260406.csv")
+data <- read_csv(files)
+
+data_formatted <- data %>%
+  mutate(Chamber = as.numeric(
+    sub("Ch", "",
+        str_extract(Sample_ID, "Ch[0-9]+"))),
+    Depth_cm = as.numeric(
+      sub("cm", "",
+          str_extract(Sample_ID, "[0-9]+cm"))),
+    Date_raw = str_extract(Sample_ID, "[0-9]+"),
+    Date = as.Date(Date_raw, format = "%Y%m%d"))
+
+data_formatted %>%
+  ggplot(aes(x = as.factor(Chamber), y = CH4_Conc_uM))+
+  geom_col()+
+  facet_grid(Depth_cm~Date, scales = "free")+
+  xlab("Chamber")
+
+data_formatted %>%
+  ggplot(aes(x = Date, y = CH4_Conc_uM, color = as.factor(Chamber)))+
+  geom_line()+
+  geom_point(data = . %>% filter(!is.na(Notes)))+
+  facet_wrap(~Depth_cm, scales = "free")+
+  theme_bw()
+
+data_formatted %>%
+  ggplot(aes(x = Date, y = CO2_Conc_uM, color = as.factor(Chamber)))+
+  geom_line()+
+  geom_point(data = . %>% filter(!is.na(Notes)))+
+  facet_wrap(~Depth_cm)+
+  theme_bw()
+
+data_formatted %>%
+  ggplot(aes(x = Date, y = CH4_Conc_uM, color = as.factor(Depth_cm)))+
+  geom_line()+
+  geom_point(data = . %>% filter(!is.na(Notes)))+
+  facet_wrap(~Chamber)+
+  theme_bw()
+
+data_formatted %>%
+  ggplot(aes(x = Date, y = N2O_Conc_uM, color = as.factor(Depth_cm)))+
+  geom_line()+
+  geom_point(data = . %>% filter(!is.na(Notes)))+
+  facet_wrap(~Chamber)+
+  theme_bw()
+```
+

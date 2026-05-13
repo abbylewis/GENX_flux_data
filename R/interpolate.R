@@ -109,6 +109,17 @@ rf_gpp_models <- lapply(split(train, train$MIU_VALVE), function(dt_ch) {
   )
 })
 
+oob_metrics <- lapply(rf_gpp_models, function(model) {
+  data.frame(
+    OOB_MSE = tail(model$mse, 1),
+    OOB_R2 = tail(model$rsq, 1)
+  )
+})
+
+oob_metrics <- do.call(rbind, oob_metrics)
+oob_metrics$MIU_VALVE <- names(rf_gpp_models)
+oob_metrics
+
 for (ch in names(rf_gpp_models)) {
   model <- rf_gpp_models[[ch]]
   idx <- ch4$MIU_VALVE == ch
@@ -158,6 +169,17 @@ for (ch in names(rf_ch4_models)) {
   ch4[idx, CH4_rf := predict(model, ch4[idx])]
 }
 
+oob_metrics <- lapply(rf_ch4_models, function(model) {
+  data.frame(
+    OOB_MSE = tail(model$mse, 1),
+    OOB_R2 = tail(model$rsq, 1)
+  )
+})
+
+oob_metrics <- do.call(rbind, oob_metrics)
+oob_metrics$MIU_VALVE <- names(rf_gpp_models)
+oob_metrics
+
 ch4 %>%
   ggplot(aes(x = TIMESTAMP, y = CH4)) +
   geom_point() +
@@ -172,11 +194,17 @@ ch4 %>%
   summarize(nas = sum(is.na(CH4_filled)))
 
 ch4 %>%
-  filter(MIU_VALVE == 12) %>%
+  filter(MIU_VALVE == 6) %>%
   ggplot(aes(x = TIMESTAMP, y = CH4_filled)) +
-  geom_point() +
+  geom_point(aes(color = is.na(CH4))) +
   geom_smooth() +
   facet_wrap(~MIU_VALVE, scales = "free")
+
+ch4 %>%
+  ggplot(aes(x = CH4, y = CH4_rf))+
+  geom_point() +
+  facet_wrap(~MIU_VALVE, scales = "free")
+  
 
 ch4 %>%
   ggplot(aes(x = TIMESTAMP)) +

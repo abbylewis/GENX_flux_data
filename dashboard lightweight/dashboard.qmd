@@ -660,9 +660,8 @@ output$plot_raw <- renderPlotly({
   raw_plot <- raw %>%
     filter(
       as_date(TIMESTAMP) == input$raw_date,
-      MIU_VALVE == input$raw_chamber
+      Chamber == input$raw_chamber
     ) %>%
-    rename(Chamber = MIU_VALVE) %>%
     pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm"),
       names_to = "gas"
     ) %>%
@@ -724,7 +723,6 @@ output$plot_raw <- renderPlotly({
 
 output$plot_time <- renderPlotly({
   raw_plot <- raw %>%
-    rename(Chamber = MIU_VALVE) %>%
     pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm"),
       names_to = "gas"
     ) %>%

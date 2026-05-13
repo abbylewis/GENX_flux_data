@@ -93,6 +93,19 @@ target %>%
             n_removed_co2 = sum(!keep_co2 & !is.na(CO2_slope_ppm_per_day), na.rm = T),
             pct_co2 = n_removed_co2/sum(!is.na(keep_co2) & !is.na(CO2_slope_ppm_per_day))*100)
 
+START = "2025-03-18"
+END = "2025-11-15"
+target %>%
+  filter(as_date(flux_time) >= START,
+         as_date(flux_time) <= END) %>%
+  group_by(MIU_VALVE) %>%
+  left_join(removal) %>%
+  summarize(n_removed = sum(!keep & !is.na(CH4_slope_ppm_per_day), na.rm = T),
+            pct = round(n_removed/sum(!is.na(keep) & !is.na(CH4_slope_ppm_per_day))*100, 1),
+            n_removed_co2 = sum(!keep_co2 & !is.na(CO2_slope_ppm_per_day), na.rm = T),
+            pct_co2 = round(n_removed_co2/sum(!is.na(keep_co2) & !is.na(CO2_slope_ppm_per_day))*100,1)) %>%
+  select(MIU_VALVE, pct, pct_co2)
+
 # Update met
 download_gcrew_met()
 # Update water level
