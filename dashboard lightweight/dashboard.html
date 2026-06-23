@@ -75,6 +75,7 @@ ul.task-list li input[type="checkbox"] {
   min-height: 75px;
   color: white;
   margin-bottom: 0;
+  z-index: 1;
 }
 
 .quarto-title-banner .title,
@@ -148,7 +149,64 @@ ul.task-list li input[type="checkbox"] {
   background-color: #444;
   border-color: #444;
 }
+
+#loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #ffffffcc;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s ease;
+}
+
+#loading-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Spinner */
+.spinner {
+  border: 8px solid #c3c3c3; 
+  border-top: 8px solid #375416; 
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+#loading-overlay p {
+  font-size: 24px;
+  font-weight: bold;
+  color: #375416;
+}
 </style>
+<div id="loading-overlay">
+<div class="spinner">
+
+</div>
+<p>
+Loading the latest data…
+</p>
+</div>
+<script>
+Shiny.addCustomMessageHandler("hideLoadingOverlay", function(message) {
+  const overlay = document.getElementById("loading-overlay");
+  overlay.classList.add("hidden");       // triggers fade-out
+  setTimeout(() => overlay.remove(), 600); // remove from DOM after fade
+});
+</script>
 <div class="row">
 <div class="column" style="width:73%;">
 <div class="tabset-margin-container"></div><div class="panel-tabset">
@@ -231,14 +289,14 @@ ul.task-list li input[type="checkbox"] {
 <div class="form-group shiny-input-container">
 <label class="control-label" id="raw_date-label" for="raw_date">Date</label>
 <div>
-<select id="raw_date" class="shiny-input-select"><option value="2026-04-27">2026-04-27</option>
-<option value="2026-04-28">2026-04-28</option>
-<option value="2026-04-29">2026-04-29</option>
-<option value="2026-04-30">2026-04-30</option>
-<option value="2026-05-01">2026-05-01</option>
-<option value="2026-05-02">2026-05-02</option>
-<option value="2026-05-03">2026-05-03</option>
-<option value="2026-05-04" selected="">2026-05-04</option></select>
+<select id="raw_date" class="shiny-input-select"><option value="2026-06-15">2026-06-15</option>
+<option value="2026-06-16">2026-06-16</option>
+<option value="2026-06-17">2026-06-17</option>
+<option value="2026-06-18">2026-06-18</option>
+<option value="2026-06-19">2026-06-19</option>
+<option value="2026-06-20">2026-06-20</option>
+<option value="2026-06-21">2026-06-21</option>
+<option value="2026-06-22" selected="">2026-06-22</option></select>
 <script type="application/json" data-for="raw_date" data-nonempty="">{"plugins":["selectize-plugin-a11y"]}</script>
 </div>
 </div>
@@ -302,7 +360,7 @@ ul.task-list li input[type="checkbox"] {
 <div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-05-04" data-initial-date="2026-05-04" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-06-22" data-initial-date="2026-06-22" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div class="cell-output-display">
@@ -312,6 +370,28 @@ ul.task-list li input[type="checkbox"] {
 <div class="form-group shiny-input-container">
 <label class="control-label" id="days_to_plot-label" for="days_to_plot">Days of historical data to plot</label>
 <input id="days_to_plot" type="number" class="shiny-input-number form-control" value="5" data-update-on="change" min="0" max="5">
+</div>
+</div>
+<div class="cell-output-display">
+<br>
+</div>
+<div class="cell-output-display">
+<div id="compare_years" class="form-group shiny-input-radiogroup shiny-input-container" role="radiogroup" aria-labelledby="compare_years-label">
+<label class="control-label" id="compare_years-label" for="compare_years">Format</label>
+<div class="shiny-options-group">
+<div class="radio">
+<label>
+<input type="radio" name="compare_years" value="Default" checked="checked">
+<span>Default</span>
+</label>
+</div>
+<div class="radio">
+<label>
+<input type="radio" name="compare_years" value="Compare years">
+<span>Compare years</span>
+</label>
+</div>
+</div>
 </div>
 </div>
 <div class="cell-output-display">
@@ -453,6 +533,8 @@ input$today <- Sys.Date()
 input$days_to_plot <- 3
 input$daily <- "Hourly"
 input$smooth <- "Measured"
+input$metrics <- "NEE"
+input$compare_years <- "Compare years"
 </script>
  
 <script type="application/shiny-prerendered" data-context="server">
@@ -484,40 +566,51 @@ updateNumericInput(
 )
 
 output$plot_flux <- renderPlotly({
-  part_recent <- partitioned %>%
-    filter(
-      as_date(DateTime) <= input$today,
-      DateTime > (input$today - days(input$days_to_plot))
-    ) %>%
+  if(input$compare_years == "Compare years"){
+    part_recent <- partitioned %>%
+      filter(
+        yday(as_date(DateTime)) <= yday(input$today),
+        yday(DateTime) > (yday(input$today) - input$days_to_plot)
+      )
+  } else {
+    part_recent <- partitioned %>%
+      filter(
+        as_date(DateTime) <= input$today,
+        DateTime > (input$today - days(input$days_to_plot))
+      )
+  }
+  
+  part_recent2 <- part_recent %>%
     rename(Chamber = MIU_VALVE) %>%
     select(c(CH4, N2O, NEE, DateTime, Chamber)) %>%
     pivot_longer(matches("CH4|N2O|NEE"),
       names_to = "gas"
     ) %>%
-    mutate(gas = case_match(gas,
-      "CH4" ~ "CH₄",
-      "CO2" ~ "CO₂",
-      "N2O" ~ "N₂O",
-      .default = gas
-    )) %>%
+    mutate(gas = gas %>%
+             replace_values(
+               "CH4" ~ "CH₄",
+               "CO2" ~ "CO₂",
+               "N2O" ~ "N₂O"
+             ),
+           year = year(DateTime)) %>%
     filter(!gas == "Flag")
 
   if (input$daily == "Daily mean") {
-    part_recent2 <- part_recent %>%
+    part_recent3 <- part_recent2 %>%
       mutate(
         DateTime = as_date(DateTime),
         DateTime = as.POSIXct(DateTime)
       ) %>%
-      group_by(DateTime, Chamber, gas) %>%
+      group_by(DateTime, Chamber, gas, year) %>%
       summarize(
         value = mean(value, na.rm = T),
         .groups = "drop"
       )
   } else {
-    part_recent2 <- part_recent
+    part_recent3 <- part_recent2
   }
 
-  p1 <- part_recent2 %>%
+  p1 <- part_recent3 %>%
     mutate(
       Chamber = factor(Chamber,
         levels = 1:12,
@@ -537,7 +630,13 @@ output$plot_flux <- renderPlotly({
       }
     } +
     ylab("Flux (µmol/m²/s)") +
-    facet_wrap(~gas, scales = "free_y", nrow = 1) +
+    {
+      if(input$compare_years == "Compare years"){
+        facet_grid(gas~year, scales = "free")
+      } else {
+        facet_wrap(~gas, scales = "free_y")
+      }
+    } +
     scale_color_manual(
       values = color.gradient,
       breaks = chamber_levels
@@ -562,35 +661,46 @@ output$plot_flux <- renderPlotly({
 
 # Code for plots
 output$plot_co2 <- renderPlotly({
-  part_recent <- partitioned %>%
-    filter(
-      as_date(DateTime) <= input$today,
-      DateTime > (input$today - days(input$days_to_plot))
-    ) %>%
+  if(input$compare_years == "Compare years"){
+    part_recent <- partitioned %>%
+      filter(
+        yday(as_date(DateTime)) <= yday(input$today),
+        yday(DateTime) > (yday(input$today) - input$days_to_plot)
+      )
+  } else {
+    part_recent <- partitioned %>%
+      filter(
+        as_date(DateTime) <= input$today,
+        DateTime > (input$today - days(input$days_to_plot))
+      )
+  }
+  
+  part_recent2 <- part_recent %>%
     rename(Chamber = MIU_VALVE) %>%
     select(c(NEE, GPP, Reco, DateTime, Chamber)) %>%
     pivot_longer(c(NEE, GPP, Reco),
       names_to = "gas"
     ) %>%
-    mutate(value = ifelse(gas == "GPP", -value, value)) %>%
+    mutate(value = ifelse(gas == "GPP", -value, value),
+           year = year(DateTime)) %>%
     filter(!gas == "Flag")
 
   if (input$daily == "Daily mean") {
-    part_recent2 <- part_recent %>%
+    part_recent3 <- part_recent2 %>%
       mutate(
         DateTime = as_date(DateTime),
         DateTime = as.POSIXct(DateTime)
       ) %>%
-      group_by(DateTime, Chamber, gas) %>%
+      group_by(DateTime, Chamber, gas, year) %>%
       summarize(
         value = mean(value, na.rm = T),
         .groups = "drop"
       )
   } else {
-    part_recent2 <- part_recent
+    part_recent3 <- part_recent2
   }
 
-  p1 <- part_recent2 %>%
+  p1 <- part_recent3 %>%
     mutate(Chamber = factor(Chamber,
       levels = 1:12,
       labels = chamber_levels
@@ -607,7 +717,13 @@ output$plot_co2 <- renderPlotly({
       }
     } +
     ylab("Flux (µmol/m²/s)") +
-    facet_wrap(~gas, nrow = 1) +
+    {
+      if(input$compare_years == "Compare years"){
+        facet_grid(gas~year, scales = "free")
+      } else {
+        facet_wrap(~gas, nrow = 1)
+      }
+    } +
     scale_color_manual(values = color.gradient) +
     theme_bw() +
     theme(
@@ -627,14 +743,27 @@ output$plot_co2 <- renderPlotly({
 ################ WATER LEVEL ####################
 wl <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/water_level_dashboard.csv")
 output$plot_wl <- renderPlotly({
-  wl_recent <- wl %>%
-    filter(
-      as_date(TIMESTAMP) <= input$today,
-      TIMESTAMP > (input$today - days(input$days_to_plot))
-    ) %>%
-    pivot_longer(c(Depth_cm:Salinity_PSU),
-      names_to = "variable"
-    )
+  if(input$compare_years == "Compare years"){
+    wl_recent <- wl %>%
+      filter(
+        yday(as_date(TIMESTAMP)) <= yday(input$today),
+        yday(TIMESTAMP) > (yday(input$today) - input$days_to_plot)
+      ) %>%
+      pivot_longer(c(Depth_cm:Salinity_PSU),
+                   names_to = "variable"
+      ) %>%
+      mutate(year = year(TIMESTAMP))
+  } else {
+    wl_recent <- wl %>%
+      filter(
+        as_date(TIMESTAMP) <= input$today,
+        TIMESTAMP > (input$today - days(input$days_to_plot))
+      ) %>%
+      pivot_longer(c(Depth_cm:Salinity_PSU),
+                   names_to = "variable"
+      ) %>%
+      mutate(year = year(TIMESTAMP))
+  }
 
   if (input$daily == "Daily mean") {
     wl_recent2 <- wl_recent %>%
@@ -642,7 +771,7 @@ output$plot_wl <- renderPlotly({
         TIMESTAMP = as_date(TIMESTAMP),
         TIMESTAMP = as.POSIXct(TIMESTAMP)
       ) %>%
-      group_by(TIMESTAMP, variable) %>%
+      group_by(TIMESTAMP, variable, year) %>%
       summarize(
         value = mean(value, na.rm = T),
         .groups = "drop"
@@ -662,7 +791,13 @@ output$plot_wl <- renderPlotly({
       }
     } +
     ylab("Value") +
-    facet_wrap(~variable, ncol = 1, scales = "free_y") +
+    {
+      if(input$compare_years == "Compare years"){
+        facet_grid(variable~year, scales = "free")
+      } else {
+        facet_wrap(~variable, ncol = 1, scales = "free_y")
+      }
+    } +
     theme_bw() +
     theme(
       axis.title.x = element_blank(),
@@ -679,25 +814,41 @@ output$plot_forecast <- renderPlotly({
   forecast <- read_csv(paste0("https://raw.githubusercontent.com/abbylewis/GENX_CH4cast/refs/heads/master/outputs/daily-", input$today, "-slosh.csv.gz"),
     show_col_types = F
   )
+  
+  if(input$compare_years == "Compare years"){
+    date_2025 <- yday(input$today) - 1 + as_date("2025-01-01")
+    forecast_2025 <- read_csv(paste0("https://raw.githubusercontent.com/abbylewis/GENX_CH4cast/refs/heads/master/outputs/daily-", format(date_2025, "%Y-%m-%d"), "-slosh.csv.gz"),
+                              show_col_types = F
+    )
+    forecast <- forecast %>%
+      bind_rows(forecast_2025) %>%
+      mutate(year = year(datetime))
+    
+    part_recent <- partitioned %>%
+      filter(
+        yday(as_date(DateTime)) <= yday(input$today + days(7)),
+        yday(DateTime) > (yday(input$today) - input$days_to_plot)
+      )
+  } else {
+    part_recent <- partitioned %>%
+      filter(
+        as_date(DateTime) <= (input$today + days(7)),
+        DateTime > (input$today - days(input$days_to_plot))
+      )
+  }
 
-  part_recent <- partitioned %>%
-    filter(
-      as_date(DateTime) <= (input$today + days(7)),
-      DateTime > (input$today - days(input$days_to_plot))
-    ) %>%
+  part_recent2 <- part_recent %>%
     rename(Chamber = MIU_VALVE) %>%
     select(c(CH4, DateTime, Chamber)) %>%
     pivot_longer(matches("CH4"),
       names_to = "gas"
     ) %>%
-    filter(!gas == "Flag")
-
-  part_recent2 <- part_recent %>%
-    mutate(
-      DateTime = as_date(DateTime),
-      DateTime = as.POSIXct(DateTime)
+    filter(!gas == "Flag") %>%
+    mutate(year = year(DateTime),
+           DateTime = as_date(DateTime),
+           DateTime = as.POSIXct(DateTime)
     ) %>%
-    group_by(DateTime, Chamber, gas) %>%
+    group_by(DateTime, Chamber, gas, year) %>%
     summarize(
       value = mean(value, na.rm = T),
       .groups = "drop"
@@ -715,7 +866,6 @@ output$plot_forecast <- renderPlotly({
     ) %>%
     ggplot(aes(x = DateTime, y = value, color = Chamber, fill = site_id)) +
     geom_hline(yintercept = 0, color = "grey50") +
-    geom_vline(xintercept = input$today) +
     geom_line() +
     geom_ribbon(aes(ymin = value - sigma, ymax = value + sigma), alpha = 0.1) +
     geom_point(
@@ -741,20 +891,22 @@ output$plot_forecast <- renderPlotly({
       axis.title.x = element_blank(),
       strip.background = element_rect(fill = "grey95", color = "grey")
     ) +
-    ylab("Flux (µmol/m²/day)") +
-    ggtitle(paste0("CH₄ forecasts for ", input$today))
-
-  # p1_plotly <- plotly::ggplotly(p1, tooltip = c("site_id", "datetime", "mu", "value"))
-
-  # Clean up legend names like "(c_1_amb,orangered1)" → "c_1_amb"
-  # for (i in seq_along(p1_plotly$x$data)) {
-  #  nm <- p1_plotly$x$data[[i]]$name
-  #  if (!is.null(nm)) {
-  #    nm_clean <- gsub("^\\(([^,]+),.*\\)$", "\\1", nm)
-  #    nm_clean <- trimws(nm_clean)
-  #    p1_plotly$x$data[[i]]$name <- nm_clean
-  #  }
-  # }
+    ylab("Flux (µmol/m²/day)")
+  
+  if(input$compare_years == "Compare years"){
+    p1 <- p1 +
+      geom_vline(aes(xintercept = today),
+                 data = data.frame(
+                   today = c(input$today,
+                             date_2025),
+                   year = c(2026, 2025))) +
+      facet_wrap(~year, scales = "free_x") +
+      ggtitle(paste0("CH₄ forecasts for ", format(input$today,
+                                                  "%d %B")))
+  } else {
+    p1 <- p1 + geom_vline(xintercept = input$today) +
+      ggtitle(paste0("CH₄ forecasts for ", input$today))
+  }
 
   plotly::ggplotly(p1, tooltip = c("site_id", "DateTime", "value")) %>%
     layout(
@@ -768,21 +920,32 @@ output$plot_forecast <- renderPlotly({
 # Code for plots
 
 output$flux_wl <- renderPlotly({
-  part_wl <- partitioned %>%
+  if(input$compare_years == "Compare years"){
+    part_recent <- partitioned %>%
+      filter(
+        yday(as_date(DateTime)) <= yday(input$today),
+        yday(DateTime) > (yday(input$today) - input$days_to_plot)
+      )
+  } else {
+    part_recent <- partitioned %>%
+      filter(
+        as_date(DateTime) <= input$today,
+        DateTime > (input$today - days(input$days_to_plot))
+      )
+  }
+  
+  part_wl <- part_recent %>%
     rename(
       Chamber = MIU_VALVE) %>%
     select(DateTime, Chamber, CH4, Depth_cm) %>%
     pivot_longer(c(CH4, Depth_cm), names_to = "variable") %>%
     mutate(variable = case_match(variable,
                                  "CH4"~"CH₄",
-                                 .default = variable)) %>%
-    mutate(Chamber = ifelse(variable == "Depth_cm",
-                            NA, Chamber)) %>%
-    filter(
-      as_date(DateTime) <= input$today,
-      DateTime > (input$today - days(input$days_to_plot))
-    ) %>%
-    select(c(DateTime, Chamber, value, variable))
+                                 .default = variable),
+           Chamber = ifelse(variable == "Depth_cm",
+                            NA, Chamber),
+           year = year(DateTime)) %>%
+    select(c(DateTime, Chamber, value, variable, year))
 
   if (input$daily == "Daily mean") {
     part_wl2 <- part_wl %>%
@@ -790,7 +953,7 @@ output$flux_wl <- renderPlotly({
         DateTime = as_date(DateTime),
         DateTime = as.POSIXct(DateTime)
       ) %>%
-      group_by(DateTime, Chamber, variable) %>%
+      group_by(DateTime, Chamber, variable, year) %>%
       summarize(
         value = mean(value, na.rm = T),
         .groups = "drop"
@@ -814,7 +977,13 @@ output$flux_wl <- renderPlotly({
       }
     } +
     ylab("Value") +
-    facet_wrap(~variable, scales = "free_y", ncol = 1) +
+    {
+      if(input$compare_years == "Compare years"){
+        facet_grid(variable~year, scales = "free")
+      } else {
+        facet_wrap(~variable, ncol = 1, scales = "free_y")
+      }
+    } +
     scale_color_manual(
       values = color.gradient,
       breaks = chamber_levels
@@ -983,6 +1152,15 @@ output$plot_time <- renderPlotly({
     ggtitle(input$time_date)
 
   plotly::ggplotly(p1, tooltip = c("TIMESTEP", "value", "Chamber"))
+})
+
+# Add an observer at the end of server setup
+observe({
+  # Wait until all data is loaded
+  req(nrow(wl) > 0)
+
+  # Hide the overlay using JavaScript
+  session$sendCustomMessage("hideLoadingOverlay", TRUE)
 })
 </script>
  
