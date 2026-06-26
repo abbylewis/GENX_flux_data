@@ -176,11 +176,16 @@ merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each f
       chamber_volume / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / chamber_area,
     N2O = N2O_slope_ppm_per_day * # CONVERT TO umolN2O/m2/s
       (chamber_height - Depth_above_surf) / chamber_height *
-      chamber_volume / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / chamber_area
+      chamber_volume / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / chamber_area,
+    H2O = H2O_slope_ppm_per_day * # CONVERT TO umolH2O/m2/s
+      (chamber_height - Depth_above_surf) / chamber_height *
+      chamber_volume / (0.08206 * (Ta + 273.15)) / (60 * 60 * 24) / chamber_area,
+    LE_W_m2 = H2O / 1E9 * 18.015 * # kg/m2/s
+      (2.501 - 0.00237 * Ta) * 10^6 # latent heat of vaporization
   ) %>%
   ungroup() %>%
-  select(all_of(c("MIU_VALVE", "DateTime", "flux_time", "NEE", "CH4", "N2O", "PAR", "Ta", 
-                  "CH4_R2", "CO2_R2", "CH4_se", "CO2_se")))
+  select(all_of(c("MIU_VALVE", "DateTime", "flux_time", "NEE", "CH4", "N2O", "LE_W_m2",
+                  "PAR", "Ta", "CH4_R2", "CO2_R2", "CH4_se", "CO2_se")))
 
 # Identify nighttime
 par_night_thresh <- 5 # µmol m-2 s-1 threshold to define night

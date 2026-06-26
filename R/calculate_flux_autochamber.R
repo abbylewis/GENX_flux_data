@@ -66,7 +66,7 @@ calculate_flux <- function(start_date = NULL,
       ) %>%
       rename(Chamber = MIU_VALVE)
     #Combine
-    slopes_comb <- autochamber::combine_slopes(old_slopes, slopes)
+    slopes_comb <- autochamber::combine_slopes(new = slopes, old = old_slopes)
   } else {
     slopes_comb <- slopes
   }
@@ -104,9 +104,9 @@ calculate_flux <- function(start_date = NULL,
 }
 
 
-# calculate_flux(reprocess = T,
-#               start_date = as.Date("2025-03-01"),
-#               end_date = Sys.Date())
+#calculate_flux(reprocess = T,
+#              start_date = as.Date("2025-03-01"),
+#              end_date = Sys.Date())
 
 
 # calculate_flux(reprocess = F)

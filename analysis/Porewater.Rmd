@@ -15,14 +15,19 @@ files <- c("https://raw.githubusercontent.com/Smithsonian/GCREW/refs/heads/GENX/
            "https://raw.githubusercontent.com/Smithsonian/GCREW/refs/heads/GENX/GENX%20(WIP)/Porewater/CH4/2026/Processed%20Data/GCReW_GENX_Porewater_CH4_20260406.csv")
 data <- read_csv(files)
 
-data_formatted <- data %>%
-  mutate(Chamber = as.numeric(
+data_formatted <- bind_rows(gc_data_4_17_26, gc_data_4_6_26) %>% # Combine runs
+  mutate(
+    # Identify chamber from sample ID
+    Chamber = as.numeric(
     sub("Ch", "",
         str_extract(Sample_ID, "Ch[0-9]+"))),
+    # Identify depth
     Depth_cm = as.numeric(
       sub("cm", "",
           str_extract(Sample_ID, "[0-9]+cm"))),
+    # Identify date, which is only numbers currently
     Date_raw = str_extract(Sample_ID, "[0-9]+"),
+    # Parse date into something interpretable
     Date = as.Date(Date_raw, format = "%Y%m%d"))
 
 data_formatted %>%
