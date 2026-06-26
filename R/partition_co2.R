@@ -184,7 +184,7 @@ merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each f
       (2.501 - 0.00237 * Ta) * 10^6 # latent heat of vaporization
   ) %>%
   ungroup() %>%
-  select(all_of(c("MIU_VALVE", "DateTime", "flux_time", "NEE", "CH4", "N2O", "LE_W_m2",
+  select(all_of(c("MIU_VALVE", "DateTime", "flux_time", "NEE", "CH4", "N2O", "H2O", "LE_W_m2",
                   "PAR", "Ta", "CH4_R2", "CO2_R2", "CH4_se", "CO2_se")))
 
 # Identify nighttime
