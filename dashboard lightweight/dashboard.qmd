@@ -169,7 +169,7 @@ color.gradient <- c(
 
 # For testing
 input <- list()
-input$gases <- c("CH₄", "CO₂", "N₂O")
+input$gases <- c("CH₄", "CO₂", "N₂O", "H₂O")
 input$today <- Sys.Date()
 input$days_to_plot <- 3
 input$daily <- "Hourly"
@@ -294,7 +294,7 @@ splitLayout(
   # Left column
   tagList(
     checkboxGroupInput("gases", "Gases to plot",
-      choices = c("CH₄", "CO₂", "N₂O"),
+      choices = c("CH₄", "CO₂", "N₂O", "H₂O"),
       selected = c("CH₄", "CO₂", "N₂O")
     )
   ),
@@ -376,15 +376,16 @@ output$plot_flux <- renderPlotly({
   
   part_recent2 <- part_recent %>%
     rename(Chamber = MIU_VALVE) %>%
-    select(c(CH4, N2O, NEE, DateTime, Chamber)) %>%
-    pivot_longer(matches("CH4|N2O|NEE"),
+    select(c(CH4, N2O, NEE, H2O, DateTime, Chamber)) %>%
+    pivot_longer(matches("CH4|N2O|NEE|H2O"),
       names_to = "gas"
     ) %>%
     mutate(gas = gas %>%
              replace_values(
                "CH4" ~ "CH₄",
                "CO2" ~ "CO₂",
-               "N2O" ~ "N₂O"
+               "N2O" ~ "N₂O",
+               "H2O" ~ "H₂O"
              ),
            year = year(DateTime)) %>%
     filter(!gas == "Flag")
@@ -471,7 +472,7 @@ output$plot_co2 <- renderPlotly({
   
   part_recent2 <- part_recent %>%
     rename(Chamber = MIU_VALVE) %>%
-    select(c(NEE, GPP, Reco, DateTime, Chamber)) %>%
+    select(c(NEE, GPP, Reco, H2O, DateTime, Chamber)) %>%
     pivot_longer(c(NEE, GPP, Reco),
       names_to = "gas"
     ) %>%
@@ -813,7 +814,7 @@ output$plot_raw <- renderPlotly({
       as_date(TIMESTAMP) == input$raw_date,
       Chamber == input$raw_chamber
     ) %>%
-    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm"),
+    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm|H2O_ppm"),
       names_to = "gas"
     ) %>%
     mutate(
@@ -821,6 +822,7 @@ output$plot_raw <- renderPlotly({
         "CH4d_ppm" ~ "CH₄",
         "CO2d_ppm" ~ "CO₂",
         "N2Od_ppm" ~ "N₂O",
+        "H2O_ppm" ~ "H₂O",
         .default = gas
       ),
       Chamber = factor(Chamber,
@@ -874,7 +876,7 @@ output$plot_raw <- renderPlotly({
 
 output$plot_time <- renderPlotly({
   raw_plot <- raw %>%
-    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm"),
+    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm|H2O_ppm"),
       names_to = "gas"
     ) %>%
     mutate(
@@ -882,6 +884,7 @@ output$plot_time <- renderPlotly({
         "CH4d_ppm" ~ "CH₄",
         "CO2d_ppm" ~ "CO₂",
         "N2Od_ppm" ~ "N₂O",
+        "H2O_ppm" ~ "H₂O",
         .default = gas
       ),
       Chamber = factor(Chamber,
@@ -951,7 +954,7 @@ output$plot_time <- renderPlotly({
 # Add an observer at the end of server setup
 observe({
   # Wait until all data is loaded
-  req(nrow(wl) > 0)
+  req(nrow(raw) > 0)
 
   # Hide the overlay using JavaScript
   session$sendCustomMessage("hideLoadingOverlay", TRUE)

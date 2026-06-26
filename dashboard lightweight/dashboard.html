@@ -289,14 +289,14 @@ Shiny.addCustomMessageHandler("hideLoadingOverlay", function(message) {
 <div class="form-group shiny-input-container">
 <label class="control-label" id="raw_date-label" for="raw_date">Date</label>
 <div>
-<select id="raw_date" class="shiny-input-select"><option value="2026-06-16">2026-06-16</option>
-<option value="2026-06-17">2026-06-17</option>
-<option value="2026-06-18">2026-06-18</option>
-<option value="2026-06-19">2026-06-19</option>
+<select id="raw_date" class="shiny-input-select"><option value="2026-06-19">2026-06-19</option>
 <option value="2026-06-20">2026-06-20</option>
 <option value="2026-06-21">2026-06-21</option>
 <option value="2026-06-22">2026-06-22</option>
-<option value="2026-06-23" selected="">2026-06-23</option></select>
+<option value="2026-06-23">2026-06-23</option>
+<option value="2026-06-24">2026-06-24</option>
+<option value="2026-06-25">2026-06-25</option>
+<option value="2026-06-26" selected="">2026-06-26</option></select>
 <script type="application/json" data-for="raw_date" data-nonempty="">{"plugins":["selectize-plugin-a11y"]}</script>
 </div>
 </div>
@@ -360,7 +360,7 @@ Shiny.addCustomMessageHandler("hideLoadingOverlay", function(message) {
 <div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-06-23" data-initial-date="2026-06-23" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-06-26" data-initial-date="2026-06-26" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div class="cell-output-display">
@@ -419,6 +419,12 @@ Shiny.addCustomMessageHandler("hideLoadingOverlay", function(message) {
 <label>
 <input type="checkbox" name="gases" value="N₂O" checked="checked">
 <span>N₂O</span>
+</label>
+</div>
+<div class="checkbox">
+<label>
+<input type="checkbox" name="gases" value="H₂O">
+<span>H₂O</span>
 </label>
 </div>
 </div>
@@ -528,7 +534,7 @@ color.gradient <- c(
 
 # For testing
 input <- list()
-input$gases <- c("CH₄", "CO₂", "N₂O")
+input$gases <- c("CH₄", "CO₂", "N₂O", "H₂O")
 input$today <- Sys.Date()
 input$days_to_plot <- 3
 input$daily <- "Hourly"
@@ -582,15 +588,16 @@ output$plot_flux <- renderPlotly({
   
   part_recent2 <- part_recent %>%
     rename(Chamber = MIU_VALVE) %>%
-    select(c(CH4, N2O, NEE, DateTime, Chamber)) %>%
-    pivot_longer(matches("CH4|N2O|NEE"),
+    select(c(CH4, N2O, NEE, H2O, DateTime, Chamber)) %>%
+    pivot_longer(matches("CH4|N2O|NEE|H2O"),
       names_to = "gas"
     ) %>%
     mutate(gas = gas %>%
              replace_values(
                "CH4" ~ "CH₄",
                "CO2" ~ "CO₂",
-               "N2O" ~ "N₂O"
+               "N2O" ~ "N₂O",
+               "H2O" ~ "H₂O"
              ),
            year = year(DateTime)) %>%
     filter(!gas == "Flag")
@@ -677,7 +684,7 @@ output$plot_co2 <- renderPlotly({
   
   part_recent2 <- part_recent %>%
     rename(Chamber = MIU_VALVE) %>%
-    select(c(NEE, GPP, Reco, DateTime, Chamber)) %>%
+    select(c(NEE, GPP, Reco, H2O, DateTime, Chamber)) %>%
     pivot_longer(c(NEE, GPP, Reco),
       names_to = "gas"
     ) %>%
@@ -1019,7 +1026,7 @@ output$plot_raw <- renderPlotly({
       as_date(TIMESTAMP) == input$raw_date,
       Chamber == input$raw_chamber
     ) %>%
-    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm"),
+    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm|H2O_ppm"),
       names_to = "gas"
     ) %>%
     mutate(
@@ -1027,6 +1034,7 @@ output$plot_raw <- renderPlotly({
         "CH4d_ppm" ~ "CH₄",
         "CO2d_ppm" ~ "CO₂",
         "N2Od_ppm" ~ "N₂O",
+        "H2O_ppm" ~ "H₂O",
         .default = gas
       ),
       Chamber = factor(Chamber,
@@ -1080,7 +1088,7 @@ output$plot_raw <- renderPlotly({
 
 output$plot_time <- renderPlotly({
   raw_plot <- raw %>%
-    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm"),
+    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm|H2O_ppm"),
       names_to = "gas"
     ) %>%
     mutate(
@@ -1088,6 +1096,7 @@ output$plot_time <- renderPlotly({
         "CH4d_ppm" ~ "CH₄",
         "CO2d_ppm" ~ "CO₂",
         "N2Od_ppm" ~ "N₂O",
+        "H2O_ppm" ~ "H₂O",
         .default = gas
       ),
       Chamber = factor(Chamber,
