@@ -1,6 +1,7 @@
 source(here::here("R", "download_new_data.R"))
 source(here::here("R", "calculate_flux_autochamber.R"))
 source(here::here("R", "download_chamber_temp.R"))
+source(here::here("R", "load_7810_errors.R"))
 
 #' generate_L1_fluxes
 #'
@@ -16,6 +17,7 @@ source(here::here("R", "download_chamber_temp.R"))
 generate_target <- function(reprocess = F, temp = T) {
   # First - check for new data and download locally
   lgr <- download_new_data(lgr_folder = here::here("Raw_data", "dropbox_downloads"))
+  error <- download_new_data_error_codes(lgr_folder = here::here("Raw_data", "with_error_codes"))
 
   if (temp) {
     temp <- download_chamber_temp(chamber_temp_folder = here::here("Raw_data", "dropbox_chamber_temp"))
@@ -35,6 +37,9 @@ generate_target <- function(reprocess = F, temp = T) {
   # Third- QAQC, generating the L1 file
   # data <- qaqc(here::here("processed_data","L0.csv"))
   data <- L0
+  
+  # Load error log
+  load_7810_errors(reprocess = F)
 
   return(data)
 }
