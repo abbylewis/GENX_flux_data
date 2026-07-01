@@ -1,0 +1,33 @@
+---
+title: "Error codes"
+author: "Abby Lewis"
+date: "2026-06-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+codes <- read_csv(here::here("processed_data", "error_codes_7810.csv"))
+```
+
+```{r}
+recent <- codes %>%
+  filter(TIMESTAMP > as_date(Sys.Date()) - days(10))
+
+p <- recent %>%
+  ggplot(aes(x = TIMESTAMP, y = Diag_7810))+
+  geom_point()
+
+p <- recent %>%
+  filter(as_date(TIMESTAMP) == as_date("2026-06-22"),
+         hour(TIMESTAMP) %in% 7:8) %>%
+  ggplot(aes(x = TIMESTAMP, y = Diag_7810, color = as.factor(Chamber)))+
+  geom_point()
+
+plotly::ggplotly(p)
+```
+

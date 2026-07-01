@@ -50,7 +50,8 @@ ch4 <- flux_reg %>%
                          is_day),
          is_day = ifelse(is.na(is_day) & !is.na(PAR) & PAR < 5,
                          F,
-                         is_day))
+                         is_day),
+         yday = yday(date_join))
 
 # Confirm CH4 looks reasonable
 ch4 %>%
@@ -102,7 +103,7 @@ train <- ch4[is_day == TRUE & !is.na(GPP)]
 
 rf_gpp_models <- lapply(split(train, train$MIU_VALVE), function(dt_ch) {
   randomForest(
-    GPP ~ Ta + PAR + evi_predicted + Depth_cm,
+    GPP ~ Ta + PAR + evi_predicted + yday + Depth_cm + Reco,
     data = dt_ch,
     na.action = na.omit,
     ntree = 500
@@ -199,7 +200,7 @@ train <- ch4[!is.na(CH4)]
 
 rf_ch4_models <- lapply(split(train, train$MIU_VALVE), function(dt_ch) {
   randomForest(
-    CH4 ~ Ta + PAR + GPP_filled + Reco +
+    CH4 ~ Ta + PAR + GPP_filled + Reco + yday +
       evi_predicted + Depth_cm + Salinity,
     data = dt_ch,
     na.action = na.omit,
