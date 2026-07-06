@@ -51,7 +51,8 @@ ch4 <- flux_reg %>%
          is_day = ifelse(is.na(is_day) & !is.na(PAR) & PAR < 5,
                          F,
                          is_day),
-         yday = yday(date_join))
+         yday = yday(date_join)) %>%
+  arrange(MIU_VALVE)
 
 # Confirm CH4 looks reasonable
 ch4 %>%
@@ -231,8 +232,69 @@ ch4 %>%
   geom_point(aes(y = CH4_rf), color = "red") +
   facet_wrap(~MIU_VALVE)
 
+ch4 %>%
+  filter(MIU_VALVE == 12) %>%
+  ggplot(aes(x = CH4, y = CH4_rf)) +
+  geom_point() +
+  geom_abline(slope = 1) +
+  facet_wrap(~MIU_VALVE, scales = "free")
+
+### BIAS CORRECTION
+
+# empirical distribution matching function
+edm_correct <- function(obs, pred, pred_all = pred) {
+  
+  # keep only complete pairs for fitting the mapping
+  ok <- complete.cases(obs, pred)
+  obs_fit <- obs[ok]
+  pred_fit <- pred[ok]
+  
+  if (length(obs_fit) < 10) {
+    return(pred_all)
+  }
+  
+  # empirical CDF of predictions
+  F_pred <- ecdf(pred_fit)
+  
+  # quantiles of observed values
+  p <- F_pred(pred_all)
+  
+  # map predicted quantiles to observed quantiles
+  q_obs <- quantile(
+    obs_fit,
+    probs = p,
+    na.rm = TRUE,
+    type = 8
+  )
+  
+  as.numeric(q_obs)
+}
+
+ch4[, CH4_rf_edm := NA_real_]
+
+for (ch in names(rf_ch4_models)) {
+  
+  idx_all <- ch4$MIU_VALVE == ch
+  idx_train <- idx_all & !is.na(ch4$CH4)
+  
+  ch4[idx_all, CH4_rf_edm :=
+        edm_correct(
+          obs = ch4[idx_train, CH4],
+          pred = ch4[idx_train, CH4_rf],
+          pred_all = ch4[idx_all, CH4_rf]
+        )
+  ]
+}
+
+ch4 %>%
+  ggplot(aes(x = CH4)) +
+  geom_point(aes(y = CH4_rf), colour = "red", alpha = 0.5) +
+  geom_point(aes(y = CH4_rf_edm), colour = "blue", alpha = 0.5) +
+  geom_abline(slope = 1) +
+  facet_wrap(~MIU_VALVE, scales = "free")
+
 ch4[, CH4_filled := CH4]
-ch4[is.na(CH4), CH4_filled := CH4_rf]
+ch4[is.na(CH4), CH4_filled := CH4_rf_edm]
 
 ch4 %>%
   group_by(MIU_VALVE) %>%
@@ -246,19 +308,14 @@ ch4 %>%
   facet_wrap(~MIU_VALVE, scales = "free")
 
 ch4 %>%
-  ggplot(aes(x = CH4, y = CH4_rf))+
-  geom_point() +
-  facet_wrap(~MIU_VALVE, scales = "free")
-
-ch4 %>%
   ggplot(aes(x = TIMESTAMP)) +
-  geom_point(aes(y = CH4_rf), color = "red")+
+  geom_point(aes(y = CH4_rf_edm), color = "red")+
   geom_point(aes(y = CH4), shape = 21) +
   facet_wrap(~MIU_VALVE, scales = "free")
 
 ch4 %>%
   ggplot(aes(x = TIMESTAMP)) +
-  geom_point(aes(y = CH4_rf), color = "red")+
+  geom_point(aes(y = CH4_rf_edm), color = "red")+
   facet_wrap(~MIU_VALVE, scales = "free")
 
 write_csv(ch4, here::here("processed_data", "L2- partitioned_and_gap_filled.csv"))

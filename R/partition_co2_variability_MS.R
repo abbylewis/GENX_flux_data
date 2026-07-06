@@ -79,6 +79,40 @@ filt %>%
   theme_minimal() +
   facet_wrap(~MIU_VALVE)
 
+check_these <- filt %>%
+  group_by(MIU_VALVE) %>%
+  arrange(-CH4_se) %>%
+  filter(row_number() <= 20) %>%
+  select(MIU_VALVE, flux_time, keep)
+
+write_csv(check_these, here::here("processed_data/worst_fits.csv"))
+
+raw <- read_csv(here::here("processed_data/raw_comb.csv")) %>%
+  filter(gas == "CH₄") %>%
+  group_by(group) %>%
+  mutate(flux_start = first(TIMESTAMP))
+
+to_plot <- check_these %>%
+  left_join(raw %>% filter(gas == "CH₄"),
+            by = c("flux_time" = "flux_start"))
+
+start_cutoff <- 220 # Buffer of time after flux window
+end_cutoff <- 510
+
+to_plot %>%
+  filter(MIU_VALVE == 12,
+         change_s >= start_cutoff, 
+         change_s <= end_cutoff) %>%
+  mutate(label = format(TIMESTAMP, "%b-%d")) %>%
+  group_by(label) %>%
+  mutate(dup = match(group, unique(group))) %>%
+  ungroup() %>%
+  mutate(label = paste0(label, " (", dup, ")")) %>%
+  ggplot(aes(x = TIMESTAMP, y = value, color = keep)) + 
+  geom_point()+
+  facet_wrap(~label, scales = "free") +
+  ggtitle("Chamber 12")
+
 removal <- filt %>%
   select(MIU_VALVE, flux_time, keep, keep_co2) %>%
   distinct()

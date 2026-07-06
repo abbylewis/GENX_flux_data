@@ -289,14 +289,14 @@ Shiny.addCustomMessageHandler("hideLoadingOverlay", function(message) {
 <div class="form-group shiny-input-container">
 <label class="control-label" id="raw_date-label" for="raw_date">Date</label>
 <div>
-<select id="raw_date" class="shiny-input-select"><option value="2026-06-19">2026-06-19</option>
-<option value="2026-06-20">2026-06-20</option>
-<option value="2026-06-21">2026-06-21</option>
-<option value="2026-06-22">2026-06-22</option>
-<option value="2026-06-23">2026-06-23</option>
-<option value="2026-06-24">2026-06-24</option>
+<select id="raw_date" class="shiny-input-select"><option value="2026-06-24">2026-06-24</option>
 <option value="2026-06-25">2026-06-25</option>
-<option value="2026-06-26" selected="">2026-06-26</option></select>
+<option value="2026-06-26">2026-06-26</option>
+<option value="2026-06-27">2026-06-27</option>
+<option value="2026-06-28">2026-06-28</option>
+<option value="2026-06-29">2026-06-29</option>
+<option value="2026-06-30">2026-06-30</option>
+<option value="2026-07-01" selected="">2026-07-01</option></select>
 <script type="application/json" data-for="raw_date" data-nonempty="">{"plugins":["selectize-plugin-a11y"]}</script>
 </div>
 </div>
@@ -360,7 +360,7 @@ Shiny.addCustomMessageHandler("hideLoadingOverlay", function(message) {
 <div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-06-26" data-initial-date="2026-06-26" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-07-01" data-initial-date="2026-07-01" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div class="cell-output-display">
@@ -531,6 +531,9 @@ color.gradient <- c(
   "mediumseagreen", "limegreen", "yellowgreen", "yellow2",
   "darkgoldenrod2", "darkorange2", "orangered1", "red2"
 )
+
+start_cutoff <- 220 # Buffer of time after flux window
+end_cutoff <- 510
 
 # For testing
 input <- list()
@@ -1045,9 +1048,6 @@ output$plot_raw <- renderPlotly({
     group_by(group) %>%
     mutate(label = format(min(TIMESTAMP), "%H:%M:%S"))
 
-  start_cutoff <- 200 # Buffer of time after flux window
-  end_cutoff <- 540
-
   p1 <- raw_plot %>%
     mutate(used = ifelse(Manifold_Timer >= start_cutoff &
       Manifold_Timer <= end_cutoff,
@@ -1107,9 +1107,6 @@ output$plot_time <- renderPlotly({
     group_by(group) %>%
     mutate(label = format(min(TIMESTAMP), "%H:%M:%S"))
 
-  start_cutoff <- 200 # Buffer of time after flux window
-  end_cutoff <- 540
-
   raw_plot2 <- raw_plot %>%
     filter(
       as_date(TIMESTAMP) == input$raw_date,
@@ -1166,7 +1163,7 @@ output$plot_time <- renderPlotly({
 # Add an observer at the end of server setup
 observe({
   # Wait until all data is loaded
-  req(nrow(wl) > 0)
+  req(nrow(raw) > 0)
 
   # Hide the overlay using JavaScript
   session$sendCustomMessage("hideLoadingOverlay", TRUE)

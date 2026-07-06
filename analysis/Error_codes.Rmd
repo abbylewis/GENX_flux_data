@@ -18,11 +18,14 @@ codes <- read_csv(here::here("processed_data", "error_codes_7810.csv"))
 recent <- codes %>%
   filter(TIMESTAMP > as_date(Sys.Date()) - days(10))
 
-p <- recent %>%
-  ggplot(aes(x = TIMESTAMP, y = Diag_7810))+
+recent %>%
+  ggplot(aes(x = TIMESTAMP, y = Diag_7810, color = as.factor(Chamber)))+
   geom_point()
+```
 
-p <- recent %>%
+
+```{r}
+p <- codes %>%
   filter(as_date(TIMESTAMP) == as_date("2026-06-22"),
          hour(TIMESTAMP) %in% 7:8) %>%
   ggplot(aes(x = TIMESTAMP, y = Diag_7810, color = as.factor(Chamber)))+
@@ -30,4 +33,19 @@ p <- recent %>%
 
 plotly::ggplotly(p)
 ```
+
+```{r}
+START = "2025-03-18"
+END = "2025-11-15"
+
+p <- codes %>%
+  mutate(date = as_date(TIMESTAMP)) %>%
+  filter(date >= START,
+         date <= END) %>%
+  ggplot(aes(x = TIMESTAMP, y = Diag_7810)) +
+  geom_line()
+
+plotly::ggplotly(p)
+```
+
 

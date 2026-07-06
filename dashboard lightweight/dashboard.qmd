@@ -167,6 +167,9 @@ color.gradient <- c(
   "darkgoldenrod2", "darkorange2", "orangered1", "red2"
 )
 
+start_cutoff <- 220 # Buffer of time after flux window
+end_cutoff <- 510
+
 # For testing
 input <- list()
 input$gases <- c("CH₄", "CO₂", "N₂O", "H₂O")
@@ -833,9 +836,6 @@ output$plot_raw <- renderPlotly({
     group_by(group) %>%
     mutate(label = format(min(TIMESTAMP), "%H:%M:%S"))
 
-  start_cutoff <- 200 # Buffer of time after flux window
-  end_cutoff <- 540
-
   p1 <- raw_plot %>%
     mutate(used = ifelse(Manifold_Timer >= start_cutoff &
       Manifold_Timer <= end_cutoff,
@@ -894,9 +894,6 @@ output$plot_time <- renderPlotly({
     ) %>%
     group_by(group) %>%
     mutate(label = format(min(TIMESTAMP), "%H:%M:%S"))
-
-  start_cutoff <- 200 # Buffer of time after flux window
-  end_cutoff <- 540
 
   raw_plot2 <- raw_plot %>%
     filter(

@@ -15,6 +15,9 @@ source(here::here("analysis", "hm_style.R"))
 ch4 <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.csv")) 
 ```
 
+# Reference for these plots
+https://www.researchgate.net/publication/399623655_Optimized_wetland_rewetting_strategies_can_control_methane_carbon_dioxide_and_oxygen_responses_to_water_table_fluctuations
+
 ```{r}
 sums <- ch4 %>%
   filter(TIMESTAMP <= "2025-11-15")%>%
@@ -46,7 +49,7 @@ sums %>%
   theme_hm
 
 sums %>%
-  ggplot(aes(x = GPP, y = Reco)) +
+  ggplot(aes(y = GPP, x = Reco)) +
   geom_smooth(method = "lm") +
   geom_point(aes(color = MIU_VALVE)) +
   geom_abline() +
