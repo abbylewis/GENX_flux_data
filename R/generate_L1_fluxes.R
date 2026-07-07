@@ -17,7 +17,7 @@ source(here::here("R", "load_7810_errors.R"))
 generate_target <- function(reprocess = F, temp = T) {
   # First - check for new data and download locally
   lgr <- download_new_data(lgr_folder = here::here("Raw_data", "dropbox_downloads"))
-  error <- download_new_data_error_codes(lgr_folder = here::here("Raw_data", "with_error_codes"))
+  #error <- download_new_data_error_codes(lgr_folder = here::here("Raw_data", "with_error_codes"))
 
   if (temp) {
     temp <- download_chamber_temp(chamber_temp_folder = here::here("Raw_data", "dropbox_chamber_temp"))

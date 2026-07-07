@@ -24,7 +24,8 @@ calculate_flux <- function(start_date = NULL,
       "GENX_INSTRUMENT_FLUX_COMB_20240417020046.dat",
       "GENX_INSTRUMENT_FLUX_COMB_20240403020045.dat",
       "GENX_INSTRUMENT_FLUX_COMB_20240501020048.dat",
-      "GENX_LGR_04142021_20210505020005.dat"
+      "GENX_LGR_04142021_20210505020005.dat",
+      "GENX_INSTRUMENT_FLUX_COMB_missing.dat"
     ))
 
   if (length(files) == 0) {
@@ -76,6 +77,34 @@ calculate_flux <- function(start_date = NULL,
     gs_url = "http://docs.google.com/spreadsheets/d/1_uk8-335NDJOdVU6OjLcxWx4MamNJeVEbVkSmdb9oRs/edit?gid=0#gid=0"
   ) %>%
     rename(MIU_VALVE = Chamber) #for compatibility downstream
+  
+  # Export errors
+  if("Diag_7810" %in% colnames(data_small)) {
+    data_errors <- data_small %>%
+      dplyr::select(TIMESTAMP, Chamber, Diag_7810, Diag_7820) %>%
+      dplyr::mutate(
+        Diag_7810 = as.numeric(na_if(Diag_7810, "NAN")),
+        Diag_7820 = as.numeric(na_if(Diag_7820, "NAN")),
+        Chamber = as.numeric(Chamber)
+      )
+    if (!reprocess | !is.null(start_date)) {
+      # Load older data
+      old_errors <- read_csv(here::here("processed_data", "error_codes.csv"),
+                             show_col_types = F
+      ) %>%
+        mutate(
+          TIMESTAMP = force_tz(TIMESTAMP, tz = "EST"))
+      #Combine
+      errors_comb <- autochamber::combine_slopes(new = data_errors, old = old_errors)
+    } else {
+      errors_comb <- old_errors
+    }
+    
+    write.csv(errors_comb,
+              here::here("processed_data", "error_codes.csv"),
+              row.names = FALSE
+    )
+  }
   
   # Output
   write.csv(slopes_out %>%
