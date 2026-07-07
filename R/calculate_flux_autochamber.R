@@ -104,6 +104,13 @@ calculate_flux <- function(start_date = NULL,
               here::here("processed_data", "error_codes.csv"),
               row.names = FALSE
     )
+    
+    write.csv(
+      errors_comb %>%
+        filter(TIMESTAMP > as_date(Sys.Date()) - lubridate::days(50)),
+      here::here("processed_data", "errors_for_dashboard.csv"),
+      row.names = FALSE
+    )
   }
   
   # Output

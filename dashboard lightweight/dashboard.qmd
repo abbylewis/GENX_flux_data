@@ -262,6 +262,14 @@ splitLayout(
 plotlyOutput("plot_raw", height = 420)
 ```
 
+## Errors
+
+```{r}
+#| panel: fill
+
+plotlyOutput("plot_errors", height = 420)
+```
+
 :::
 
 :::
@@ -946,6 +954,77 @@ output$plot_time <- renderPlotly({
     ggtitle(input$time_date)
 
   plotly::ggplotly(p1, tooltip = c("TIMESTEP", "value", "Chamber"))
+})
+
+#### Errors
+
+errors_df <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/errors_for_dashboard.csv") %>%
+  mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"))
+
+output$plot_errors <- renderPlotly({
+  if(input$compare_years == "Compare years"){
+    errors_recent <- errors_df %>%
+      filter(
+        yday(as_date(TIMESTAMP)) <= yday(input$today),
+        yday(TIMESTAMP) > (yday(input$today) - input$days_to_plot)
+      )
+  } else {
+    errors_recent <- errors_df %>%
+      filter(
+        as_date(TIMESTAMP) <= input$today,
+        as_date(TIMESTAMP) > (input$today - days(input$days_to_plot))
+      )
+  }
+  
+  errors <- errors_recent %>%
+    select(TIMESTAMP, Chamber, Diag_7810, Diag_7820) %>%
+    mutate(year = year(TIMESTAMP)) %>%
+    pivot_longer(c(Diag_7810, Diag_7820),
+                 names_to = "variable")
+
+  if (input$daily == "Daily mean") {
+    errors2 <- errors %>%
+      mutate(
+        TIMESTAMP = as_date(TIMESTAMP),
+        TIMESTAMP = as.POSIXct(TIMESTAMP)
+      ) %>%
+      group_by(TIMESTAMP, year, variable) %>%
+      summarize(
+        value = mean(value, na.rm = T),
+        .groups = "drop"
+      )
+  } else {
+    errors2 <- errors
+  }
+
+  p1 <- errors2 %>%
+    ggplot(aes(x = TIMESTAMP, y = value)) +
+    geom_line() +
+    ylab("Value") +
+    {
+      if(input$compare_years == "Compare years"){
+        facet_grid(variable~year, scales = "free")
+      } else {
+        facet_wrap(~variable, ncol = 1, scales = "free_y")
+      }
+    } +
+    scale_color_manual(
+      values = color.gradient,
+      breaks = chamber_levels
+    ) +
+    theme_bw() +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    )
+
+  plotly::ggplotly(p1, tooltip = c("Chamber", "TIMESTAMP", "value")) %>%
+    layout(
+      legend = list(
+        tracegroupgap = 0
+      )
+    )
 })
 
 # Add an observer at the end of server setup
