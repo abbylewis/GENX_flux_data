@@ -16,11 +16,11 @@ error_check <- data %>%
   ) %>%
   filter(r2_check_ch4 < 0.7 & r2_check_co2 < 0.7)
 
-#if (nrow(error_check) > 0) {
+if (nrow(error_check) > 0) {
   slackr::slackr_setup(token = Sys.getenv("SLACKRTOKEN"),
                        incoming_webhook_url = Sys.getenv("SLACKRURL"))
   slackr::slackr_msg(
-    channel = "#genx_bot",
+    channel = "#genx-flux-data",
     username = "GENX QAQC bot",
     txt = paste0(
     "Hi team! I noticed that CO2 and CH4 R2 values have been low recently for the following chamber(s):\n",
@@ -29,7 +29,7 @@ error_check <- data %>%
     "https://aslewis.shinyapps.io/dashboard/",
     "\nThanks! -genx bot"
   ))
-#}
+}
 
 # Check for licor errors
 data <- read.csv(here::here("processed_data", "errors_for_dashboard.csv"))
@@ -50,7 +50,7 @@ if (nrow(error_check) > 0) {
   text = if(both){"both of the licors are"} else {"one of the licors is"}
   
   slackr::slackr_msg(
-    channel = "#genx_bot",
+    channel = "#genx-flux-data",
     username = "GENX QAQC bot",
     txt = paste0(
     "Hi team- it looks like ", text, " unhappy. \n",
