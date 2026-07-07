@@ -44,4 +44,4 @@ generate_target <- function(reprocess = F, temp = T) {
   return(data)
 }
 
-target <- generate_target(reprocess = F, temp = F)
+target <- generate_target(reprocess = F, temp = T)
