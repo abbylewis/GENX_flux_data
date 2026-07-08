@@ -83,9 +83,9 @@ calculate_flux <- function(start_date = NULL,
     data_errors <- data_small %>%
       dplyr::select(TIMESTAMP, Chamber, Diag_7810, Diag_7820) %>%
       dplyr::mutate(
-        Diag_7810 = as.numeric(na_if(Diag_7810, "NAN")),
-        Diag_7820 = as.numeric(na_if(Diag_7820, "NAN")),
-        Chamber = as.numeric(Chamber)
+        Diag_7810 = as.integer(na_if(Diag_7810, "NAN")),
+        Diag_7820 = as.integer(na_if(Diag_7820, "NAN")),
+        Chamber = as.integer(Chamber)
       )
     if (!reprocess | !is.null(start_date)) {
       # Load older data
@@ -93,23 +93,22 @@ calculate_flux <- function(start_date = NULL,
                              show_col_types = F
       ) %>%
         mutate(
-          TIMESTAMP = force_tz(TIMESTAMP, tz = "EST"))
+          TIMESTAMP = force_tz(TIMESTAMP, tz = "EST"),
+          Diag_7810 = as.integer(Diag_7810),
+          Diag_7820 = as.integer(Diag_7820),
+          Chamber = as.integer(Chamber))
       #Combine
       errors_comb <- autochamber::combine_slopes(new = data_errors, old = old_errors)
     } else {
       errors_comb <- old_errors
     }
     
-    write.csv(errors_comb,
+    errors_small <- errors_comb %>%
+      filter(second(TIMESTAMP) == 0)
+    
+    write.csv(errors_small,
               here::here("processed_data", "error_codes.csv"),
               row.names = FALSE
-    )
-    
-    write.csv(
-      errors_comb %>%
-        filter(TIMESTAMP > as_date(Sys.Date()) - lubridate::days(50)),
-      here::here("processed_data", "errors_for_dashboard.csv"),
-      row.names = FALSE
     )
   }
   

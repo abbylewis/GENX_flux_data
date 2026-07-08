@@ -37,9 +37,6 @@ generate_target <- function(reprocess = F, temp = T) {
   # Third- QAQC, generating the L1 file
   # data <- qaqc(here::here("processed_data","L0.csv"))
   data <- L0
-  
-  # Load error log
-  load_7810_errors(reprocess = F)
 
   return(data)
 }
