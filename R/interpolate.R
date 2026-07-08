@@ -151,50 +151,6 @@ ch4 %>%
   geom_line()+
   facet_wrap(~MIU_VALVE)
 
-## LE
-
-train <- ch4[is_day == TRUE & !is.na(LE_W_m2)]
-
-rf_le_models <- lapply(split(train, train$MIU_VALVE), function(dt_ch) {
-  randomForest(
-    LE_W_m2 ~ Ta + PAR + evi_predicted + Depth_cm,
-    data = dt_ch,
-    na.action = na.omit,
-    ntree = 500
-  )
-})
-
-oob_metrics <- lapply(rf_le_models, function(model) {
-  data.frame(
-    OOB_MSE = tail(model$mse, 1),
-    OOB_R2 = tail(model$rsq, 1)
-  )
-})
-
-oob_metrics <- do.call(rbind, oob_metrics)
-oob_metrics$MIU_VALVE <- names(rf_gpp_models)
-oob_metrics
-
-for (ch in names(rf_le_models)) {
-  model <- rf_le_models[[ch]]
-  idx <- ch4$MIU_VALVE == ch
-  ch4[idx, LE_rf := predict(model, ch4[idx])]
-}
-
-ch4 %>%
-  ggplot(aes(x = TIMESTAMP, y = LE_W_m2)) +
-  geom_point() +
-  geom_point(aes(y = LE_rf), color = "red") +
-  facet_wrap(~MIU_VALVE)
-
-ch4[, LE_filled := LE_W_m2]
-ch4[is.na(LE_filled) & is_day == TRUE, LE_filled := LE_rf]
-ch4[is_day == FALSE, LE_filled := 0]
-
-ch4 %>%
-  group_by(MIU_VALVE) %>%
-  summarize(nas = sum(is.na(LE_filled)))
-
 ### CH4 ###
 
 train <- ch4[!is.na(CH4)]
@@ -301,7 +257,7 @@ ch4 %>%
   summarize(nas = sum(is.na(CH4_filled)))
 
 ch4 %>%
-  filter(MIU_VALVE == 6) %>%
+  filter(MIU_VALVE == 12) %>%
   ggplot(aes(x = TIMESTAMP, y = CH4_filled)) +
   geom_point(aes(color = is.na(CH4))) +
   geom_smooth() +

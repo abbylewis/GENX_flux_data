@@ -71,7 +71,7 @@ download_chamber_temp <- function(chamber_temp_folder = here::here("Raw_data", "
     pivot_longer(cols = -TIMESTAMP, names_to = "chamber", values_to = "SoilTemp_25cm_C") %>%
     mutate(
       chamber = str_extract(sub("Therm25C", "", chamber), "[0-9]+"),
-      SoilTemp_10cm_C = as.numeric(SoilTemp_25cm_C),
+      SoilTemp_25cm_C = as.numeric(SoilTemp_25cm_C),
       Chamber = as.numeric(chamber)
     )  %>%
     select(Chamber, TIMESTAMP, SoilTemp_25cm_C) %>%
