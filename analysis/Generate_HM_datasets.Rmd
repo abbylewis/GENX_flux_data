@@ -77,8 +77,7 @@ part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.cs
          CH4_umol_m2_h, CH4_umol_m2_h_not_gapfilled, CH4_R2, CH4_se, 
          CO2_umol_m2_h, CO2_R2, CO2_se, 
          Reco_umol_m2_h, GPP_umol_m2_h, GPP_umol_m2_h_not_gapfilled, 
-         Depth_cm, Salinity, AirTemp_C) %>%
-  filter(CH4_umol_m2_h < 4000)
+         Depth_cm, Salinity, AirTemp_C) 
 
 write_csv(part, here::here("processed_data", "for_HM_MS", "GENX_flux_data_interpolated_with_drivers.csv"))
 ```
