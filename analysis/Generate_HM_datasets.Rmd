@@ -74,7 +74,7 @@ part <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled.cs
          GPP_umol_m2_h_not_gapfilled = GPP,
          AirTemp_C = AirTC_Avg) %>%
   select(DateTime_EST, Chamber, 
-         CH4_umol_m2_h, CH4_umol_m2_h_not_gapfilled, CH4_R2, CH4_se, 
+         CH4_umol_m2_h, CH4_umol_m2_h_not_gapfilled, CH4_R2, CH4_se, Ebullition_yn,
          CO2_umol_m2_h, CO2_R2, CO2_se, 
          Reco_umol_m2_h, GPP_umol_m2_h, GPP_umol_m2_h_not_gapfilled, 
          Depth_cm, Salinity, AirTemp_C) 

@@ -34,8 +34,8 @@ if (nrow(error_check) > 0) {
 # Check for licor errors
 data <- read.csv(here::here("processed_data", "error_codes.csv"))
 error_check <- data %>%
-  filter(TIMESTAMP > (Sys.Date() - days(1))) %>%
-  filter(Diag_7810 >0 | Diag_7820 >0)
+  filter(TIMESTAMP >= (Sys.Date() - days(1))) %>%
+  filter((!is.na(Diag_7810) & Diag_7810 > 0) | (!is.na(Diag_7820) & Diag_7820 > 0))
 
 if (nrow(error_check) > 0) {
   slackr::slackr_setup(token = Sys.getenv("SLACKRTOKEN"),

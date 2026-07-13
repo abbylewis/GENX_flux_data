@@ -260,7 +260,8 @@ chamber_volume = chamber_height/100 * # m
 merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each flux
   rename(
     Ta = AirTC_Avg,
-    PAR = PAR_Den_C_Avg
+    PAR = PAR_Den_C_Avg,
+    Ebullition_yn = ebullition
   ) %>%
   mutate(
     Depth_above_surf = ifelse(Depth_cm > 0,
@@ -279,7 +280,7 @@ merged <- driver[df, roll = "nearest"] %>% # Rolling join: nearest met to each f
   ) %>%
   ungroup() %>%
   select(all_of(c("MIU_VALVE", "DateTime", "flux_time", "NEE", "CH4", "N2O", 
-                  "PAR", "Ta", "CH4_R2", "CO2_R2", "CH4_se", "CO2_se")))
+                  "PAR", "Ta", "CH4_R2", "CO2_R2", "CH4_se", "CO2_se", "Ebullition_yn")))
 
 merged %>%
   group_by(MIU_VALVE) %>%
