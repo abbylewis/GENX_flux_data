@@ -32,7 +32,7 @@ if (nrow(error_check) > 0) {
 }
 
 # Check for licor errors
-data <- read.csv(here::here("processed_data", "errors_for_dashboard.csv"))
+data <- read.csv(here::here("processed_data", "error_codes.csv"))
 error_check <- data %>%
   filter(TIMESTAMP > (Sys.Date() - days(1))) %>%
   filter(Diag_7810 >0 | Diag_7820 >0)
