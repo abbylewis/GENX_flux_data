@@ -38,7 +38,12 @@ download_chamber_temp <- function(chamber_temp_folder = here::here("Raw_data", "
   files <- files[grepl("2025", files) | grepl("2026", files) | grepl("current", files)]
   
   data <- files %>%
-    map(read_csv, skip = 1, show_col_types = F) %>%
+    map(read_csv, skip = 1, show_col_types = F,
+        col_select = c(TIMESTAMP, starts_with("BMETemp"), starts_with("Therm25C")),
+        col_types = list(
+          TIMESTAMP = col_character(),
+          .default = col_double()
+        )) %>%
     bind_rows() %>%
     filter(!TIMESTAMP == "TS") %>%
     mutate(TIMESTAMP = as_datetime(TIMESTAMP)) %>%
