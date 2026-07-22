@@ -98,7 +98,6 @@ server: shiny
 
 library(tidyverse)
 library(plotly)
-source(here::here("R", "group_fun.R"))
 
 chamber_levels <- c(
   "c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
@@ -136,7 +135,7 @@ input$raw_date <- "2021-05-08"
 splitLayout(
   cellWidths = c("50%", "50%"),
   dateInput("time_date", "Date",
-    value = "2021-07-01",
+    value = "2025-08-12",
     min = "2021-04-14",
     max = "2025-12-31"
   ),
@@ -155,7 +154,7 @@ plotlyOutput("plot_time", height = 480)
 splitLayout(
   cellWidths = c("50%", "50%"),
   dateInput("raw_date", "Date",
-    value = "2021-07-01",
+    value = "2025-08-12",
     min = "2021-04-14",
     max = "2025-12-31"
   ),
