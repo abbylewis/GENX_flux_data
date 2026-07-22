@@ -18,93 +18,68 @@ target <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
 
 #QAQC
 filt <- target %>%
-  group_by(MIU_VALVE) %>%
-  mutate(
-    cutoff = mean(CH4_se, na.rm = TRUE)+3*sd(CH4_se, na.rm = TRUE),
-    keep = ifelse(!is.na(CH4_se) & CH4_se < cutoff, TRUE, F),
-    cutoff_co2 = mean(CO2_se, na.rm = TRUE)+3*sd(CO2_se, na.rm = TRUE),
-    keep_co2 = ifelse(!is.na(CO2_se) & CO2_se < cutoff_co2, TRUE, F)
+  ungroup() %>%
+  arrange(flux_time) %>%
+  dplyr::mutate(
+    #Can't have negative ebullition
+    CH4_slope_ppm_per_day = ifelse(!is.na(ebullition) & 
+                                     ebullition &
+                                     CH4_slope_ppm_per_day_ebullition < 0,
+                                   NA,
+                                   CH4_slope_ppm_per_day),
+    #Methane starting conc
+    CH4_init = ifelse(is.na(CH4_slope_ppm_per_day),
+                      NA, CH4_init), #Some fluxes were intentionally removed
+    run_sd = RcppRoll::roll_sd(
+      CH4_init, 
+      weights = c(1/6,1/6,1/6,0,1/6,1/6,1/6), normalize = F,
+      fill = NA),
+    run_mean = RcppRoll::roll_mean(
+      CH4_init, 
+      weights = c(1,1,1,0,1,1,1), normalize = TRUE,
+      fill = NA),
+    remove_ch4_init = CH4_init > (run_mean + 3*run_sd),
+    #CO2 starting conc
+    CO2_init = ifelse(is.na(CO2_slope_ppm_per_day),
+                      NA, CO2_init), #Some fluxes were intentionally removed
+    run_sd_co2 = RcppRoll::roll_sd(
+      CO2_init, 
+      weights = c(1/6,1/6,1/6,0,1/6,1/6,1/6), normalize = F,
+      fill = NA),
+    run_mean_co2 = RcppRoll::roll_mean(
+      CO2_init, 
+      weights = c(1,1,1,0,1,1,1), normalize = TRUE,
+      fill = NA),
+    remove_co2_init = CO2_init > (run_mean_co2 + 2*run_sd_co2),
+    #Deal with these
+    CH4_slope_ppm_per_day = ifelse(!is.na(remove_ch4_init) & remove_ch4_init,
+                                   NA,
+                                   CH4_slope_ppm_per_day),
+    CO2_slope_ppm_per_day = ifelse(!is.na(remove_co2_init) & remove_co2_init,
+                                   NA,
+                                   CO2_slope_ppm_per_day)
   )
 
-# visualize
-p <- filt %>%
-  ggplot(aes(x = CH4_slope_ppm_per_day, y = CH4_se, color = keep, 
-             label = paste(flux_time, CH4_se))) +
-  geom_point(data = . %>% filter(keep == T)) +
-  geom_point(data = . %>% filter(keep == F)) +
-  scale_color_manual(values = c("red", "black")) +
-  theme_minimal() +
-  facet_wrap(~MIU_VALVE, scales = "free")
-
-plotly::ggplotly(p)
-
-p <- filt %>%
-  ggplot(aes(x = CH4_slope_ppm_per_day, y = CH4_R2, color = keep, 
-             label = paste(flux_time, CH4_se))) +
-  geom_point(data = . %>% filter(keep == T)) +
-  geom_point(data = . %>% filter(keep == F)) +
-  scale_color_manual(values = c("red", "black")) +
-  theme_minimal() +
-  facet_wrap(~MIU_VALVE, scales = "free")
-
-plotly::ggplotly(p)
-
+#Visualize
 filt %>%
-  ggplot(aes(x = abs(CO2_slope_ppm_per_day), y = CO2_R2, color = keep_co2, label = flux_time)) +
-  geom_point() +
-  labs(x = "CO2 slope", y = "R²") +
-  scale_color_manual(values = c("red", "black")) +
-  theme_minimal() +
-  facet_wrap(~MIU_VALVE, scales = "free")
-
-p <- filt %>%
-  ggplot(aes(x = flux_time, y = CH4_slope_ppm_per_day, color = keep, 
-             label = CH4_se)) +
-  geom_point() +
-  scale_color_manual(values = c("red", "black")) +
-  theme_minimal() +
-  facet_wrap(~MIU_VALVE, scales = "free")
-
-plotly::ggplotly(p)
-
-filt %>%
-  ggplot(aes(x = flux_time, y = CH4_slope_ppm_per_day, color = keep)) +
-  geom_point() +
-  scale_color_manual(values = c("red", "black")) +
+  filter(!ebullition) %>%
+  ggplot(aes(x = flux_time, y = CH4_slope_ppm_per_day)) +
+  geom_line() +
   theme_minimal() +
   facet_wrap(~MIU_VALVE)
 
-removal <- filt %>%
-  select(MIU_VALVE, flux_time, keep, keep_co2) %>%
-  distinct()
-
-df <- target %>%
-  left_join(removal, by = c("MIU_VALVE", "flux_time")) %>%
+#### Add ebullition ####
+df <- filt %>%
   mutate(
-    CH4_slope_ppm_per_day = ifelse(!keep, NA, CH4_slope_ppm_per_day),
-    CO2_slope_ppm_per_day = ifelse(!keep_co2, NA, CO2_slope_ppm_per_day)) %>%
-  select(-keep, -keep_co2)
-
-target %>%
-  group_by(MIU_VALVE) %>%
-  left_join(removal) %>%
-  summarize(n_removed = sum(!keep & !is.na(CH4_slope_ppm_per_day), na.rm = T),
-            pct = n_removed/sum(!is.na(keep) & !is.na(CH4_slope_ppm_per_day))*100,
-            n_removed_co2 = sum(!keep_co2 & !is.na(CO2_slope_ppm_per_day), na.rm = T),
-            pct_co2 = n_removed_co2/sum(!is.na(keep_co2) & !is.na(CO2_slope_ppm_per_day))*100)
-
-START = "2025-03-18"
-END = "2025-11-15"
-target %>%
-  filter(as_date(flux_time) >= START,
-         as_date(flux_time) <= END) %>%
-  group_by(MIU_VALVE) %>%
-  left_join(removal) %>%
-  summarize(n_removed = sum(!keep & !is.na(CH4_slope_ppm_per_day), na.rm = T),
-            pct = round(n_removed/sum(!is.na(keep) & !is.na(CH4_slope_ppm_per_day))*100, 1),
-            n_removed_co2 = sum(!keep_co2 & !is.na(CO2_slope_ppm_per_day), na.rm = T),
-            pct_co2 = round(n_removed_co2/sum(!is.na(keep_co2) & !is.na(CO2_slope_ppm_per_day))*100,1)) %>%
-  select(MIU_VALVE, pct, pct_co2)
+    # Some were removed intentionally
+    CH4_slope_ppm_per_day_ebullition = 
+      ifelse(is.na(CH4_slope_ppm_per_day),
+             NA,
+             CH4_slope_ppm_per_day_ebullition),
+    CH4_slope_ppm_per_day = ifelse(!is.na(ebullition) & ebullition == T,
+                                   CH4_slope_ppm_per_day_ebullition, 
+                                   CH4_slope_ppm_per_day),
+  )
 
 # Update met
 download_gcrew_met()
