@@ -5,7 +5,7 @@ library(tidyverse)
 library(data.table)
 library(randomForest)
 
-df <- read_csv(here::here("processed_data", "partitioned_co2_variability_MS.csv")) %>%
+flux_reg <- read_csv(here::here("processed_data", "partitioned_co2_variability_MS.csv")) %>%
   rename(TIMESTAMP = DateTime) %>%
   filter(!is.na(TIMESTAMP)) %>%
   mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"),
@@ -15,27 +15,10 @@ df <- read_csv(here::here("processed_data", "partitioned_co2_variability_MS.csv"
 evi <- read_csv(here::here("processed_data", "evi.csv")) %>%
   filter(!duplicated(Date))
 
+setDT(flux_reg)
+setkey(flux_reg, MIU_VALVE, TIMESTAMP)
+
 # Consistent timestamp
-
-setDT(df)
-setkey(df, MIU_VALVE, TIMESTAMP)
-
-make_grid <- function(g) {
-  data.table(
-    TIMESTAMP = seq(min(g$TIMESTAMP),
-      max(g$TIMESTAMP),
-      by = "130 min"
-    ),
-    MIU_VALVE = g$MIU_VALVE[1]
-  )
-}
-
-grid <- df[, make_grid(.SD), by = MIU_VALVE]
-
-setkey(grid, MIU_VALVE, TIMESTAMP)
-
-flux_reg <- df[grid, roll = 7200] # allow 2-hour carry
-
 flux_reg <- flux_reg %>%
   mutate(
     #time_join = round_date(TIMESTAMP, "15 minutes"),
@@ -45,13 +28,14 @@ flux_reg <- flux_reg %>%
 ch4 <- flux_reg %>%
   #left_join(met %>% rename(time_join = TIMESTAMP), by = "time_join") %>%
   left_join(evi %>% rename(date_join = Date), by = "date_join") %>%
-  mutate(is_day = ifelse(is.na(is_day) & !is.na(PAR) & PAR > 5,
-                         T,
-                         is_day),
-         is_day = ifelse(is.na(is_day) & !is.na(PAR) & PAR < 5,
-                         F,
-                         is_day),
-         yday = yday(date_join)) %>%
+  mutate(
+    is_day = case_when(
+      !is.na(is_day) ~ is_day,
+      !is.na(PAR) & PAR >= 5 ~ TRUE,
+      !is.na(PAR) & PAR < 5 ~ FALSE,
+      TRUE ~ NA
+    ),
+    yday = yday(date_join)) %>%
   arrange(MIU_VALVE)
 
 # Confirm CH4 looks reasonable
@@ -179,7 +163,7 @@ oob_metrics <- lapply(rf_ch4_models, function(model) {
 })
 
 oob_metrics <- do.call(rbind, oob_metrics)
-oob_metrics$MIU_VALVE <- names(rf_gpp_models)
+oob_metrics$MIU_VALVE <- names(rf_ch4_models)
 oob_metrics
 
 ch4 %>%

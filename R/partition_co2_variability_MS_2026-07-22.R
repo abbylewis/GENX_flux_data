@@ -157,27 +157,49 @@ driver <- driver %>%
 df$DateTime <- as.POSIXct(df$flux_time, tz = "EST")
 driver$DateTime <- as.POSIXct(driver$driver_time, tz = "EST")
 
+# Soil temp
+temp <- read_csv(here::here("processed_data", "Soil_temp_2025.csv")) %>% 
+  filter(as_date(DateTime_EST) >= START, 
+         as_date(DateTime_EST) <= END)
+temp <- temp %>%
+  rename(temp_time = DateTime_EST) %>%
+  mutate(DateTime = as.POSIXct(temp_time, tz = "EST"))
+
 # Convert to data.table
+setDT(temp)
 setDT(df)
 setDT(driver)
 
-# Set keys: DateTime is what will be used to join fluxes with met
-setkey(df, DateTime)
-setkey(driver, DateTime)
+# Nearest soil temperature observation within each MIU_VALVE
+df_temp <- temp[
+  df,
+  on = .(MIU_VALVE, DateTime),
+  roll = "nearest"
+]
 
+# Match meteorological drivers by nearest time
+merged <- driver[
+  df_temp,
+  on = .(DateTime),
+  roll = "nearest"
+]
+
+# Time difference between flux and matched soil temperature
+merged[, temp_time_diff := abs(temp_time - flux_time)]
+merged[, met_time_diff := abs(met_time - flux_time)]
+
+merged[met_time_diff > 30 * 60, # 30 minute window
+       c("AirTC_Avg", "PAR_Den_C_Avg", "Depth_cm") := NA]
+
+merged[met_time_diff > 60 * 60, # 60 minute window
+       c("SoilTemp_C") := NA]
+
+# Partition!
 chamber_height = 156 # cm
 chamber_radius = 25 # cm
 chamber_area = pi*(chamber_radius/100)^2 # m2
 chamber_volume = chamber_height/100 * # m
   chamber_area * 1000 #L
-
-# Join and format
-merged <- driver[df, roll = "nearest"] # Rolling join: nearest met to each flux
-
-merged[, met_time_diff := abs(DateTime - flux_time)]
-
-merged[met_time_diff > 30 * 60, # 30 minute window
-       c("AirTC_Avg", "PAR_Den_C_Avg", "Depth_cm") := NA]
 
 merged <- merged %>% 
   rename(
@@ -202,7 +224,8 @@ merged <- merged %>%
   ) %>%
   ungroup() %>%
   select(all_of(c("MIU_VALVE", "DateTime", "flux_time", "NEE", "CH4", "N2O", 
-                  "PAR", "Ta", "CH4_R2", "CO2_R2", "CH4_se", "CO2_se", "Ebullition_yn")))
+                  "PAR", "Ta", "SoilTemp_C",
+                  "CH4_R2", "CO2_R2", "CH4_se", "CO2_se", "Ebullition_yn")))
 
 merged %>%
   group_by(MIU_VALVE) %>%
@@ -222,14 +245,14 @@ fit_q10_lm <- function(dt_night, Tref = 10, min_night = 40) {
   dt_night <- dt_night[
     is.finite(NEE) &
       NEE > 0 &
-      is.finite(Ta)
+      is.finite(SoilTemp_C)
   ]
   
   if (nrow(dt_night) < min_night) {
     return(NULL)
   }
   
-  X <- dt_night[, Ta - Tref]
+  X <- dt_night[, SoilTemp_C - Tref]
   Y <- log(dt_night$NEE)
   fit <- try(lm(Y ~ X), silent = TRUE)
   if (inherits(fit, "try-error")) {
@@ -245,7 +268,7 @@ fit_q10_lm <- function(dt_night, Tref = 10, min_night = 40) {
 
 # Function: moving-window parameter estimation per chamber
 estimate_params_moving_window <- function(
-  dt_ch, window_days = 30, step_days = 1,
+  dt_ch, window_days = 100, step_days = 1,
   par_night_thresh = 5, Tref = 10
 ) {
   # dt_ch: data.table for one chamber
@@ -262,7 +285,7 @@ estimate_params_moving_window <- function(
     wend <- center + as.difftime(window_days / 2, units = "days")
     wnd <- dt_ch[DateTime >= wstart & DateTime <= wend]
     # nighttime points (PAR-based)
-    wnd_night <- wnd[PAR < par_night_thresh & is.finite(NEE) & NEE > 0 & is.finite(Ta)]
+    wnd_night <- wnd[PAR < par_night_thresh & is.finite(NEE) & NEE > 0 & is.finite(SoilTemp_C)]
     fit <- fit_q10_lm(wnd_night, Tref = Tref)
     if (!is.null(fit)) {
       res_list[[i]] <- data.table(
@@ -325,22 +348,37 @@ merged_grid <- merged[grid, roll = "nearest"] #grab nearest observation
 merged_grid[, time_diff := abs(DateTime - flux_time)]
 cols <- setdiff(names(merged_grid), c("DateTime", "MIU_VALVE"))
 merged_grid[time_diff > 3900, (cols) := NA]
-merged_grid[, c("Ta", "PAR") := NULL]
+merged_grid[, c("Ta", "PAR", "SoilTemp_C") := NULL]
 
-setkey(merged_grid, DateTime)
-setDT(driver)
-setkey(driver, DateTime)
-
-merged_grid <- driver[
+# Nearest soil temperature observation within each MIU_VALVE
+df_temp_merged <- temp[
   merged_grid,
+  on = .(MIU_VALVE, DateTime),
+  roll = "nearest"
+]
+
+# Match meteorological drivers by nearest time
+merged_grid_final <- driver[
+  df_temp_merged,
+  on = .(DateTime),
   roll = "nearest"
 ]
 
 setnames(
-  merged_grid,
+  merged_grid_final,
   old = c("AirTC_Avg", "PAR_Den_C_Avg"),
   new = c("Ta", "PAR")
 )
+
+merged_grid_final[
+  abs(temp_time - flux_time) > 60 * 60,
+  SoilTemp_C := NA_real_
+]
+
+merged_grid_final[
+  abs(driver_time - flux_time) > 30 * 60,
+  c("Ta", "PAR", "Depth_cm") := NA
+]
 
 for (ch in chambers) {
   pch <- params_dt[MIU_VALVE == ch & !is.na(Rref) & !is.na(Q10)][order(center)]
@@ -350,33 +388,33 @@ for (ch in chambers) {
   x <- as.numeric(pch$center) # seconds since epoch
   yR <- pch$Rref
   yQ <- pch$Q10
-  targ_idx <- which(merged_grid$MIU_VALVE == ch)
-  xt <- as.numeric(merged_grid$DateTime[targ_idx])
+  targ_idx <- which(merged_grid_final$MIU_VALVE == ch)
+  xt <- as.numeric(merged_grid_final$DateTime[targ_idx])
   # approx with rule=2: use nearest outside range
   Rinterp <- approx(x = x, y = yR, xout = xt, rule = 2, ties = "ordered")$y
   Qinterp <- approx(x = x, y = yQ, xout = xt, rule = 2, ties = "ordered")$y
-  merged_grid[targ_idx, Rref_t := Rinterp]
-  merged_grid[targ_idx, Q10_t := Qinterp]
+  merged_grid_final[targ_idx, Rref_t := Rinterp]
+  merged_grid_final[targ_idx, Q10_t := Qinterp]
 }
 
 # Predict Reco using time-varying parameters
 # Reco = Rref_t * Q10_t ^ ((Ta - Tref)/10)
-merged_grid[, Reco := NA_real_]
+merged_grid_final[, Reco := NA_real_]
 Tref <- 10
-merged_grid[!is.na(Rref_t) & !is.na(Q10_t) & !is.na(Ta),
-            Reco := Rref_t * (Q10_t^((Ta - Tref) / 10))]
+merged_grid_final[!is.na(Rref_t) & !is.na(Q10_t) & !is.na(SoilTemp_C),
+            Reco := Rref_t * (Q10_t^((SoilTemp_C - Tref) / 10))]
 
 # Compute daytime GPP = Reco - NEE
-merged_grid[, is_day := PAR >= par_night_thresh]
-merged_grid[, GPP := NA_real_]
-day_mask <- merged_grid$is_day & is.finite(merged_grid$Reco) & is.finite(merged_grid$NEE)
-merged_grid[day_mask, GPP := Reco - NEE]
+merged_grid_final[, is_day := PAR >= par_night_thresh]
+merged_grid_final[, GPP := NA_real_]
+day_mask <- merged_grid_final$is_day & is.finite(merged_grid_final$Reco) & is.finite(merged_grid_final$NEE)
+merged_grid_final[day_mask, GPP := Reco - NEE]
 # enforce non-negative GPP if desired
-merged_grid[day_mask & GPP < 0, GPP := 0]
-merged_grid[is.na(NEE), GPP := NA]
-# merged_grid[is.na(NEE), Reco := NA]
+merged_grid_final[day_mask & GPP < 0, GPP := 0]
+merged_grid_final[is.na(NEE), GPP := NA]
+# merged_grid_final[is.na(NEE), Reco := NA]
 
-merged_export <- merged_grid %>%
+merged_export <- merged_grid_final %>%
   as_tibble()
 
 write_csv(merged_export, here::here("processed_data", "partitioned_co2_variability_MS.csv"))

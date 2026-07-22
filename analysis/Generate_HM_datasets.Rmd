@@ -48,6 +48,11 @@ soil_export <- soil_temp %>%
   select(DateTime_EST, Chamber, SoilTemp_C)
   
 write_csv(soil_export, here::here("processed_data", "for_HM_MS", "Soil_temp.csv"))
+
+soil_export_partitioning <- soil_temp %>%
+  select(DateTime_EST, MIU_VALVE, SoilTemp_C)
+  
+write_csv(soil_export_partitioning, here::here("processed_data", "Soil_temp_2025.csv"))
 ```
 
 CH4 and met
