@@ -11,11 +11,17 @@ library(tidyverse)
 library(data.table)
 Sys.setenv(TZ = "EST")
 
+cutoff_start = 240
+cutoff_end = 510
+
 #### Load data ####
 target <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
   mutate(flux_start = force_tz(flux_start, tzone = "EST"),
          flux_end = force_tz(flux_end, tzone = "EST"),
-         TIMESTAMP = force_tz(TIMESTAMP, tzone = "EST")) %>%
+         TIMESTAMP = force_tz(TIMESTAMP, tzone = "EST"),
+         CH4_se = log(CH4_se),
+         CO2_se = log(CO2_se)) %>%
+  #rename(Chamber = MIU_VALVE) %>%
   rename(flux_time = TIMESTAMP) %>%
   filter(!duplicated(flux_time),
          as_date(flux_time) >= START,
@@ -32,45 +38,16 @@ chamber_levels <- c(
   "c_10_e4.5", "c_11_e5.25", "c_12_e6.0"
 )
 
-#### Identify ebullition events ####
-
-start_cutoff <- 240 # Buffer of time after flux window
-end_cutoff <- 510
-
-eb_by_roll_var <- raw %>%
-  filter(!is.na(value),
-         change_s >= start_cutoff,
-         change_s <= end_cutoff) %>%
-  group_by(Chamber, flux_time) %>%
-  mutate(
-    delta = value - lag(value),
-    run_var = RcppRoll::roll_var(value, 5, fill = NA),
-    ebullition = run_var > 0.001 & 
-      delta > 0
-  ) %>%
-  summarize(ebullition = sum(ebullition, na.rm = T) > 0,
-            CH4_slope_ppm_per_day_ebullition = (last(value) - first(value)) /
-              (last(change_s) - first(change_s)) *60*60*24) %>%
-  mutate(
-    #Can't have negative ebullition
-    ebullition = ifelse(CH4_slope_ppm_per_day_ebullition < 0,
-                        F,
-                        ebullition),
-    #Don't record ebullition flux if not ebullition
-    CH4_slope_ppm_per_day_ebullition = ifelse(
-      !ebullition,
-      NA,
-      CH4_slope_ppm_per_day_ebullition))
-
 #### QAQC by standard error ####
 filt_ch4 <- target %>%
-  left_join(eb_by_roll_var) %>%
   # Run this QAQC on ONLY the linear fluxes
   filter(is.na(ebullition) | !ebullition) %>%
   filter(!is.na(CH4_slope_ppm_per_day)) %>%
   group_by(MIU_VALVE) %>%
   mutate(
-    cutoff = mean(CH4_se, na.rm = TRUE)+3*sd(CH4_se, na.rm = TRUE),
+    cutoff = mean(
+      CH4_se, na.rm = TRUE)+
+      3 * sd(CH4_se, na.rm = TRUE),
     keep = ifelse(!is.na(CH4_se) & CH4_se < cutoff, TRUE, F)
   )
 
@@ -79,7 +56,7 @@ filt_co2 <- target %>%
   group_by(MIU_VALVE) %>%
   filter(!is.na(CO2_slope_ppm_per_day)) %>%
   mutate(
-    cutoff_co2 = mean(CO2_se, na.rm = TRUE)+3*sd(CO2_se, na.rm = TRUE),
+    cutoff_co2 = mean(CO2_se, na.rm = TRUE)+ 3 * sd(CO2_se, na.rm = TRUE),
     keep_co2 = ifelse(!is.na(CO2_se) & CO2_se < cutoff_co2, TRUE, F)
   )
 
@@ -147,8 +124,8 @@ filt %>%
 check_these <- filt %>%
   group_by(MIU_VALVE) %>%
   arrange(-CH4_se) %>%
-  filter(row_number() <= 100) %>%
-  select(MIU_VALVE, flux_time, keep, CH4_se)
+  filter(row_number() <= 10) %>%
+  select(MIU_VALVE, flux_time, keep, CH4_se, ebullition)
 
 write_csv(check_these, here::here("processed_data/worst_fits.csv"))
 
@@ -158,10 +135,10 @@ to_plot <- check_these %>%
 
 ch <- 8
 to_plot %>%
-  left_join(eb_by_roll_var) %>%
+  ungroup() %>%
   filter(MIU_VALVE == ch,
-         change_s >= start_cutoff, 
-         change_s <= end_cutoff) %>%
+         change_s >= cutoff_start, 
+         change_s <= cutoff_end) %>%
   filter(!ebullition) %>%
   mutate(label = format(TIMESTAMP, "%b-%d")) %>%
   group_by(label) %>%
@@ -180,7 +157,6 @@ joined <- target %>%
   mutate(Chamber = factor(MIU_VALVE,
                           levels = 1:12,
                           labels = chamber_levels)) %>%
-  left_join(eb_by_roll_var) %>%
   mutate(
     # Some were removed intentionally
     CH4_slope_ppm_per_day_ebullition = 
@@ -220,7 +196,6 @@ df <- joined %>%
 # Summarize pct removed
 target %>%
   left_join(removal) %>%
-  left_join(eb_by_roll_var) %>%
   mutate(keep = ifelse(is.na(keep),
                        ebullition,
                        keep)) %>%
@@ -455,3 +430,4 @@ merged_export <- merged_grid %>%
   as_tibble()
 
 write_csv(merged_export, here::here("processed_data", "partitioned_co2_variability_MS.csv"))
+
