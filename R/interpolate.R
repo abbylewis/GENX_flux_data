@@ -36,7 +36,7 @@ ch4 <- flux_reg %>%
       TRUE ~ NA
     ),
     yday = yday(date_join)) %>%
-  arrange(MIU_VALVE)
+  arrange(MIU_VALVE) 
 
 # Confirm CH4 looks reasonable
 ch4 %>%
@@ -173,8 +173,8 @@ ch4 %>%
   facet_wrap(~MIU_VALVE)
 
 ch4 %>%
-  filter(MIU_VALVE == 12) %>%
-  ggplot(aes(x = CH4, y = CH4_rf)) +
+  filter(MIU_VALVE == 8) %>%
+  ggplot(aes(x = CH4, y = CH4_rf, color = hour(flux_time))) +
   geom_point() +
   geom_abline(slope = 1) +
   facet_wrap(~MIU_VALVE, scales = "free")
@@ -241,7 +241,7 @@ ch4 %>%
   summarize(nas = sum(is.na(CH4_filled)))
 
 ch4 %>%
-  filter(MIU_VALVE == 12) %>%
+  filter(MIU_VALVE == 8) %>%
   ggplot(aes(x = TIMESTAMP, y = CH4_filled)) +
   geom_point(aes(color = is.na(CH4))) +
   geom_smooth() +

@@ -1,0 +1,142 @@
+---
+title: "CH4 analyses"
+author: "Abby Lewis"
+date: "2026-01-20"
+output: html_document
+---
+
+## Overview
+
+This file contains code to analyze and visualize the effects of soil warming on methane emissions, including changes in the proportional contribution of extreme fluxes (i.e., top 5%, 1%, and 0.2%). Code chunks should be run in order.
+
+### Table of contents: 
+
+-   Step 1: Load data and packages
+-   Step 2: Calculate summary statistics
+-   Step 3: Plot data summary (Figure 2)
+-   Step 4: Analyze the contribution of extreme fluxes (Figure 3)
+-   Step 5: Simulate low-frequency sampling to assess bias (Figure 4)
+-   Step 6: Daytime and WL sampling biases (SI)
+-   Step 7: Analyze residuals for annual and extreme fluxes
+
+
+## Step 1: Load data and packages
+
+```{r setup}
+# Load packages and functions
+library(tidyverse)
+source("hm_style.R")
+source("make_lm_label.R")
+source("calc_bias.R")
+
+# Load data
+ch4 <- read_csv(here::here("01_Data", "GENX_flux_data_interpolated_with_drivers.csv")) %>%
+  mutate(DateTime_EST = with_tz(DateTime_EST, tz = "EST"),
+         Chamber = factor(Chamber, levels = chamber_labels),
+         date = as_date(DateTime_EST)
+  )
+
+soil_temp <- read_csv(here::here("01_Data", "Soil_temp.csv")) %>%
+  mutate(DateTime_EST = with_tz(DateTime_EST, tz = "EST"),
+         Chamber = factor(Chamber, levels = chamber_labels))
+```
+
+
+```{r}
+library(ggh4x)
+df <- ch4 %>%
+  mutate(
+    day = ifelse(GPP_umol_m2_h > 0, "day", "night")
+  ) %>%
+  group_by(date) %>%
+  mutate(temp = mean(AirTemp_C, na.rm = T),
+         depth = mean(Depth_cm, na.rm = T),
+         reco = mean(Reco_umol_m2_h, na.rm = T),
+         gpp = mean(GPP_umol_m2_h, na.rm = T)) %>%
+  group_by(date, day, Chamber, temp, depth, reco, gpp) %>%
+  summarize(CH4 = mean(CH4_umol_m2_h),
+            temp = unique(temp),
+            depth = unique(depth),
+            reco = unique(reco),
+            gpp = unique(gpp),
+            .groups = "drop") %>%
+  pivot_wider(names_from = day, values_from = CH4) %>%
+  mutate(yday = yday(date)) %>%
+  group_by(Chamber) %>%
+  mutate(
+    lims = list(range(c(day, night), na.rm = TRUE))
+  ) %>%
+  ungroup()
+
+lims_list <- df %>%
+  arrange(Chamber) %>%
+  distinct(Chamber, lims) %>%
+  pull(lims)
+
+df_smoothed <- df %>%
+  filter(!is.na(day),
+         !is.na(night)) %>%
+  group_by(Chamber) %>%
+  mutate(
+    day_smooth = predict(loess(day ~ yday, span = 0.3)),
+    night_smooth = predict(loess(night ~ yday, span = 0.3))
+  )
+
+ggplot(df, aes(x = night, y = day)) +
+  geom_abline(slope = 1) +
+  geom_point(aes(color = yday), shape = 21, alpha = 0.2) +
+  geom_point(data = df_smoothed, 
+             aes(y = day_smooth, x = night_smooth),
+             color = "black") +
+  geom_point(data = df_smoothed, 
+             aes(y = day_smooth, x = night_smooth, color = yday),
+             size = 0.5) +
+  facet_wrap(~ Chamber, scales = "free") +
+  ggh4x::facetted_pos_scales(
+    x = lapply(lims_list, \(z)
+      scale_x_continuous(limits = z)
+    ),
+    y = lapply(lims_list, \(z)
+      scale_y_continuous(limits = z)
+    )
+  ) +
+  egg::theme_article() +
+  theme(aspect.ratio = 1) +
+  scale_color_viridis_c()
+
+ggplot(df, aes(x = night, y = day)) +
+  geom_abline(slope = 1) +
+  geom_point(aes(color = yday), shape = 21, alpha = 0.2) +
+  geom_point(data = df_smoothed, 
+             aes(y = day_smooth, x = night_smooth),
+             color = "black") +
+  geom_point(data = df_smoothed, 
+             aes(y = day_smooth, x = night_smooth, color = yday),
+             size = 0.5) +
+  facet_wrap(~ Chamber) +
+  egg::theme_article() +
+  theme(aspect.ratio = 1) +
+  scale_color_viridis_c()
+
+df %>%
+  filter(Chamber %in% c("Ch. 1 (+0 ºC)",
+                        "Ch. 2 (-0.1 ºC)")) %>%
+  ggplot(aes(x = night, y = day)) +
+  geom_abline(slope = 1) +
+  geom_point(aes(color = yday), shape = 21, alpha = 0.2) +
+  geom_point(data = df_smoothed %>%
+  filter(Chamber %in% c("Ch. 1 (+0 ºC)",
+                        "Ch. 2 (-0.1 ºC)")), 
+             aes(y = day_smooth, x = night_smooth),
+             color = "black") +
+  geom_point(data = df_smoothed %>%
+  filter(Chamber %in% c("Ch. 1 (+0 ºC)",
+                        "Ch. 2 (-0.1 ºC)")), 
+             aes(y = day_smooth, x = night_smooth, color = yday),
+             size = 0.5) +
+  facet_wrap(~ Chamber) +
+  egg::theme_article() +
+  theme(aspect.ratio = 1) +
+  scale_color_viridis_c()
+```
+

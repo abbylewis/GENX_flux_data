@@ -140,6 +140,7 @@ df %>%
   ggplot(aes(x = flux_time, y = CH4_slope_ppm_per_day)) +
   geom_line() +
   theme_minimal() +
+  coord_cartesian(ylim = c(0,20))+
   facet_wrap(~MIU_VALVE, scales = "free_y")
 
 # Summarize pct removed
@@ -148,6 +149,7 @@ df %>%
 
 # Load data
 driver <- read_csv(here::here("processed_data", "met_2025_L1.csv")) %>%
+  mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST")) %>%
   filter(as_date(TIMESTAMP) >= START,
          as_date(TIMESTAMP) <= END)
 
@@ -159,6 +161,7 @@ driver$DateTime <- as.POSIXct(driver$driver_time, tz = "EST")
 
 # Soil temp
 temp <- read_csv(here::here("processed_data", "Soil_temp_2025.csv")) %>% 
+  mutate(DateTime_EST = with_tz(DateTime_EST)) %>%
   filter(as_date(DateTime_EST) >= START, 
          as_date(DateTime_EST) <= END)
 temp <- temp %>%
@@ -186,7 +189,7 @@ merged <- driver[
 
 # Time difference between flux and matched soil temperature
 merged[, temp_time_diff := abs(temp_time - flux_time)]
-merged[, met_time_diff := abs(met_time - flux_time)]
+merged[, met_time_diff := abs(driver_time - flux_time)]
 
 merged[met_time_diff > 30 * 60, # 30 minute window
        c("AirTC_Avg", "PAR_Den_C_Avg", "Depth_cm") := NA]
@@ -224,8 +227,8 @@ merged <- merged %>%
   ) %>%
   ungroup() %>%
   select(all_of(c("MIU_VALVE", "DateTime", "flux_time", "NEE", "CH4", "N2O", 
-                  "PAR", "Ta", "SoilTemp_C",
-                  "CH4_R2", "CO2_R2", "CH4_se", "CO2_se", "Ebullition_yn")))
+                  "PAR", "Ta", "SoilTemp_C", "CH4_R2", "CO2_R2", "CH4_se", 
+                  "CO2_se", "Ebullition_yn")))
 
 merged %>%
   group_by(MIU_VALVE) %>%
@@ -371,13 +374,13 @@ setnames(
 )
 
 merged_grid_final[
-  abs(temp_time - flux_time) > 60 * 60,
+  abs(temp_time - DateTime) > 60 * 60,
   SoilTemp_C := NA_real_
 ]
 
 merged_grid_final[
-  abs(driver_time - flux_time) > 30 * 60,
-  c("Ta", "PAR", "Depth_cm") := NA
+  abs(driver_time - DateTime) > 60 * 60,
+  c("Ta", "PAR", "Depth_cm", "Salinity") := NA
 ]
 
 for (ch in chambers) {
