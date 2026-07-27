@@ -17,10 +17,6 @@ jobs:
       run: install.packages(c("rsconnect", "slackr"))
       shell: Rscript {0}
       
-    - name: set auth
-      run: |
-        Rscript -e "rsconnect::setAccountInfo(name='aslewis', token=${{secrets.TOKEN}}, secret=${{secrets.SECRET}})"
-
     - name: set env and run
       env:
         SLACKRTOKEN: ${{ secrets.SLACKRTOKEN }}
