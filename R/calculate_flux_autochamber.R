@@ -100,7 +100,7 @@ calculate_flux <- function(start_date = NULL,
       #Combine
       errors_comb <- autochamber::combine_slopes(new = data_errors, old = old_errors)
     } else {
-      errors_comb <- old_errors
+      errors_comb <- data_errors
     }
     
     errors_small <- errors_comb |>
@@ -144,7 +144,7 @@ calculate_flux <- function(start_date = NULL,
 #calculate_flux(reprocess = T,
 #              start_date = as.Date("2025-03-01"),
 #              end_date = Sys.Date())
-
+#
 #test <- calculate_flux(reprocess = T,
 #                       start_date = as.Date("2025-03-01"),
 #                       end_date = as.Date("2025-12-01"))
