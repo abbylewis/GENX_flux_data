@@ -388,17 +388,15 @@ output$plot_flux <- renderPlotly({
   }
   
   part_recent2 <- part_recent %>%
-    rename(Chamber = MIU_VALVE) %>%
-    select(c(CH4, N2O, NEE, H2O, DateTime, Chamber)) %>%
-    pivot_longer(matches("CH4|N2O|NEE|H2O"),
+    select(c(CH4, N2O, NEE, DateTime, Chamber)) %>%
+    pivot_longer(matches("CH4|N2O|NEE"),
       names_to = "gas"
     ) %>%
     mutate(gas = gas %>%
              replace_values(
                "CH4" ~ "CH₄",
                "CO2" ~ "CO₂",
-               "N2O" ~ "N₂O",
-               "H2O" ~ "H₂O"
+               "N2O" ~ "N₂O"
              ),
            year = year(DateTime)) %>%
     filter(!gas == "Flag")
@@ -484,8 +482,7 @@ output$plot_co2 <- renderPlotly({
   }
   
   part_recent2 <- part_recent %>%
-    rename(Chamber = MIU_VALVE) %>%
-    select(c(NEE, GPP, Reco, H2O, DateTime, Chamber)) %>%
+    select(c(NEE, GPP, Reco, DateTime, Chamber)) %>%
     pivot_longer(c(NEE, GPP, Reco),
       names_to = "gas"
     ) %>%
@@ -696,7 +693,6 @@ output$plot_forecast <- renderPlotly({
   }
 
   part_recent2 <- part_recent %>%
-    rename(Chamber = MIU_VALVE) %>%
     select(c(CH4, DateTime, Chamber)) %>%
     pivot_longer(matches("CH4"),
       names_to = "gas"
@@ -793,8 +789,6 @@ output$flux_wl <- renderPlotly({
   }
   
   part_wl <- part_recent %>%
-    rename(
-      Chamber = MIU_VALVE) %>%
     select(DateTime, Chamber, CH4, Depth_cm) %>%
     pivot_longer(c(CH4, Depth_cm), names_to = "variable") %>%
     mutate(variable = case_match(variable,
@@ -877,7 +871,7 @@ output$plot_raw <- renderPlotly({
       as_date(TIMESTAMP) == input$raw_date,
       Chamber == input$raw_chamber
     ) %>%
-    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm|H2O_ppm"),
+    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm"),
       names_to = "gas"
     ) %>%
     mutate(
@@ -885,7 +879,6 @@ output$plot_raw <- renderPlotly({
         "CH4d_ppm" ~ "CH₄",
         "CO2d_ppm" ~ "CO₂",
         "N2Od_ppm" ~ "N₂O",
-        "H2O_ppm" ~ "H₂O",
         .default = gas
       ),
       Chamber = factor(Chamber,
@@ -936,7 +929,7 @@ output$plot_raw <- renderPlotly({
 
 output$plot_time <- renderPlotly({
   raw_plot <- raw %>%
-    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm|H2O_ppm"),
+    pivot_longer(matches("CH4d_ppm|N2Od_ppm|CO2d_ppm"),
       names_to = "gas"
     ) %>%
     mutate(
@@ -944,7 +937,6 @@ output$plot_time <- renderPlotly({
         "CH4d_ppm" ~ "CH₄",
         "CO2d_ppm" ~ "CO₂",
         "N2Od_ppm" ~ "N₂O",
-        "H2O_ppm" ~ "H₂O",
         .default = gas
       ),
       Chamber = factor(Chamber,

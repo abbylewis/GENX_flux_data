@@ -135,7 +135,9 @@ old_temp <- read_csv(here::here("processed_data", "Soil_temp_2025.csv")) %>%
 new_temp <- read_csv(here::here("processed_data", "soil_temp_hourly.csv")) %>% 
   mutate(DateTime_EST = force_tz(TIMESTAMP))%>%
   select(-TIMESTAMP) %>%
-  filter(DateTime_EST > max(old_temp$DateTime_EST))
+  filter(DateTime_EST > max(old_temp$DateTime_EST)) %>%
+  rename(SoilTemp_C = SoilTemp_25cm_C,
+         MIU_VALVE = Chamber)
 
 temp <- bind_rows(old_temp, new_temp) %>%
   rename(temp_time = DateTime_EST) %>%
