@@ -298,14 +298,14 @@ Shiny.addCustomMessageHandler("hideLoadingOverlay", function(message) {
 <div class="form-group shiny-input-container">
 <label class="control-label" id="raw_date-label" for="raw_date">Date</label>
 <div>
-<select id="raw_date" class="shiny-input-select"><option value="2026-07-20">2026-07-20</option>
-<option value="2026-07-21">2026-07-21</option>
+<select id="raw_date" class="shiny-input-select"><option value="2026-07-21">2026-07-21</option>
 <option value="2026-07-22">2026-07-22</option>
 <option value="2026-07-23">2026-07-23</option>
 <option value="2026-07-24">2026-07-24</option>
 <option value="2026-07-25">2026-07-25</option>
 <option value="2026-07-26">2026-07-26</option>
-<option value="2026-07-27" selected="">2026-07-27</option></select>
+<option value="2026-07-27">2026-07-27</option>
+<option value="2026-07-28" selected="">2026-07-28</option></select>
 <script type="application/json" data-for="raw_date" data-nonempty="">{"plugins":["selectize-plugin-a11y"]}</script>
 </div>
 </div>
@@ -374,7 +374,7 @@ Shiny.addCustomMessageHandler("hideLoadingOverlay", function(message) {
 <div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-07-27" data-initial-date="2026-07-27" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-07-28" data-initial-date="2026-07-28" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div class="cell-output-display">
@@ -831,30 +831,45 @@ output$plot_wl <- renderPlotly({
 })
 
 ################ SOIL TEMP ####################
-soil_temp <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/soil_temp_daily.csv")
+soil_temp <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/soil_temp_hourly.csv")
 output$plot_soil_temp <- renderPlotly({
   if(input$compare_years == "Compare years"){
     st_recent <- soil_temp %>%
       filter(
-        yday(as_date(Date)) <= yday(input$today),
-        yday(Date) > (yday(input$today) - input$days_to_plot)
+        yday(as_date(TIMESTAMP)) <= yday(input$today),
+        yday(as_date(TIMESTAMP)) > (yday(input$today) - input$days_to_plot)
       ) %>%
-      mutate(year = year(Date))
+      mutate(year = year(TIMESTAMP))
   } else {
     st_recent <- soil_temp %>%
       filter(
-        as_date(Date) <= input$today,
-        Date > (input$today - days(input$days_to_plot))
+        as_date(TIMESTAMP) <= input$today,
+        TIMESTAMP > (input$today - days(input$days_to_plot))
       ) %>%
-      mutate(year = year(Date))
+      mutate(year = year(TIMESTAMP))
+  }
+  
+  if (input$daily == "Daily mean") {
+    st_recent2 <- st_recent %>%
+      mutate(
+        TIMESTAMP = as_date(TIMESTAMP),
+        TIMESTAMP = as.POSIXct(TIMESTAMP)
+      ) %>%
+      group_by(TIMESTAMP, Chamber, year) %>%
+      summarize(
+        SoilTemp_25cm_C = mean(SoilTemp_25cm_C, na.rm = T),
+        .groups = "drop"
+      )
+  } else {
+    st_recent2 <- st_recent
   }
 
-  p1 <- st_recent %>%
+  p1 <- st_recent2 %>%
     mutate(Chamber = factor(Chamber,
       levels = 1:12,
       labels = chamber_levels
     )) %>%
-    ggplot(aes(x = Date, y = SoilTemp_25cm_C, color = Chamber)) +
+    ggplot(aes(x = TIMESTAMP, y = SoilTemp_25cm_C, color = Chamber)) +
     geom_point(size = 0.5) +
     {
       if (input$smooth == "Smoothed") {
