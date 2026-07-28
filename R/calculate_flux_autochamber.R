@@ -40,6 +40,11 @@ calculate_flux <- function(start_date = NULL,
     files,
     format = "GENX"
   ) |>
+    dplyr::mutate(
+      Diag_7810 = as.integer(dplyr::na_if(Diag_7810, "NAN")),
+      Diag_7820 = as.integer(dplyr::na_if(Diag_7820, "NAN")),
+      Chamber = as.integer(Chamber)
+    ) |>
     dplyr::filter(lubridate::year(TIMESTAMP) >= 2021,
                   !is.na(Chamber),
                   Chamber %in% 1:12
@@ -81,27 +86,21 @@ calculate_flux <- function(start_date = NULL,
   # Export errors
   if("Diag_7810" %in% colnames(data_small)) {
     data_errors <- data_small |>
-      dplyr::select(TIMESTAMP, Chamber, Diag_7810, Diag_7820) |>
+      dplyr::select(TIMESTAMP, Chamber, Diag_7810, Diag_7820) %>%
+      filter(as_date(TIMESTAMP) > as_date("2026-07-07"))
+      
+    # Load older data
+    old_errors <- readr::read_csv(here::here("processed_data", "error_codes.csv"),
+                                  show_col_types = F
+    ) |>
       dplyr::mutate(
-        Diag_7810 = as.integer(dplyr::na_if(Diag_7810, "NAN")),
-        Diag_7820 = as.integer(dplyr::na_if(Diag_7820, "NAN")),
-        Chamber = as.integer(Chamber)
-      )
-    if (!reprocess | !is.null(start_date)) {
-      # Load older data
-      old_errors <- readr::read_csv(here::here("processed_data", "error_codes.csv"),
-                             show_col_types = F
-      ) |>
-        dplyr::mutate(
-          TIMESTAMP = lubridate::force_tz(TIMESTAMP, tz = "EST"),
-          Diag_7810 = as.integer(Diag_7810),
-          Diag_7820 = as.integer(Diag_7820),
-          Chamber = as.integer(Chamber))
-      #Combine
-      errors_comb <- autochamber::combine_slopes(new = data_errors, old = old_errors)
-    } else {
-      errors_comb <- data_errors
-    }
+        TIMESTAMP = lubridate::force_tz(TIMESTAMP, tz = "EST"),
+        Diag_7810 = as.integer(Diag_7810),
+        Diag_7820 = as.integer(Diag_7820),
+        Chamber = as.integer(Chamber))
+    
+    #Combine
+    errors_comb <- autochamber::combine_slopes(new = data_errors, old = old_errors)
     
     errors_small <- errors_comb |>
       dplyr::filter(lubridate::second(TIMESTAMP) == 0)
