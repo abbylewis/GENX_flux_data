@@ -27,7 +27,7 @@ target <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
          as_date(flux_time) >= START,
          as_date(flux_time) <= END)
 
-raw <- read_csv(here::here("processed_data/raw_comb.csv")) %>%
+raw <- read_csv(here::here("processed_data","raw_comb.csv")) %>%
   filter(gas == "CH₄") %>%
   group_by(group) %>%
   mutate(flux_time = first(TIMESTAMP))
@@ -149,6 +149,7 @@ df %>%
 
 # Load data
 driver <- read_csv(here::here("processed_data", "met_2025_L1.csv")) %>%
+  # Note this is created in the daily partitioning file
   mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST")) %>%
   filter(as_date(TIMESTAMP) >= START,
          as_date(TIMESTAMP) <= END)
@@ -412,7 +413,7 @@ merged_grid_final[, is_day := PAR >= par_night_thresh]
 merged_grid_final[, GPP := NA_real_]
 day_mask <- merged_grid_final$is_day & is.finite(merged_grid_final$Reco) & is.finite(merged_grid_final$NEE)
 merged_grid_final[day_mask, GPP := Reco - NEE]
-# enforce non-negative GPP if desired
+# enforce non-negative GPP
 merged_grid_final[day_mask & GPP < 0, GPP := 0]
 merged_grid_final[is.na(NEE), GPP := NA]
 # merged_grid_final[is.na(NEE), Reco := NA]

@@ -26,8 +26,7 @@ recent %>%
 
 ```{r}
 p <- codes %>%
-  filter(as_date(TIMESTAMP) == as_date("2026-06-22"),
-         hour(TIMESTAMP) %in% 7:8) %>%
+  filter(as_date(TIMESTAMP) == as_date("2026-06-02")) %>%
   ggplot(aes(x = TIMESTAMP, y = Diag_7810, color = as.factor(Chamber)))+
   geom_point()
 

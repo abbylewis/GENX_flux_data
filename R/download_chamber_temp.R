@@ -103,6 +103,12 @@ download_chamber_temp <- function(chamber_temp_folder = here::here("Raw_data", "
       SoilTemp_25cm_C = mean(SoilTemp_25cm_C, na.rm = TRUE),
       .groups = "drop"
     )
+  
+  soil_temp_output_hourly <- soil_temp_output %>%
+    mutate(
+      SoilTemp_25cm_C = as.numeric(SoilTemp_25cm_C)
+    ) %>%
+    filter(minute(TIMESTAMP) == 0)
 
   #write.csv(temp_output,
   #  here::here("processed_data", "chamber_temp_1min.csv"),
@@ -116,6 +122,11 @@ download_chamber_temp <- function(chamber_temp_folder = here::here("Raw_data", "
   
   write.csv(soil_temp_output_daily,
             here::here("processed_data", "soil_temp_daily.csv"),
+            row.names = FALSE
+  )
+  
+  write.csv(soil_temp_output_hourly,
+            here::here("processed_data", "soil_temp_hourly.csv"),
             row.names = FALSE
   )
 
