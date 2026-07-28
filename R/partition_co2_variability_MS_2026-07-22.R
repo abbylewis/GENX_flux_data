@@ -22,7 +22,7 @@ target <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
          CH4_se = log(CH4_se),
          CO2_se = log(CO2_se)) %>%
   #rename(Chamber = MIU_VALVE) %>%
-  rename(flux_time = TIMESTAMP) %>%
+  mutate(flux_time = TIMESTAMP) %>%
   filter(!duplicated(flux_time),
          as_date(flux_time) >= START,
          as_date(flux_time) <= END)
@@ -38,8 +38,37 @@ chamber_levels <- c(
   "c_10_e4.5", "c_11_e5.25", "c_12_e6.0"
 )
 
+errors <- read_csv(here::here("processed_data", "error_codes_archive.csv")) %>%
+  mutate(error_time = TIMESTAMP) %>%
+  filter(as_date(error_time) >= START,
+         as_date(error_time) <= END)
+
+#### Add errors ####
+# Convert to data.table
+setDT(target)
+setDT(errors)
+
+# Nearest soil temperature observation within each MIU_VALVE
+target_errors <- errors[
+  target,
+  on = .(TIMESTAMP),
+  roll = "nearest"
+]
+
+# Time difference between flux and matched error
+target_errors[, error_time_diff := abs(error_time - flux_time)]
+
+target_errors[error_time_diff > 30 * 60, # 30 minute window
+       c("Diag_7810") := NA]
+
+# Confirming that there are no problematic data - yay!
+target_errors %>%
+  filter(!is.na(Diag_7810) & Diag_7810>32) 
+
 #### QAQC by inital gas concentration ####
 filt <- target %>%
+  as.tibble() %>%
+  select(-TIMESTAMP) %>%
   ungroup() %>%
   arrange(flux_time) %>%
   dplyr::mutate(
@@ -195,7 +224,7 @@ merged[, met_time_diff := abs(driver_time - flux_time)]
 merged[met_time_diff > 30 * 60, # 30 minute window
        c("AirTC_Avg", "PAR_Den_C_Avg", "Depth_cm") := NA]
 
-merged[met_time_diff > 60 * 60, # 60 minute window
+merged[temp_time_diff > 36 * 60 * 60, # soil temp changes very slowly. 1.5 days is okay
        c("SoilTemp_C") := NA]
 
 # Partition!
@@ -375,7 +404,7 @@ setnames(
 )
 
 merged_grid_final[
-  abs(temp_time - DateTime) > 60 * 60,
+  abs(temp_time - DateTime) > 36 * 60 * 60, # soil temp changes very slowly. 1.5 days is okay
   SoilTemp_C := NA_real_
 ]
 

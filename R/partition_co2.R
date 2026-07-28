@@ -169,7 +169,7 @@ merged[, met_time_diff := abs(driver_time - flux_time)]
 merged[met_time_diff > 30 * 60, # 30 minute window
        c("AirTC_Avg", "PAR_Den_C_Avg", "Depth_cm") := NA]
 
-merged[met_time_diff > 60 * 60, # 60 minute window
+merged[temp_time_diff > 24 * 60 * 60, # Soil temp changes very slowly. 1.5 days is okay
        c("SoilTemp_C") := NA]
 
 # Partition!
@@ -349,7 +349,7 @@ setnames(
 )
 
 merged_grid_final[
-  abs(temp_time - DateTime) > 60 * 60,
+  abs(temp_time - DateTime) > 24 * 60 * 60, # Soil temp changes very slowly. 1.5 days is okay
   SoilTemp_C := NA_real_
 ]
 
