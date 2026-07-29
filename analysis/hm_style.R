@@ -1,21 +1,17 @@
-soil_temps <- read_csv(here::here("processed_data", "soil_temp.csv")) %>%
-  group_by(MIU_VALVE) %>%
-  summarize(mean = mean(Temp_C, na.rm = T), .groups = "drop") %>%
-  arrange(#mean,
-          MIU_VALVE) %>%
-  mutate(#new_name = row_number(),
-    new_name = MIU_VALVE,
-         dif = mean - mean[new_name == 1],
-         label = paste0("Ch. ", new_name, " (+", round(dif,1), " ºC)"))
-
-chamber_labels2 <- soil_temps$label
-chamber_levels <- soil_temps$MIU_VALVE
+# Load soil data to format labels in the right order
+soil_labs <- read_csv(here::here("processed_data", "for_HM_MS", "Soil_temp.csv")) %>%
+  mutate(ch = as.numeric(trimws(substr(Chamber, 5, 6)))) %>%
+  select(ch, Chamber) %>%
+  arrange(ch) %>%
+  distinct()
+chamber_labels <- soil_labs$Chamber
 
 # Colorblind friendly pride palette
 # https://www.reddit.com/r/vexillology/comments/v2luae/the_6colour_pride_flag_but_colourblindfriendly/
 color.vals <- c("#D60303", "#FF790B", "#EAEE03", "#06D68B", "#017EFF", "blue4")
 color.gradient <- colorRampPalette(rev(color.vals))(12)
 
+# Theme for all plots
 theme_hm <- egg::theme_article() +
   theme(
     panel.grid.major = element_line(color = "grey93", linewidth = 0.5),
@@ -29,3 +25,12 @@ theme_hm <- egg::theme_article() +
     legend.justification = "left",
     legend.location = "plot"
   )
+
+# Themes for Fig 2
+panel_theme <- theme(
+  plot.margin = margin(0.1, 1, 0.1, 1, unit = "mm")
+)
+top_theme <- theme(
+  axis.text.x = element_blank(),
+  axis.ticks.x = element_blank()
+)

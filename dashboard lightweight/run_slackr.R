@@ -4,15 +4,15 @@ install.packages("slackr")
 library(tidyverse)
 
 # Check for errors
-data <- read.csv(here::here("processed_data", "L0_for_dashboard.csv"))
+data <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
 error_check <- data %>%
   filter(!is.na(flux_start)) %>%
   group_by(MIU_VALVE) %>%
-  arrange(rev(TIMESTAMP)) %>%
+  filter(as_date(TIMESTAMP) > Sys.time() - hours(12)) %>%
   summarize(
     last_timestamp = max(TIMESTAMP),
-    r2_check_ch4 = median(CH4_R2[1:5]),
-    r2_check_co2 = median(CO2_R2[1:5])
+    r2_check_ch4 = median(CH4_R2[1:5], na.rm = T),
+    r2_check_co2 = median(CO2_R2[1:5], na.rm = T)
   ) %>%
   filter(r2_check_ch4 < 0.7 & r2_check_co2 < 0.7)
 

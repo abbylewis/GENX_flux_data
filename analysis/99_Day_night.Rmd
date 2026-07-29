@@ -30,13 +30,13 @@ source("make_lm_label.R")
 source("calc_bias.R")
 
 # Load data
-ch4 <- read_csv(here::here("01_Data", "GENX_flux_data_interpolated_with_drivers.csv")) %>%
+ch4 <- read_csv(here::here("processed_data", "for_HM_MS","GENX_flux_data_interpolated_with_drivers.csv")) %>%
   mutate(DateTime_EST = with_tz(DateTime_EST, tz = "EST"),
          Chamber = factor(Chamber, levels = chamber_labels),
          date = as_date(DateTime_EST)
   )
 
-soil_temp <- read_csv(here::here("01_Data", "Soil_temp.csv")) %>%
+soil_temp <- read_csv(here::here("processed_data", "for_HM_MS","Soil_temp.csv")) %>%
   mutate(DateTime_EST = with_tz(DateTime_EST, tz = "EST"),
          Chamber = factor(Chamber, levels = chamber_labels))
 ```
