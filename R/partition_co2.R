@@ -19,11 +19,6 @@ target <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
   rename(flux_time = TIMESTAMP) %>%
   filter(!duplicated(flux_time))
 
-test <- target %>%
-  filter(as_date(flux_time) == "2026-06-02") %>%
-  ggplot(aes(x = flux_time, y = CO2_slope_ppm_per_day))+
-  geom_point()
-
 #QAQC
 #### QAQC by inital gas concentration ####
 filt <- target %>%
@@ -70,12 +65,12 @@ filt <- target %>%
   )
 
 #Visualize
-filt %>%
-  filter(!ebullition) %>%
-  ggplot(aes(x = flux_time, y = CH4_slope_ppm_per_day)) +
-  geom_line() +
-  theme_minimal() +
-  facet_wrap(~MIU_VALVE)
+#filt %>%
+#  filter(!ebullition) %>%
+#  ggplot(aes(x = flux_time, y = CH4_slope_ppm_per_day)) +
+#  geom_line() +
+#  theme_minimal() +
+#  facet_wrap(~MIU_VALVE)
 
 #### Add ebullition ####
 df <- filt %>%
@@ -109,15 +104,19 @@ met <- read_csv(here::here("processed_data", "met_2025_dashboard.csv")) %>%
   filter(!is.na(TIMESTAMP),
          !duplicated(TIMESTAMP))
 
-met %>%
-  ggplot(aes(x = hour(TIMESTAMP), y = AirTC_Avg))+
-  geom_point()
+#met %>%
+#  ggplot(aes(x = hour(TIMESTAMP), y = AirTC_Avg))+
+#  geom_point()
 
 # Use met water level
 driver <- met %>%
-  filter(Depth > 25) %>% # One weird point in met data
+  filter(is.na(Depth) | Depth > 25) %>% # One weird point in met data
   mutate(Depth = Depth - 58) %>%
   rename(Depth_cm = Depth)
+
+#driver %>%
+#  ggplot(aes(x = TIMESTAMP, y = Depth_cm))+
+#  geom_line()
 
 write_csv(driver, here::here("processed_data", "met_2025_L1.csv"))
 

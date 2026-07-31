@@ -30,9 +30,9 @@ source("make_lm_label.R")
 source("calc_bias.R")
 
 # Load data
-ch4 <- read_csv(here::here("processed_data", "for_HM_MS","GENX_flux_data_interpolated_with_drivers.csv")) %>%
-  mutate(DateTime_EST = with_tz(DateTime_EST, tz = "EST"),
-         Chamber = factor(Chamber, levels = chamber_labels),
+ch4 <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
+  mutate(DateTime_EST = with_tz(DateTime, tz = "EST"),
+         Chamber = factor(MIU_VALVE, levels = 1:12, labels = chamber_labels),
          date = as_date(DateTime_EST)
   )
 
@@ -46,15 +46,15 @@ soil_temp <- read_csv(here::here("processed_data", "for_HM_MS","Soil_temp.csv"))
 library(ggh4x)
 df <- ch4 %>%
   mutate(
-    day = ifelse(GPP_umol_m2_h > 0, "day", "night")
+    day = ifelse(GPP > 0, "day", "night")
   ) %>%
   group_by(date) %>%
-  mutate(temp = mean(AirTemp_C, na.rm = T),
+  mutate(temp = mean(Ta, na.rm = T),
          depth = mean(Depth_cm, na.rm = T),
-         reco = mean(Reco_umol_m2_h, na.rm = T),
-         gpp = mean(GPP_umol_m2_h, na.rm = T)) %>%
+         reco = mean(Reco, na.rm = T),
+         gpp = mean(GPP, na.rm = T)) %>%
   group_by(date, day, Chamber, temp, depth, reco, gpp) %>%
-  summarize(CH4 = mean(CH4_umol_m2_h),
+  summarize(CH4 = mean(CH4),
             temp = unique(temp),
             depth = unique(depth),
             reco = unique(reco),
@@ -76,7 +76,8 @@ lims_list <- df %>%
 df_smoothed <- df %>%
   filter(!is.na(day),
          !is.na(night)) %>%
-  group_by(Chamber) %>%
+  mutate(year = year(date)) %>%
+  group_by(Chamber, year) %>%
   mutate(
     day_smooth = predict(loess(day ~ yday, span = 0.3)),
     night_smooth = predict(loess(night ~ yday, span = 0.3))

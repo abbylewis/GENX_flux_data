@@ -22,8 +22,8 @@ https://www.researchgate.net/publication/399623655_Optimized_wetland_rewetting_s
 sums <- ch4 %>%
   filter(TIMESTAMP <= "2025-11-15")%>%
   mutate(MIU_VALVE = factor(MIU_VALVE,
-    levels = chamber_levels,
-    labels = chamber_labels2
+    levels = 1:12,
+    labels = chamber_labels
   )) %>%
   group_by(date_join) %>%
   filter(length(unique(MIU_VALVE)) == 12) %>%
