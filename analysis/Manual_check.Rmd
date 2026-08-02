@@ -1,0 +1,73 @@
+---
+title: "Manual check"
+author: "Abby Lewis"
+date: "2026-08-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+DAYS_TO_PLOT = 5
+GASES_TO_PLOT = c("CH4_slope_ppm_per_day","N2O_slope_ppm_per_day","CO2_slope_ppm_per_day")
+
+chamber_levels <- c(
+  "c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
+  "c_6_e2.25", "c_7_e3.0", "c_8_e3.75", "c_9_e3.75",
+  "c_10_e4.5", "c_11_e5.25", "c_12_e6.0"
+)
+
+color.gradient <- c(
+  "blue4", "blue3", "turquoise4", "lightseagreen",
+  "mediumseagreen", "limegreen", "yellowgreen", "yellow2",
+  "darkgoldenrod2", "darkorange2", "orangered1", "red2"
+)
+
+fluxes <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", show_col_types = F) %>%
+  rename(Chamber = MIU_VALVE) %>%
+  mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"))
+```
+
+```{r}
+recent <- fluxes %>%
+  filter(
+    as_date(TIMESTAMP) <= Sys.Date(),
+    TIMESTAMP > (Sys.Date() - DAYS_TO_PLOT)) 
+
+recent_formatted <- recent %>%
+  select(c(CH4_slope_ppm_per_day, N2O_slope_ppm_per_day, CO2_slope_ppm_per_day, 
+           TIMESTAMP, Chamber)) %>%
+  pivot_longer(c("CH4_slope_ppm_per_day","N2O_slope_ppm_per_day","CO2_slope_ppm_per_day"),
+               names_to = "gas"
+  ) %>%
+  mutate(year = year(TIMESTAMP)) %>%
+  filter(!gas == "Flag")
+    
+p1 <- recent_formatted %>%
+    mutate(
+      Chamber = factor(Chamber,
+        levels = 1:12,
+        labels = chamber_levels
+      )
+    ) %>%
+    filter(gas %in% GASES_TO_PLOT) %>%
+    ggplot(aes(x = TIMESTAMP, y = value, color = Chamber)) +
+    geom_hline(yintercept = 0, color = "grey70") +
+    geom_point(size = 0.5) +
+    geom_line() +
+    ylab("Flux (µmol/m²/s)") +
+    facet_wrap(~gas, scales = "free_y") +
+    scale_color_manual(
+      values = color.gradient,
+      breaks = chamber_levels
+    ) +
+    theme_bw() +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
+      strip.background = element_rect(fill = "grey95", color = "grey")
+    )
+
+plotly::ggplotly(p1)
+```
+
