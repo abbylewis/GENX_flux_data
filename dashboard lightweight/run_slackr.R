@@ -9,7 +9,7 @@ error_check <- data %>%
   mutate(TIMESTAMP = force_tz(TIMESTAMP, "EST")) %>%
   filter(!is.na(flux_start)) %>%
   group_by(MIU_VALVE) %>%
-  filter(TIMESTAMP > force_tz(Sys.time(), "EST") - hours(24)) %>%
+  filter(TIMESTAMP > (force_tz(Sys.time(), "EST") - hours(24))) %>%
   summarize(
     last_timestamp = max(TIMESTAMP),
     r2_check_ch4 = median(CH4_R2, na.rm = T),
@@ -35,8 +35,8 @@ if (nrow(error_check) > 0) {
 # Check for licor errors
 data <- read.csv(here::here("processed_data", "error_codes.csv"))
 error_check <- data %>%
-  filter(TIMESTAMP >= (Sys.Date() - days(1))) %>%
-  filter((!is.na(Diag_7810) & Diag_7810 > 0) | (!is.na(Diag_7820) & Diag_7820 > 0))
+  filter((!is.na(Diag_7810) & Diag_7810 > 0) | (!is.na(Diag_7820) & Diag_7820 > 0)) %>%
+  filter(TIMESTAMP >= (force_tz(Sys.time(), "EST") - hours(24)))
 
 if (nrow(error_check) > 0) {
   slackr::slackr_setup(token = Sys.getenv("SLACKRTOKEN"),
