@@ -298,14 +298,14 @@ Shiny.addCustomMessageHandler("hideLoadingOverlay", function(message) {
 <div class="form-group shiny-input-container">
 <label class="control-label" id="raw_date-label" for="raw_date">Date</label>
 <div>
-<select id="raw_date" class="shiny-input-select"><option value="2026-07-21">2026-07-21</option>
-<option value="2026-07-22">2026-07-22</option>
-<option value="2026-07-23">2026-07-23</option>
-<option value="2026-07-24">2026-07-24</option>
-<option value="2026-07-25">2026-07-25</option>
-<option value="2026-07-26">2026-07-26</option>
+<select id="raw_date" class="shiny-input-select"><option value="2026-07-26">2026-07-26</option>
 <option value="2026-07-27">2026-07-27</option>
-<option value="2026-07-28" selected="">2026-07-28</option></select>
+<option value="2026-07-28">2026-07-28</option>
+<option value="2026-07-29">2026-07-29</option>
+<option value="2026-07-30">2026-07-30</option>
+<option value="2026-07-31">2026-07-31</option>
+<option value="2026-08-01">2026-08-01</option>
+<option value="2026-08-02" selected="">2026-08-02</option></select>
 <script type="application/json" data-for="raw_date" data-nonempty="">{"plugins":["selectize-plugin-a11y"]}</script>
 </div>
 </div>
@@ -374,7 +374,7 @@ Shiny.addCustomMessageHandler("hideLoadingOverlay", function(message) {
 <div class="cell-output-display">
 <div id="today" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="today-label" for="today">Today</label>
-<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-07-28" data-initial-date="2026-07-28" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="today-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2025-03-18" data-max-date="2026-08-02" data-initial-date="2026-08-02" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div class="cell-output-display">
@@ -533,6 +533,7 @@ Funding for this project was provided by the US Department of Energy, Office of 
 <script type="application/shiny-prerendered" data-context="server-start">
 library(tidyverse)
 library(plotly)
+source("plot_flux.R")
 
 chamber_levels <- c(
   "c_1_amb", "c_2_amb", "c_3_e0.75", "c_4_e1.5", "c_5_e2.25",
@@ -556,7 +557,7 @@ input$today <- Sys.Date()
 input$days_to_plot <- 3
 input$daily <- "Hourly"
 input$smooth <- "Measured"
-input$metrics <- "NEE"
+input$metrics <- c("NEE", "GPP")
 input$compare_years <- "Compare years"
 </script>
  
@@ -590,86 +591,15 @@ updateNumericInput(
 )
 
 output$plot_flux <- renderPlotly({
-  if(input$compare_years == "Compare years"){
-    part_recent <- partitioned %>%
-      filter(
-        yday(as_date(DateTime)) <= yday(input$today),
-        yday(DateTime) > (yday(input$today) - input$days_to_plot)
-      )
-  } else {
-    part_recent <- partitioned %>%
-      filter(
-        as_date(DateTime) <= input$today,
-        DateTime > (input$today - days(input$days_to_plot))
-      )
-  }
-  
-  part_recent2 <- part_recent %>%
-    select(c(CH4, N2O, NEE, DateTime, Chamber)) %>%
-    pivot_longer(matches("CH4|N2O|NEE"),
-      names_to = "gas"
-    ) %>%
-    mutate(gas = gas %>%
-             replace_values(
-               "CH4" ~ "CH₄",
-               "CO2" ~ "CO₂",
-               "N2O" ~ "N₂O"
-             ),
-           year = year(DateTime)) %>%
-    filter(!gas == "Flag")
-
-  if (input$daily == "Daily mean") {
-    part_recent3 <- part_recent2 %>%
-      mutate(
-        DateTime = as_date(DateTime),
-        DateTime = as.POSIXct(DateTime)
-      ) %>%
-      group_by(DateTime, Chamber, gas, year) %>%
-      summarize(
-        value = mean(value, na.rm = T),
-        .groups = "drop"
-      )
-  } else {
-    part_recent3 <- part_recent2
-  }
-
-  p1 <- part_recent3 %>%
-    mutate(
-      Chamber = factor(Chamber,
-        levels = 1:12,
-        labels = chamber_levels
-      ),
-      gas = ifelse(gas == "NEE", "CO₂", gas)
-    ) %>%
-    filter(gas %in% input$gases) %>%
-    ggplot(aes(x = DateTime, y = value, color = Chamber)) +
-    geom_hline(yintercept = 0, color = "grey70") +
-    geom_point(size = 0.5) +
-    {
-      if (input$smooth == "Smoothed") {
-        geom_smooth(se = FALSE, method = "gam")
-      } else {
-        geom_line()
-      }
-    } +
-    ylab("Flux (µmol/m²/s)") +
-    {
-      if(input$compare_years == "Compare years"){
-        facet_grid(gas~year, scales = "free")
-      } else {
-        facet_wrap(~gas, scales = "free_y")
-      }
-    } +
-    scale_color_manual(
-      values = color.gradient,
-      breaks = chamber_levels
-    ) +
-    theme_bw() +
-    theme(
-      axis.title.x = element_blank(),
-      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
-      strip.background = element_rect(fill = "grey95", color = "grey")
-    )
+  p1 <- plot_flux(partitioned, 
+                  compare_years = input$compare_years, 
+                  today = input$today, 
+                  daily = input$daily,
+                  days_to_plot = input$days_to_plot, 
+                  gases = input$gases, 
+                  smooth = input$smooth,
+                  chamber_levels = chamber_levels, 
+                  color.gradient = color.gradient)
 
   plotly::ggplotly(p1, tooltip = c("Chamber", "DateTime", "value")) %>%
     layout(
@@ -684,76 +614,16 @@ output$plot_flux <- renderPlotly({
 
 # Code for plots
 output$plot_co2 <- renderPlotly({
-  if(input$compare_years == "Compare years"){
-    part_recent <- partitioned %>%
-      filter(
-        yday(as_date(DateTime)) <= yday(input$today),
-        yday(DateTime) > (yday(input$today) - input$days_to_plot)
-      )
-  } else {
-    part_recent <- partitioned %>%
-      filter(
-        as_date(DateTime) <= input$today,
-        DateTime > (input$today - days(input$days_to_plot))
-      )
-  }
+  p1 <- plot_flux(partitioned, 
+                  compare_years = input$compare_years, 
+                  today = input$today, 
+                  daily = input$daily,
+                  days_to_plot = input$days_to_plot, 
+                  gases = input$metrics, 
+                  smooth = input$smooth,
+                  chamber_levels = chamber_levels, 
+                  color.gradient = color.gradient)
   
-  part_recent2 <- part_recent %>%
-    select(c(NEE, GPP, Reco, DateTime, Chamber)) %>%
-    pivot_longer(c(NEE, GPP, Reco),
-      names_to = "gas"
-    ) %>%
-    mutate(value = ifelse(gas == "GPP", -value, value),
-           year = year(DateTime)) %>%
-    filter(!gas == "Flag")
-
-  if (input$daily == "Daily mean") {
-    part_recent3 <- part_recent2 %>%
-      mutate(
-        DateTime = as_date(DateTime),
-        DateTime = as.POSIXct(DateTime)
-      ) %>%
-      group_by(DateTime, Chamber, gas, year) %>%
-      summarize(
-        value = mean(value, na.rm = T),
-        .groups = "drop"
-      )
-  } else {
-    part_recent3 <- part_recent2
-  }
-
-  p1 <- part_recent3 %>%
-    mutate(Chamber = factor(Chamber,
-      levels = 1:12,
-      labels = chamber_levels
-    )) %>%
-    filter(gas %in% input$metrics) %>%
-    ggplot(aes(x = DateTime, y = value, color = Chamber)) +
-    geom_hline(yintercept = 0, color = "grey70") +
-    geom_point(size = 0.5) +
-    {
-      if (input$smooth == "Smoothed") {
-        geom_smooth(se = FALSE, method = "gam")
-      } else {
-        geom_line()
-      }
-    } +
-    ylab("Flux (µmol/m²/s)") +
-    {
-      if(input$compare_years == "Compare years"){
-        facet_grid(gas~year, scales = "free")
-      } else {
-        facet_wrap(~gas, nrow = 1)
-      }
-    } +
-    scale_color_manual(values = color.gradient) +
-    theme_bw() +
-    theme(
-      axis.title.x = element_blank(),
-      axis.text.x = element_text(angle = 30, vjust = 1.0, hjust = 1.0),
-      strip.background = element_rect(fill = "grey95", color = "grey")
-    )
-
   plotly::ggplotly(p1, tooltip = c("Chamber", "DateTime", "value")) %>%
     layout(
       legend = list(

@@ -8,6 +8,8 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
+library(tidyverse)
+
 DAYS_TO_PLOT = 5
 GASES_TO_PLOT = c("CH4_slope_ppm_per_day","N2O_slope_ppm_per_day","CO2_slope_ppm_per_day")
 
@@ -23,7 +25,7 @@ color.gradient <- c(
   "darkgoldenrod2", "darkorange2", "orangered1", "red2"
 )
 
-fluxes <- read_csv("https://raw.githubusercontent.com/abbylewis/GENX_flux_data/refs/heads/master/processed_data/L0_for_dashboard.csv", show_col_types = F) %>%
+fluxes <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"), show_col_types = F) %>%
   rename(Chamber = MIU_VALVE) %>%
   mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"))
 ```
