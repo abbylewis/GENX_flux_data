@@ -27,7 +27,7 @@ color.gradient <- c(
 
 fluxes <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"), show_col_types = F) %>%
   rename(Chamber = MIU_VALVE) %>%
-  mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"))
+  mutate(TIMESTAMP = force_tz(TIMESTAMP, "EST"))
 ```
 
 ```{r}

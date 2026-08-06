@@ -162,7 +162,7 @@ ul.task-list li input[type="checkbox"] {
 <div style="width: 50%;">
 <div id="time_date" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="time_date-label" for="time_date">Date</label>
-<input type="text" class="form-control" aria-labelledby="time_date-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2021-04-14" data-max-date="2025-12-31" data-initial-date="2025-08-12" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="time_date-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2021-04-14" data-max-date="2026-12-31" data-initial-date="2026-07-03" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div style="width: 50%;">
@@ -189,7 +189,7 @@ ul.task-list li input[type="checkbox"] {
 <div style="width: 50%;">
 <div id="raw_date" class="shiny-date-input form-group shiny-input-container">
 <label class="control-label" id="raw_date-label" for="raw_date">Date</label>
-<input type="text" class="form-control" aria-labelledby="raw_date-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2021-04-14" data-max-date="2025-12-31" data-initial-date="2025-08-12" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
+<input type="text" class="form-control" aria-labelledby="raw_date-label" title="Date format: yyyy-mm-dd" data-date-language="en" data-date-week-start="0" data-date-format="yyyy-mm-dd" data-date-start-view="month" data-min-date="2021-04-14" data-max-date="2026-12-31" data-initial-date="2026-07-03" data-date-autoclose="true" data-date-dates-disabled="null" data-date-days-of-week-disabled="null">
 </div>
 </div>
 <div style="width: 50%;">
@@ -248,10 +248,10 @@ input$today <- Sys.Date()
 input$days_to_plot <- 3
 input$daily <- "Hourly"
 input$smooth <- "Measured"
-input$time_date <- "2021-07-01"
+input$time_date <- "2026-07-03"
 input$time_hour <- 11
 input$raw_chamber <- "c_4_e1.5"
-input$raw_date <- "2021-05-08"
+input$raw_date <- "2026-07-03"
 </script>
  
 <script type="application/shiny-prerendered" data-context="server">
@@ -259,12 +259,6 @@ input$raw_date <- "2021-05-08"
 ################ Raw data ####################
 raw_comb <- read_csv(here::here("processed_data", "raw_comb.csv")) %>%
   mutate(used = ifelse(change_s >= 225 & change_s <= 515, "yes", "no"))
-
-p <- raw_comb %>%
-  filter(
-    as.Date(TIMESTAMP) == "2021-04-15",
-    hour(TIMESTAMP) == 3
-  )
 
 output$plot_raw <- renderPlotly({
   raw_plot <- raw_comb %>%
@@ -274,6 +268,7 @@ output$plot_raw <- renderPlotly({
     )
 
   p1 <- raw_plot %>%
+    filter(Chamber == "c_12_e6.0") %>%
     ggplot(aes(
       x = change_s, y = value,
       color = used
