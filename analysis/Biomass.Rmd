@@ -197,3 +197,13 @@ counts %>%
   facet_grid(`Measurement type` ~ Year)
 ```
 
+```{r}
+counts %>%
+  mutate(Year = as.numeric(Year)) %>%
+  left_join(df) %>%
+  ggplot(aes(x = Above.g.m2, y = Count, color = `Measurement type`))+
+  geom_point() +
+  facet_wrap(~Year)
+```
+
+

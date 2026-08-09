@@ -1,0 +1,120 @@
+---
+title: "Biomass"
+author: "Abby Lewis"
+date: "2026-02-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load packages and data
+
+# Packages
+library(tidyverse)
+library(readxl)
+
+# Biomass
+files <- list.files("../Raw_data/biomass", full.names = T)
+agb <- files[grepl("aboveground", files)]
+df <- agb %>%
+  map(read_csv, show_col_types = F) %>%
+  bind_rows() %>%
+  mutate(
+    chamber_ref = as.numeric(str_extract(Chamber, "[0-9]+")),
+    chamber_ref = factor(chamber_ref,
+      levels = 1:12,
+      labels = 1:12
+    ),
+    `Measurement type` = ifelse(grepl("Ref", Chamber), "Reference", "Chamber")
+  )
+
+df_25 <- df %>%
+  filter(Year == 2025) %>%
+  group_by(chamber_ref) %>%
+  mutate(TotalC4.g.m2 = mean(TotalC4.g.m2),
+         Above.g.m2 = SCAM.g.m2+TotalC4.g.m2+Other.g.m2)
+```
+
+```{r}
+flux <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled_all.csv"))
+
+flux_25 <- flux %>%
+  filter(TIMESTAMP < "2025-08-01")
+  
+n_days_25 <- as.numeric(difftime(max(flux_25$TIMESTAMP),
+  min(flux_25$TIMESTAMP),
+  units = "days"
+))
+
+# Calculate total GPP
+gpp_25 <- flux_25 %>%
+  group_by(MIU_VALVE) %>%
+  summarize(
+    n = sum(!is.na(GPP_filled)),
+    annual = sum(GPP_filled, na.rm = T) /
+      n / 1000 / 1000 * (n_days_25 * 24),
+    min = min(TIMESTAMP),
+    max = max(TIMESTAMP)) %>%
+  left_join(df_25 %>%
+              mutate(Chamber = as.numeric(Chamber)), by = c("MIU_VALVE" = "Chamber"))
+lm25 <- lm(Above.g.m2~annual, data = gpp_25)
+gpp_25$predicted_AGB_g_m2 <- predict(lm25, gpp_25)
+
+p <- gpp_25 %>%
+  ggplot(aes(x = Above.g.m2, y = annual)) +
+  geom_point(aes(color = MIU_VALVE)) +
+  geom_smooth(method = "lm")
+
+plotly::ggplotly(p)
+
+flux_26 <- flux %>%
+  filter(TIMESTAMP > "2026-03-17",
+         TIMESTAMP < "2026-08-06")
+  
+n_days_26 <- as.numeric(difftime(max(flux_26$TIMESTAMP),
+  min(flux_26$TIMESTAMP),
+  units = "days"
+))
+
+# Calculate total GPP
+gpp_26 <- flux_26 %>%
+  group_by(MIU_VALVE) %>%
+  summarize(
+    n = sum(!is.na(GPP_filled)),
+    annual = sum(GPP_filled, na.rm = T) /
+      n / 1000 / 1000 * (n_days * 24),
+    min = min(TIMESTAMP),
+    max = max(TIMESTAMP))
+gpp_26$predicted_AGB_g_m2 <- predict(lm25, gpp_26)
+
+predictions <- bind_rows(gpp_26, gpp_25) %>%
+  mutate(Year = year(min),
+         MIU_VALVE = factor(MIU_VALVE)) %>%
+  select(MIU_VALVE, Above.g.m2, predicted_AGB_g_m2, Year) %>%
+  pivot_longer(-c(MIU_VALVE, Year)) %>%
+  mutate(name = recode_values(name,
+                              "Above.g.m2"~"Observed",
+                              "predicted_AGB_g_m2"~"Predicted")) 
+
+pred_fig <- predictions %>%
+  ggplot(aes(x = Year, y = value, color = name))+
+  geom_point()+
+  geom_line()+
+  ylab("Aboveground biomass (g/m2)")+
+  scale_x_continuous(breaks = c(2025, 2026),
+                     limits = c(2024.5, 2026.5))+
+  facet_wrap(~MIU_VALVE)+
+  egg::theme_article()
+
+lm_fig <- predictions %>%
+  pivot_wider() %>%
+  ggplot(aes(x = Observed, y = Predicted))+
+  geom_point()+
+  geom_abline()+
+  egg::theme_article()+
+  coord_fixed(ratio = 1)+
+  xlim(400, 2000)+
+  ylim(400, 2000)
+```
+

@@ -5,7 +5,7 @@ library(tidyverse)
 library(data.table)
 library(randomForest)
 
-flux_reg <- read_csv(here::here("processed_data", "partitioned_co2_variability_MS.csv")) %>%
+flux_reg <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
   rename(TIMESTAMP = DateTime) %>%
   filter(!is.na(TIMESTAMP)) %>%
   mutate(TIMESTAMP = with_tz(TIMESTAMP, "EST"),
@@ -258,7 +258,7 @@ ch4 %>%
   geom_point(aes(y = CH4_rf_edm), color = "red")+
   facet_wrap(~MIU_VALVE, scales = "free")
 
-write_csv(ch4, here::here("processed_data", "L2- partitioned_and_gap_filled.csv"))
+write_csv(ch4, here::here("processed_data", "L2- partitioned_and_gap_filled_all.csv"))
 
 # varImpPlot(rf_ch4_models[[9]])
 #
