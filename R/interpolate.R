@@ -12,7 +12,7 @@ flux_reg <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
          flux_time = with_tz(flux_time, "EST"),
          driver_time = with_tz(driver_time, "EST"))
 
-evi <- read_csv(here::here("processed_data", "evi.csv")) %>%
+evi <- read_csv(here::here("processed_data", "EVI_2026.csv")) %>%
   filter(!duplicated(Date))
 
 setDT(flux_reg)

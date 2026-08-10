@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Packages
 library(tidyverse)
 library(readxl)
+source("hm_style.R")
 
 # Biomass
 files <- list.files("../Raw_data/biomass", full.names = T)
@@ -30,14 +31,12 @@ df <- agb %>%
   )
 
 df_25 <- df %>%
-  filter(Year == 2025) %>%
-  group_by(chamber_ref) %>%
-  mutate(TotalC4.g.m2 = mean(TotalC4.g.m2),
-         Above.g.m2 = SCAM.g.m2+TotalC4.g.m2+Other.g.m2)
+  filter(Year == 2025)
 ```
 
 ```{r}
-flux <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled_all.csv"))
+flux <- read_csv(here::here("processed_data", "L2- partitioned_and_gap_filled_all.csv")) %>%
+  mutate(GPP_filled= GPP_filled * (60 * 60))
 
 flux_25 <- flux %>%
   filter(TIMESTAMP < "2025-08-01")
@@ -53,7 +52,7 @@ gpp_25 <- flux_25 %>%
   summarize(
     n = sum(!is.na(GPP_filled)),
     annual = sum(GPP_filled, na.rm = T) /
-      n / 1000 / 1000 * (n_days_25 * 24),
+      n / 1000 / 1000 * (n_days_25 * 24) * 6.022, #g/m2/y
     min = min(TIMESTAMP),
     max = max(TIMESTAMP)) %>%
   left_join(df_25 %>%
@@ -83,7 +82,7 @@ gpp_26 <- flux_26 %>%
   summarize(
     n = sum(!is.na(GPP_filled)),
     annual = sum(GPP_filled, na.rm = T) /
-      n / 1000 / 1000 * (n_days * 24),
+      n / 1000 / 1000 * (n_days_26 * 24) * 6.022,
     min = min(TIMESTAMP),
     max = max(TIMESTAMP))
 gpp_26$predicted_AGB_g_m2 <- predict(lm25, gpp_26)
@@ -97,24 +96,42 @@ predictions <- bind_rows(gpp_26, gpp_25) %>%
                               "Above.g.m2"~"Observed",
                               "predicted_AGB_g_m2"~"Predicted")) 
 
-pred_fig <- predictions %>%
+predictions %>%
   ggplot(aes(x = Year, y = value, color = name))+
   geom_point()+
   geom_line()+
+  geom_hline(yintercept = 0)+
   ylab("Aboveground biomass (g/m2)")+
   scale_x_continuous(breaks = c(2025, 2026),
                      limits = c(2024.5, 2026.5))+
   facet_wrap(~MIU_VALVE)+
   egg::theme_article()
 
-lm_fig <- predictions %>%
+predictions %>%
+  mutate(Chamber = factor(MIU_VALVE,
+                          levels = 1:12,
+                          labels = chamber_labels)) %>%
   pivot_wider() %>%
-  ggplot(aes(x = Observed, y = Predicted))+
+  ggplot(aes(x = Observed, y = Predicted, color = Chamber))+
   geom_point()+
   geom_abline()+
   egg::theme_article()+
   coord_fixed(ratio = 1)+
-  xlim(400, 2000)+
-  ylim(400, 2000)
+  scale_color_manual(values = color.gradient)+
+  xlim(c(400, 2000))+
+  ylim(c(400, 2000))
+
+evi <- read_csv(here::here("processed_data", "EVI_2026.csv")) %>%
+  filter(!duplicated(Date))
+
+evi %>%
+  filter(doy < yday(Sys.Date()),
+         doy > yday("2026-03-01")) %>%
+  mutate(year = year(Date)) %>%
+  ggplot(aes(x = doy, color = as.factor(year)))+
+  geom_line(aes(y = evi_predicted))+
+  geom_point(aes(y= evi_observed))+
+  ylab("EVI")+
+  egg::theme_article()
 ```
 

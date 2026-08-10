@@ -33,30 +33,84 @@ if (nrow(error_check) > 0) {
 }
 
 # Check for licor errors
-data <- read.csv(here::here("processed_data", "error_codes.csv"))
-error_check <- data %>%
-  filter((!is.na(Diag_7810) & Diag_7810 > 0) | (!is.na(Diag_7820) & Diag_7820 > 0)) %>%
-  filter(TIMESTAMP >= (force_tz(Sys.time(), "EST") - hours(24)))
 
-if (nrow(error_check) > 0) {
+# Check for licor errors
+diag_dict <- c(
+  `0`   = "Normal operation (measuring)",
+  `1`   = "Start frequency adjustment; measurements may be noisy",
+  `2`   = "Laser temperature adjustment; measurements may be noisy",
+  `4`   = "Incomplete scan resulted in missing cavity modes; measurements may be noisy",
+  `8`   = "Start-up mode finished; measurements may be noisy",
+  `16`  = "Start-up mode initializing; measurements may be noisy",
+  `32`  = "Spectral fit residual RMS too high; measurements are invalid",
+  `64`  = "Unregulated pressures or temperatures; measurements are invalid",
+  `128` = "Inlet clogged; instrument enters sleep mode",
+  `256` = "Instrument not ready; measurements are invalid"
+)
+
+decode_diag <- function(x, dict) {
+  if (is.na(x)) {
+    return("Missing data")
+  }
+  
+  if (x == 0) {
+    return("0 (Normal operation)")
+  }
+  
+  codes <- as.numeric(names(dict))
+  codes <- codes[codes > 0]
+  
+  matched <- codes[bitwAnd(as.integer(x), codes) == codes]
+  matched <- matched[rev(order(matched))]
+  
+  paste0(
+    matched, " (", unname(dict[as.character(matched)]), ")",
+    collapse = " and "
+  )
+}
+
+data <- read_csv(here::here("processed_data", "error_codes.csv")) %>%
+  mutate(TIMESTAMP = with_tz(TIMESTAMP, tzone = "EST"))
+error_check <- data %>%
+  filter(TIMESTAMP >= (force_tz(Sys.time(), "EST") - hours(24))) %>%
+  select(Diag_7810, Diag_7820) %>%
+  distinct()
+
+if (sum(error_check$Diag_7810[!is.na(error_check$Diag_7810)]) > 0 |
+    sum(error_check$Diag_7820[!is.na(error_check$Diag_7820)]) > 0) {
+  
   slackr::slackr_setup(token = Sys.getenv("SLACKRTOKEN"),
                        incoming_webhook_url = Sys.getenv("SLACKRURL"))
   
   unique_7810 <- unique(error_check$Diag_7810)
-  unique_7810 <- unique_7810[!is.na(unique_7810)]
   unique_7820 <- unique(error_check$Diag_7820)
-  unique_7820 <- unique_7820[!is.na(unique_7820)]
-  both <- length(unique_7810) > 1 & length(unique_7820) > 1
   
-  text = if(both){"both of the licors are"} else {"one of the licors is"}
+  text_7810 <- paste(
+    paste0("*   ",unique_7810, ": ", vapply(unique_7810, decode_diag, character(1), dict = diag_dict)),
+    collapse = "\n"
+  )
+  
+  text_7820 <- paste(
+    paste0("*   ",unique_7820, ": ", vapply(unique_7820, decode_diag, character(1), dict = diag_dict)),
+    collapse = "\n"
+  )
+  
+  text = if(sum(error_check$Diag_7810, na.rm = T) > 0 &
+            sum(error_check$Diag_7820, na.rm = T) > 0) {
+    "both of the licors are"
+    } else {"one of the licors is"}
   
   slackr::slackr_msg(
     channel = "#genx-flux-data",
     username = "GENX QAQC bot",
     txt = paste0(
-    "Hi team- it looks like ", text, " unhappy. \n",
-    "LI-7810 error codes today: ", paste(unique_7810, collapse = ", "), "\n",
-    "LI-7820 error codes today: ", paste(unique_7820, collapse = ", "), "\n",
-    "Thanks! -genx bot"
-  ))
+      "Hi team- it looks like ", text, " unhappy. \n\n",
+      "LI-7810 error codes today:\n", text_7810, "\n",
+      "LI-7820 error codes today:\n", text_7820, "\n",
+      "\nYou can visualize when the errors happened on the dashboard:\n",
+      "https://aslewis.shinyapps.io/dashboard/",
+      "\n\nThanks! -genx bot"
+    ))
 }
+
+message(txt)
