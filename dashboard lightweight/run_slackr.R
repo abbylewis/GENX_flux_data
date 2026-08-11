@@ -112,5 +112,3 @@ if (sum(error_check$Diag_7810[!is.na(error_check$Diag_7810)]) > 0 |
       "\n\nThanks! -genx bot"
     ))
 }
-
-message(txt)
