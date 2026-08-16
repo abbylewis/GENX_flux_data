@@ -23,7 +23,7 @@ items <- s %>%
   rstac::post_request()
 assets <- rstac::items_assets(items)
 print(assets)
-browse_image_url <- items$features[[1]]$assets$browse$href
+browse_image_url <- items$features[[2]]$assets$browse$href
 browse <-imager::load.image(browse_image_url)
 plot(browse)
 sf_items <- rstac::items_as_sf(items)

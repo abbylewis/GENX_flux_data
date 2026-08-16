@@ -124,7 +124,11 @@ calculate_flux <- function(start_date = NULL,
 
   write.csv(
     slopes_out |>
-      dplyr::filter(TIMESTAMP > as.Date("2025-03-18")),
+      dplyr::filter(TIMESTAMP > as.Date("2025-03-18")) |>
+      dplyr::mutate(
+        dplyr::across(where(is.numeric), 
+                      signif,
+                      digits = 3)), #Trim file size
     here::here("processed_data", "L0_for_dashboard.csv"),
     row.names = FALSE
   )

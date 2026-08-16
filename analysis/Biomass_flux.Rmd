@@ -125,8 +125,7 @@ evi <- read_csv(here::here("processed_data", "EVI_2026.csv")) %>%
   filter(!duplicated(Date))
 
 evi %>%
-  filter(doy < yday(Sys.Date()),
-         doy > yday("2026-03-01")) %>%
+  filter(doy > yday("2026-03-01")) %>%
   mutate(year = year(Date)) %>%
   ggplot(aes(x = doy, color = as.factor(year)))+
   geom_line(aes(y = evi_predicted))+
