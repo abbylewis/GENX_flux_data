@@ -45,7 +45,8 @@ calculate_flux <- function(start_date = NULL,
       Diag_7820 = as.integer(dplyr::na_if(Diag_7820, "NAN")),
       Chamber = as.integer(Chamber)
     ) |>
-    dplyr::filter(lubridate::year(TIMESTAMP) >= 2021,
+    dplyr::filter(!is.na(TIMESTAMP),
+                  lubridate::year(TIMESTAMP) >= 2021,
                   !is.na(Chamber),
                   Chamber %in% 1:12
     )
