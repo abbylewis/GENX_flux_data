@@ -61,6 +61,9 @@ calculate_flux <- function(start_date = NULL,
     cutoff_end = 510
   )
   
+  slopes <- slopes %>%
+    filter(!is.na(TIMESTAMP))
+  
   if (!reprocess | !is.null(start_date)) {
     # Load previously calculated slopes
     old_slopes <- readr::read_csv(here::here("processed_data", "L0.csv"),
@@ -71,7 +74,8 @@ calculate_flux <- function(start_date = NULL,
         flux_start = lubridate::force_tz(flux_start, tz = "EST"),
         flux_end = lubridate::force_tz(flux_end, tz = "EST")
       ) |>
-      dplyr::rename(Chamber = MIU_VALVE)
+      dplyr::rename(Chamber = MIU_VALVE) |>
+      dplyr::filter(!is.na(TIMESTAMP))
     #Combine
     slopes_comb <- autochamber::combine_slopes(new = slopes, old = old_slopes)
   } else {
@@ -143,7 +147,6 @@ calculate_flux <- function(start_date = NULL,
 
   return(slopes_out)
 }
-
 
 #calculate_flux(reprocess = T,
 #              start_date = as.Date("2025-03-01"),
