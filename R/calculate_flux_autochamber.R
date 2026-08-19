@@ -40,11 +40,16 @@ calculate_flux <- function(start_date = NULL,
     files,
     format = "GENX"
   ) |>
-    dplyr::mutate(
-      Diag_7810 = as.integer(dplyr::na_if(Diag_7810, "NAN")),
-      Diag_7820 = as.integer(dplyr::na_if(Diag_7820, "NAN")),
-      Chamber = as.integer(Chamber)
-    ) |>
+    dplyr::mutate(across(any_of(c("Diag_7810", "Diag_7820",
+                                  "CH4d_ppm", "CO2d_ppm", "N2Od_ppm", 
+                                  "H2O_ppm")),
+                         ~dplyr::na_if(.x, "NAN")),
+                  across(any_of(c("Diag_7810", "Diag_7820",
+                                  "CH4d_ppm", "CO2d_ppm", "N2Od_ppm", 
+                                  "H2O_ppm")),
+                         ~dplyr::na_if(.x, "NaN")),
+                  across(any_of(c("Diag_7810", "Diag_7820", "Chamber")),
+                         ~as.integer(.x))) |>
     dplyr::filter(!is.na(TIMESTAMP),
                   lubridate::year(TIMESTAMP) >= 2021,
                   !is.na(Chamber),
