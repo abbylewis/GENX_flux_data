@@ -3,13 +3,16 @@ install.packages("here")
 install.packages("slackr")
 library(tidyverse)
 
+Sys.setenv(TZ = "EST")
+current_time <- Sys.time()
+
 # Check for errors
 data <- read_csv(here::here("processed_data", "L0_for_dashboard.csv"))
 error_check <- data %>%
   mutate(TIMESTAMP = force_tz(TIMESTAMP, "EST")) %>%
   filter(!is.na(flux_start)) %>%
   group_by(MIU_VALVE) %>%
-  filter(TIMESTAMP > (force_tz(Sys.time(), "EST") - hours(24))) %>%
+  filter(TIMESTAMP > (force_tz(current_time, "EST") - hours(24))) %>%
   summarize(
     last_timestamp = max(TIMESTAMP),
     r2_check_ch4 = median(CH4_R2, na.rm = T),
@@ -72,7 +75,7 @@ decode_diag <- function(x, dict) {
 data <- read_csv(here::here("processed_data", "error_codes.csv")) %>%
   mutate(TIMESTAMP = with_tz(TIMESTAMP, tzone = "EST"))
 error_check <- data %>%
-  filter(TIMESTAMP >= (force_tz(Sys.time(), "EST") - hours(24))) %>%
+  filter(TIMESTAMP >= (force_tz(current_time, "EST") - hours(24))) %>%
   select(Diag_7810, Diag_7820) %>%
   distinct()
 
