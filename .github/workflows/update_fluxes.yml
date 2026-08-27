@@ -29,11 +29,21 @@ jobs:
         run: |
           Rscript packages.R
           Rscript ./R/generate_L1_fluxes.R
+          
+      - name: Calculate and QAQC fluxes
+        run: |
+          Rscript ./R/partition_co2.R
+      
+      - name: set env and run slackr
+        env:
+          SLACKRTOKEN: ${{ secrets.SLACKRTOKEN }}
+          SLACKRURL: ${{ secrets.SLACKRURL }}
+        run:  Rscript "./dashboard lightweight/run_slackr.R"
         
       - name: Commit and push
         run: |
           git config --global user.name 'abbylewis'
-          git config --global user.email 'aslewis@vt.edu'
+          git config --global user.email 'abigail.sl.lewis@gmail.com'
           git add .
           git commit -m "Automated update" || echo "No changes to commit"
           git push
