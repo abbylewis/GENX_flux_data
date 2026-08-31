@@ -20,7 +20,7 @@ target <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
   filter(!duplicated(flux_time))
 
 #QAQC
-#### QAQC by inital gas concentration ####
+#### QAQC by initial gas concentration ####
 filt <- target %>%
   ungroup() %>%
   arrange(flux_time) %>%
