@@ -1,0 +1,79 @@
+---
+title: "CH4 analyses"
+author: "Abby Lewis"
+date: "2026-01-20"
+output: html_document
+---
+
+## Overview
+
+This file contains code to analyze and visualize the effects of soil warming on methane emissions, including changes in the proportional contribution of extreme fluxes (i.e., top 5%, 1%, and 0.2%). Code chunks should be run in order.
+
+### Table of contents: 
+
+-   Step 1: Load data and packages
+-   Step 2: Calculate summary statistics
+-   Step 3: Plot data summary (Figure 2)
+-   Step 4: Analyze the contribution of extreme fluxes (Figure 3)
+-   Step 5: Simulate low-frequency sampling to assess bias (Figure 4)
+-   Step 6: Daytime and WL sampling biases (SI)
+-   Step 7: Analyze residuals for annual and extreme fluxes
+
+
+## Step 1: Load data and packages
+
+```{r setup}
+# Load packages and functions
+library(tidyverse)
+source("hm_style.R")
+source("make_lm_label.R")
+source("calc_bias.R")
+
+# Load data
+ch4 <- read_csv(here::here("processed_data", "partitioned_co2.csv")) %>%
+  mutate(DateTime_EST = with_tz(DateTime, tz = "EST"),
+         Chamber = factor(MIU_VALVE, levels = 1:12, labels = chamber_labels),
+         date = as_date(DateTime_EST)
+  )
+
+soil_temp <- read_csv(here::here("processed_data", "for_HM_MS","Soil_temp.csv")) %>%
+  mutate(DateTime_EST = with_tz(DateTime_EST, tz = "EST"),
+         Chamber = factor(Chamber, levels = chamber_labels))
+```
+
+
+```{r}
+library(ggh4x)
+df <- ch4 %>%
+  mutate(
+    hour = hour(DateTime_EST),
+    year = year(DateTime_EST),
+    month = month(DateTime_EST)
+  ) %>%
+  group_by(hour, year, Chamber, month) %>%
+  summarize(eb = sum(Ebullition_yn, na.rm = T)/sum(!is.na(Ebullition_yn))*100,
+            pressure = mean(Barometric_Pressure_PB110B_Avg, na.rm = T),
+            .groups = "drop") %>%
+  pivot_longer(c(eb, pressure))
+
+df %>%
+  mutate(name = factor(name,
+                       levels = c("eb", "pressure"),
+                       labels = c("Ebulition (%)", "Mean pressure"))) %>%
+  filter(Chamber == "Ch. 12 (+5.7 ºC)") %>%
+  ggplot(aes(x = hour, y = value, color = as.factor(year)))+
+  geom_point()+
+  geom_smooth()+
+  ylab("Proportion of fluxes that are ebullition")+
+  facet_grid(name~month, scales = "free")+
+  theme_hm
+
+ch4 %>%
+  filter(Chamber == "Ch. 12 (+5.7 ºC)") %>%
+  mutate(doy = yday(DateTime_EST),
+         year = as.factor(year(DateTime_EST))) %>%
+  ggplot(aes(x = doy, y = Barometric_Pressure_PB110B_Avg, color = year)) +
+  geom_smooth()+
+  theme_hm
+```
+

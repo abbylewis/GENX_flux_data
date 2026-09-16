@@ -89,7 +89,7 @@ ggplot(df, aes(x = night, y = day)) +
   geom_point(data = df_smoothed, 
              aes(y = day_smooth, x = night_smooth),
              color = "black") +
-  geom_point(data = df_smoothed, 
+  geom_path(data = df_smoothed, 
              aes(y = day_smooth, x = night_smooth, color = yday),
              size = 0.5) +
   facet_wrap(~ Chamber, scales = "free") +
@@ -106,15 +106,12 @@ ggplot(df, aes(x = night, y = day)) +
   scale_color_viridis_c()
 
 ggplot(df, aes(x = night, y = day)) +
-  geom_abline(slope = 1) +
-  geom_point(aes(color = yday), shape = 21, alpha = 0.2) +
-  geom_point(data = df_smoothed, 
-             aes(y = day_smooth, x = night_smooth),
-             color = "black") +
-  geom_point(data = df_smoothed, 
-             aes(y = day_smooth, x = night_smooth, color = yday),
+  geom_abline(slope = 1, color = "grey95") +
+  #geom_point(aes(color = yday), shape = 21, alpha = 0.2) +
+  geom_path(data = df_smoothed, 
+             aes(y = day_smooth, x = night_smooth, color = yday, group = year),
              size = 0.5) +
-  facet_wrap(~ Chamber) +
+  facet_grid(year~ Chamber) +
   egg::theme_article() +
   theme(aspect.ratio = 1) +
   scale_color_viridis_c()
@@ -125,7 +122,7 @@ df %>%
   ggplot(aes(x = night, y = day)) +
   geom_abline(slope = 1) +
   geom_point(aes(color = yday), shape = 21, alpha = 0.2) +
-  geom_point(data = df_smoothed %>%
+  geom_path(data = df_smoothed %>%
   filter(Chamber %in% c("Ch. 1 (+0 ºC)",
                         "Ch. 2 (-0.1 ºC)")), 
              aes(y = day_smooth, x = night_smooth),
