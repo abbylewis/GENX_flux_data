@@ -73,7 +73,7 @@ decode_diag <- function(x, dict) {
 }
 
 data <- read_csv(here::here("processed_data", "error_codes.csv")) %>%
-  mutate(TIMESTAMP = with_tz(TIMESTAMP, tzone = "EST"))
+  mutate(TIMESTAMP = force_tz(TIMESTAMP, tzone = "EST"))
 error_check <- data %>%
   filter(TIMESTAMP >= (force_tz(current_time, "EST") - hours(24))) %>%
   select(Diag_7810, Diag_7820) %>%

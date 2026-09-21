@@ -46,7 +46,7 @@ soil_temp <- read_csv(here::here("processed_data", "for_HM_MS","Soil_temp.csv"))
 library(ggh4x)
 df <- ch4 %>%
   mutate(
-    hour = hour(DateTime_EST),
+    hour = round(hour(DateTime_EST)/2)*2,
     year = year(DateTime_EST),
     month = month(DateTime_EST)
   ) %>%
@@ -61,11 +61,30 @@ df %>%
                        levels = c("eb", "pressure"),
                        labels = c("Ebulition (%)", "Mean pressure"))) %>%
   filter(Chamber == "Ch. 12 (+5.7 ºC)") %>%
-  ggplot(aes(x = hour, y = value, color = as.factor(year)))+
+  ggplot(aes(x = hour, y = value, color = as.factor(month)))+
+  geom_point()+
+  geom_smooth(se = F)+
+  ylab("Proportion of fluxes that are ebullition")+
+  facet_grid(name~year, scales = "free")+
+  theme_hm
+
+df2 <- ch4 %>%
+  mutate(
+    hour = round(hour(DateTime_EST)/2)*2,
+    year = year(DateTime_EST)
+  ) %>%
+  filter(month(DateTime_EST) %in% 3:9) %>%
+  group_by(hour, year, Chamber) %>%
+  summarize(eb = sum(Ebullition_yn, na.rm = T)/sum(!is.na(Ebullition_yn))*100,
+            pressure = mean(Barometric_Pressure_PB110B_Avg, na.rm = T),
+            .groups = "drop")
+
+df2 %>%
+  ggplot(aes(x = hour, y = eb, color = as.factor(year)))+
   geom_point()+
   geom_smooth()+
   ylab("Proportion of fluxes that are ebullition")+
-  facet_grid(name~month, scales = "free")+
+  facet_wrap(~Chamber)+
   theme_hm
 
 ch4 %>%
