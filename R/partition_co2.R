@@ -10,14 +10,23 @@ source(here::here("R", "download_water_level.R"))
 Sys.setenv(TZ = "EST")
 # Load slopes
 target <- read_csv(here::here("processed_data", "L0_for_dashboard.csv")) %>%
-  mutate(flux_start = force_tz(flux_start, tzone = "EST"),
-         flux_end = force_tz(flux_end, tzone = "EST"),
-         TIMESTAMP = force_tz(TIMESTAMP, tzone = "EST"),
+  mutate(TIMESTAMP = force_tz(TIMESTAMP, tzone = "EST"),
          CH4_se = log(CH4_se),
          CO2_se = log(CO2_se)) %>%
   #rename(Chamber = MIU_VALVE) %>%
   rename(flux_time = TIMESTAMP) %>%
-  filter(!duplicated(flux_time))
+  group_by(MIU_VALVE, flux_time) %>%
+  select(-flux_start, -flux_end, -n) %>%
+  summarize(
+    across(
+      everything(),
+      ~ {
+        x <- unique(.x[!is.na(.x)])
+        if (length(x) == 0) NA else x
+      }
+    ),
+    .groups = "drop"
+  )
 
 #QAQC
 #### QAQC by initial gas concentration ####
