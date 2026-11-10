@@ -36,8 +36,6 @@ if (nrow(error_check) > 0) {
 }
 
 # Check for licor errors
-
-# Check for licor errors
 diag_dict <- c(
   `0`   = "Normal operation (measuring)",
   `1`   = "Start frequency adjustment; measurements may be noisy",
