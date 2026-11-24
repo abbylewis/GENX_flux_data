@@ -94,5 +94,81 @@ ch4 %>%
   ggplot(aes(x = doy, y = Barometric_Pressure_PB110B_Avg, color = year)) +
   geom_smooth()+
   theme_hm
+
+df2 %>%
+  filter(Chamber == "Ch. 12 (+5.7 ºC)") %>%
+  ggplot(aes(x = hour, y = eb, color = as.factor(year)))+
+  geom_point()+
+  geom_smooth()+
+  ylab("Proportion of fluxes that are ebullition")+
+  facet_wrap(~Chamber)+
+  theme_hm
+
+df2 <- ch4 %>%
+  filter(month(DateTime_EST) %in% 3:9,
+         !is.na(Barometric_Pressure_PB110B_Avg),
+         !is.na(Ebullition_yn)) %>%
+  mutate(
+    pressure_bin = ntile(Barometric_Pressure_PB110B_Avg, 10),
+    year = year(DateTime_EST)
+  ) %>%
+  group_by(pressure_bin, Chamber, year) %>%
+  summarize(
+    pressure = mean(Barometric_Pressure_PB110B_Avg),
+    probability = mean(Ebullition_yn) * 100,
+    n = n(),
+    .groups = "drop"
+  )
+
+df2 %>%
+  ggplot(aes(x = pressure_bin, y = probability, color = as.factor(year)))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  ylab("Proportion of fluxes that are ebullition")+
+  facet_wrap(~Chamber)+
+  theme_hm
+```
+
+```{r}
+#### MODEL ####
+
+df2 <- ch4 %>%
+  filter(month(DateTime_EST) %in% 4:10,
+         !is.na(Ebullition_yn),
+         !is.na(Barometric_Pressure_PB110B_Avg)) %>%
+  mutate(year = year(DateTime_EST)) %>%
+  group_by(Chamber, year) %>%
+  nest() %>%
+  mutate(
+    model = map(data, ~ mgcv::gam(
+      Ebullition_yn ~ s(Barometric_Pressure_PB110B_Avg, k = 12),
+      data = .x,
+      family = binomial,
+      method = "REML"
+    )),
+    pred = map2(data, model, ~ data.frame(
+      Barometric_Pressure_PB110B_Avg = seq(
+        min(.x$Barometric_Pressure_PB110B_Avg),
+        max(.x$Barometric_Pressure_PB110B_Avg),
+        length.out = 200
+      )
+    ) %>%
+      mutate(
+        probability = predict(.y, newdata = ., type = "response")
+      ))
+  ) %>%
+  select(Chamber, year, pred) %>%
+  unnest(pred)
+
+ggplot(df2, aes(x = Barometric_Pressure_PB110B_Avg,
+                y = probability * 100,
+                color = factor(year))) +
+  geom_line() +
+  facet_wrap(~Chamber) +
+  labs(
+    x = "Barometric pressure",
+    y = "Probability of ebullition (%)",
+    color = "Year"
+  ) 
 ```
 

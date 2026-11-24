@@ -18,7 +18,7 @@ error_check <- data %>%
     r2_check_ch4 = median(CH4_R2, na.rm = T),
     r2_check_co2 = median(CO2_R2, na.rm = T)
   ) %>%
-  filter(r2_check_ch4 < 0.7 & r2_check_co2 < 0.7)
+  filter(r2_check_ch4 < 0.6 & r2_check_co2 < 0.6)
 
 if (nrow(error_check) > 0) {
   slackr::slackr_setup(token = Sys.getenv("SLACKRTOKEN"),
